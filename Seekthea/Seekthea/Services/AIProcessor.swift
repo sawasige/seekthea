@@ -38,13 +38,27 @@ class AIProcessor {
         guard let article = context.model(for: articleID) as? Article,
               !article.isAIProcessed else { return }
 
+        // 本文未抽出なら Readability.js で取得を試みる
+        if article.extractedBody == nil {
+            let extractor = ReadabilityExtractor()
+            if let extracted = await extractor.extract(from: article.articleURL) {
+                article.extractedBody = extracted.textContent
+            }
+        }
+
         #if canImport(FoundationModels)
         do {
             let session = LanguageModelSession()
+            let hasBody = article.extractedBody != nil
             let prompt = """
             以下のニュース記事を分析してください。
 
             \(article.textForAI)
+
+            \(hasBody ? "記事本文に基づいて" : "タイトルと概要から")、以下を生成してください:
+            - category: 最も適切なカテゴリ1つ
+            - summary: 記事の要点を100〜200文字で日本語要約（3文以内）
+            - keywords: 重要キーワード（最大3つ）
             """
 
             let response = try await session.respond(to: prompt, generating: ArticleAnalysis.self)
@@ -73,6 +87,12 @@ class AIProcessor {
     }
 
     private func applyFallback(article: Article) {
+        // 抽出本文の冒頭を要約代わりに使用
+        if let body = article.extractedBody, !body.isEmpty {
+            article.summary = String(body.prefix(200))
+        } else if let ogDesc = article.ogDescription, !ogDesc.isEmpty {
+            article.summary = ogDesc
+        }
         if let source = article.source {
             article.aiCategory = source.category
         }

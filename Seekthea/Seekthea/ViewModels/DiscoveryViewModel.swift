@@ -21,18 +21,30 @@ class DiscoveryViewModel {
     }
 
     /// 発見されたドメインをソースとして追加
-    func acceptSource(_ domain: DiscoveredDomain) {
-        guard let feedURL = domain.detectedFeedURL else { return }
+    func acceptSource(_ domain: DiscoveredDomain) async {
         let context = modelContainer.mainContext
+        let siteURL = URL(string: "https://\(domain.domain)")!
+
+        // RSSが見つかっていなければ検出を試みる
+        var feedURL = domain.detectedFeedURL
+        if feedURL == nil {
+            feedURL = await RSSDetector.detectFeed(from: siteURL)
+            domain.detectedFeedURL = feedURL
+        }
+
+        guard let feedURL else {
+            // RSSが見つからない場合は追加できない
+            return
+        }
+
         let source = Source(
             name: domain.domain,
             feedURL: feedURL,
-            siteURL: URL(string: "https://\(domain.domain)")!,
+            siteURL: siteURL,
             sourceType: .news,
             category: ""
         )
         context.insert(source)
-        domain.isSuggested = true
         try? context.save()
     }
 

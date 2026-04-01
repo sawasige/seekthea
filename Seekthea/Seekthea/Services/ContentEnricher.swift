@@ -1,6 +1,7 @@
 import Foundation
 import LinkPresentation
 import SwiftData
+import SwiftSoup
 
 actor ContentEnricher {
     private let modelContainer: ModelContainer
@@ -9,53 +10,85 @@ actor ContentEnricher {
         self.modelContainer = modelContainer
     }
 
-    /// 記事のコンテンツをOGPメタデータで補完
+    /// 記事のコンテンツをOGPメタデータ＋本文抽出で補完
     @MainActor
     func enrich(articleID: PersistentIdentifier) async {
         let context = modelContainer.mainContext
         guard let article = context.model(for: articleID) as? Article,
               !article.isEnriched else { return }
 
-        let provider = LPMetadataProvider()
-        do {
-            let metadata = try await provider.startFetchingMetadata(for: article.articleURL)
+        let url = article.articleURL
 
-            // OGP画像
-            if let imageProvider = metadata.imageProvider {
-                if let imageData = try? await loadImageData(from: imageProvider) {
-                    // 画像URLは直接取得できないため、ogImageURLはnilのまま
-                    // siteFaviconDataに一時的に活用するか、別途URL抽出が必要
-                    _ = imageData
-                }
-            }
+        // HTML取得（1回だけ）
+        let html = await fetchHTML(from: url)
 
-            // Favicon
-            if let iconProvider = metadata.iconProvider {
-                if let iconData = try? await loadImageData(from: iconProvider) {
-                    article.siteFaviconData = iconData
-                }
-            }
+        // LPMetadataProviderでfavicon取得
+        await enrichMetadata(article: article)
 
-            // OGP description はHTMLから直接抽出
-            if let ogDesc = await fetchOGDescription(from: article.articleURL) {
-                article.ogDescription = ogDesc
-            }
-
-            // OGP画像URL もHTMLから抽出
-            if article.imageURL == nil, let ogImage = await fetchOGImage(from: article.articleURL) {
-                article.ogImageURL = ogImage
-            }
-
-            article.isEnriched = true
-            try? context.save()
-        } catch {
-            // エンリッチメント失敗は致命的ではない
-            article.isEnriched = true
-            try? context.save()
+        // HTMLからOGP + 本文を抽出
+        if let html {
+            enrichFromHTML(article: article, html: html)
         }
+
+        article.isEnriched = true
+        try? context.save()
     }
 
     // MARK: - Private
+
+    private func fetchHTML(from url: URL) async -> String? {
+        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+        return String(data: data, encoding: .utf8)
+            ?? String(data: data, encoding: .japaneseEUC)
+            ?? String(data: data, encoding: .shiftJIS)
+    }
+
+    @MainActor
+    private func enrichMetadata(article: Article) async {
+        let provider = LPMetadataProvider()
+        guard let metadata = try? await provider.startFetchingMetadata(for: article.articleURL) else { return }
+
+        if let iconProvider = metadata.iconProvider {
+            if let iconData = try? await loadImageData(from: iconProvider) {
+                article.siteFaviconData = iconData
+            }
+        }
+    }
+
+    @MainActor
+    private func enrichFromHTML(article: Article, html: String) {
+        guard let doc = try? SwiftSoup.parse(html) else { return }
+
+        // OGP description
+        if article.ogDescription == nil {
+            article.ogDescription = Self.metaContent(doc: doc, property: "og:description")
+        }
+
+        // OGP画像
+        if article.imageURL == nil && article.ogImageURL == nil {
+            if let imageStr = Self.metaContent(doc: doc, property: "og:image") {
+                article.ogImageURL = URL(string: imageStr)
+            }
+        }
+
+        // 本文抽出（@Transient — 永続化されない、AI入力用）
+        article.extractedBody = ArticleExtractor.extractBody(from: html)
+    }
+
+    private static func metaContent(doc: Document, property: String) -> String? {
+        let selectors = [
+            "meta[property=\(property)]",
+            "meta[name=\(property)]",
+        ]
+        for selector in selectors {
+            if let element = try? doc.select(selector).first(),
+               let content = try? element.attr("content"),
+               !content.isEmpty {
+                return content
+            }
+        }
+        return nil
+    }
 
     @MainActor
     private func loadImageData(from provider: NSItemProvider) async throws -> Data? {
@@ -68,35 +101,5 @@ actor ContentEnricher {
                 }
             }
         }
-    }
-
-    private func fetchOGDescription(from url: URL) async -> String? {
-        guard let (data, _) = try? await URLSession.shared.data(from: url),
-              let html = String(data: data, encoding: .utf8) else { return nil }
-        return extractMetaContent(from: html, property: "og:description")
-    }
-
-    private func fetchOGImage(from url: URL) async -> URL? {
-        guard let (data, _) = try? await URLSession.shared.data(from: url),
-              let html = String(data: data, encoding: .utf8),
-              let urlString = extractMetaContent(from: html, property: "og:image") else { return nil }
-        return URL(string: urlString)
-    }
-
-    private func extractMetaContent(from html: String, property: String) -> String? {
-        // <meta property="og:description" content="...">
-        // <meta name="og:description" content="...">
-        let patterns = [
-            "<meta\\s+property=\"\(property)\"\\s+content=\"([^\"]*)\"",
-            "<meta\\s+content=\"([^\"]*)\"\\s+property=\"\(property)\"",
-        ]
-        for pattern in patterns {
-            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
-               let match = regex.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
-               let range = Range(match.range(at: 1), in: html) {
-                return String(html[range])
-            }
-        }
-        return nil
     }
 }

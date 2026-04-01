@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ArticleCardView: View {
     let article: Article
+    var showScore: Bool = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -67,6 +68,14 @@ struct ArticleCardView: View {
                     }
 
                     Spacer()
+
+                    // 興味スコア
+                    if showScore && article.relevanceScore > 0.1 {
+                        Text("\(Int(article.relevanceScore * 100))%")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.orange)
+                    }
 
                     // 公開日時
                     if let date = article.publishedAt {

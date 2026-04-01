@@ -10,6 +10,12 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("パーソナライズ") {
+                    NavigationLink("興味トピック") {
+                        InterestSettingsView()
+                    }
+                }
+
                 Section("更新") {
                     Picker("更新間隔", selection: $refreshInterval) {
                         Text("30分").tag(30)

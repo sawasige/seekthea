@@ -17,11 +17,17 @@ class Article {
     var siteFaviconData: Data? = nil
     var isEnriched: Bool = false
 
+    // 本文抽出（AI処理の入力用、永続化しない）
+    @Transient var extractedBody: String? = nil
+
     // AI処理結果
     var summary: String? = nil
     var aiCategory: String? = nil
     var keywordsRaw: String = ""
     var isAIProcessed: Bool = false
+
+    // パーソナライズ
+    var relevanceScore: Double = 0  // 興味スコア（0〜1）
 
     // ユーザー操作
     var isRead: Bool = false
@@ -61,7 +67,8 @@ class Article {
     }
 
     var textForAI: String {
-        let desc = ogDescription ?? leadText ?? ""
-        return "タイトル: \(title)\n内容: \(desc)"
+        let body = extractedBody ?? ogDescription ?? leadText ?? ""
+        let truncated = String(body.prefix(2000))
+        return "タイトル: \(title)\n内容: \(truncated)"
     }
 }

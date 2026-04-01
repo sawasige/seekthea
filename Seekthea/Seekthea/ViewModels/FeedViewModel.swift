@@ -29,6 +29,7 @@ class FeedViewModel {
     private var feedFetcher: FeedFetcher
     private var enrichmentQueue: EnrichmentQueue
     private var aiProcessor: AIProcessor
+    private var interestEngine: InterestEngine
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
@@ -36,6 +37,7 @@ class FeedViewModel {
         let enricher = ContentEnricher(modelContainer: modelContainer)
         self.enrichmentQueue = EnrichmentQueue(enricher: enricher)
         self.aiProcessor = AIProcessor(modelContainer: modelContainer)
+        self.interestEngine = InterestEngine(modelContainer: modelContainer)
     }
 
     /// 全フィードを更新
@@ -55,6 +57,11 @@ class FeedViewModel {
         let unprocessed = articles.filter { !$0.isAIProcessed }
         let ids = unprocessed.map(\.persistentModelID)
         await aiProcessor.processBatch(articleIDs: ids)
+    }
+
+    /// 興味スコアを更新
+    func updateRelevanceScores() {
+        interestEngine.scoreArticles()
     }
 
     /// フィルタ用のPredicate

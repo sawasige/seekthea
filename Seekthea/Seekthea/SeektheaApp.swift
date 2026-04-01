@@ -8,6 +8,7 @@ struct SeektheaApp: App {
             Source.self,
             Article.self,
             DiscoveredDomain.self,
+            UserInterest.self,
         ])
         let modelConfiguration = ModelConfiguration(
             schema: schema,

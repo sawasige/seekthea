@@ -130,7 +130,7 @@ actor FeedFetcher {
 // MARK: - String Extension
 
 extension String {
-    func strippingHTML() -> String {
+    nonisolated func strippingHTML() -> String {
         replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
             .replacingOccurrences(of: "&amp;", with: "&")
             .replacingOccurrences(of: "&lt;", with: "<")
