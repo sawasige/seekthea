@@ -1,80 +1,117 @@
-//
-//  ContentView.swift
-//  Seekthea
-//
-//  Created by SAWADA Shigeru on 2026/04/01.
-//
-
 import SwiftUI
 import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @State private var pendingSourceAlert = false
+    @State private var pendingSources: [PendingSource] = []
+    @State private var newPresets: [RemotePresetSource] = []
+    @State private var showPresetAlert = false
+
+    private var modelContainer: ModelContainer {
+        modelContext.container
+    }
 
     var body: some View {
-        NavigationViewWrapper {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
+        TabView {
+            FeedView(modelContainer: modelContainer)
+                .tabItem {
+                    Label("フィード", systemImage: "newspaper")
                 }
-                .onDelete(perform: deleteItems)
+
+            DiscoveryView(modelContainer: modelContainer)
+                .tabItem {
+                    Label("発見", systemImage: "sparkle.magnifyingglass")
+                }
+
+            SourcesListView(modelContainer: modelContainer)
+                .tabItem {
+                    Label("ソース", systemImage: "list.bullet")
+                }
+
+            SettingsView()
+                .tabItem {
+                    Label("設定", systemImage: "gear")
+                }
+        }
+        .task {
+            // プリセット読み込み
+            do {
+                try PresetLoader.loadIfNeeded(context: modelContext)
+            } catch {
+                print("Failed to load presets: \(error)")
             }
-#if os(macOS)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-#endif
-            .toolbar {
-#if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-#endif
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
+
+            // Share Extensionからのpending sources確認
+            checkPendingSources()
+
+            // Remote Presetの更新チェック
+            await checkRemotePresets()
+        }
+        .alert("新しいソースが共有されました", isPresented: $pendingSourceAlert) {
+            Button("追加") {
+                addPendingSources()
             }
+            Button("キャンセル", role: .cancel) {
+                PendingSourcesStore.clear()
+            }
+        } message: {
+            let names = pendingSources.compactMap(\.title).joined(separator: ", ")
+            Text("\(names) をソースに追加しますか？")
+        }
+        .alert("新しいプリセットソース", isPresented: $showPresetAlert) {
+            Button("すべて追加") {
+                addRemotePresets()
+            }
+            Button("後で", role: .cancel) {}
+        } message: {
+            let names = newPresets.map(\.name).joined(separator: ", ")
+            Text("\(names) が利用可能です")
         }
     }
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
+    private func checkPendingSources() {
+        let sources = PendingSourcesStore.load()
+        if !sources.isEmpty {
+            pendingSources = sources
+            pendingSourceAlert = true
         }
     }
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+    private func addPendingSources() {
+        for pending in pendingSources {
+            if let feedURL = pending.detectedFeedURL {
+                let source = Source(
+                    name: pending.title ?? pending.url.host() ?? "Unknown",
+                    feedURL: feedURL,
+                    siteURL: pending.url,
+                    sourceType: .news
+                )
+                modelContext.insert(source)
             }
         }
+        try? modelContext.save()
+        PendingSourcesStore.clear()
     }
-}
 
-fileprivate struct NavigationViewWrapper<Content: View>: View {
-    let content: () -> Content
-
-    var body: some View {
-#if os(macOS)
-        NavigationSplitView {
-            content()
-        } detail: {
-            Text("Select an item")
+    private func checkRemotePresets() async {
+        let service = RemotePresetService(modelContainer: modelContainer)
+        let presets = await service.checkForUpdates()
+        if !presets.isEmpty {
+            newPresets = presets
+            showPresetAlert = true
         }
-#else
-        content()
-#endif
+    }
+
+    private func addRemotePresets() {
+        let service = RemotePresetService(modelContainer: modelContainer)
+        for preset in newPresets {
+            service.addSource(preset)
+        }
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .modelContainer(for: [Source.self, Article.self, DiscoveredDomain.self], inMemory: true)
 }

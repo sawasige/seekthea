@@ -1,0 +1,78 @@
+{
+  "news": [
+    {
+      "name": "NHK News Web",
+      "feedURL": "https://www.nhk.or.jp/rss/news/cat0.xml",
+      "siteURL": "https://www3.nhk.or.jp/news/",
+      "sourceType": "ニュース",
+      "category": "総合"
+    },
+    {
+      "name": "GIGAZINE",
+      "feedURL": "https://gigazine.net/news/rss_2.0/",
+      "siteURL": "https://gigazine.net/",
+      "sourceType": "ニュース",
+      "category": "テクノロジー"
+    },
+    {
+      "name": "ITmedia NEWS",
+      "feedURL": "https://rss.itmedia.co.jp/rss/2.0/news_bursts.xml",
+      "siteURL": "https://www.itmedia.co.jp/news/",
+      "sourceType": "ニュース",
+      "category": "テクノロジー"
+    }
+  ],
+  "social": [
+    {
+      "name": "はてなブックマーク - 人気",
+      "feedURL": "https://b.hatena.ne.jp/hotentry.rss",
+      "siteURL": "https://b.hatena.ne.jp/",
+      "sourceType": "ソーシャル",
+      "category": "トレンド"
+    },
+    {
+      "name": "Reddit - r/technology",
+      "feedURL": "https://www.reddit.com/r/technology/.rss",
+      "siteURL": "https://www.reddit.com/r/technology/",
+      "sourceType": "ソーシャル",
+      "category": "テクノロジー"
+    },
+    {
+      "name": "Reddit - r/japan",
+      "feedURL": "https://www.reddit.com/r/japan/.rss",
+      "siteURL": "https://www.reddit.com/r/japan/",
+      "sourceType": "ソーシャル",
+      "category": "総合"
+    }
+  ],
+  "tech": [
+    {
+      "name": "Hacker News - Best",
+      "feedURL": "https://hnrss.org/best",
+      "siteURL": "https://news.ycombinator.com/",
+      "sourceType": "テック",
+      "category": "テクノロジー"
+    },
+    {
+      "name": "Zenn - トレンド",
+      "feedURL": "https://zenn.dev/feed",
+      "siteURL": "https://zenn.dev/",
+      "sourceType": "テック",
+      "category": "開発"
+    },
+    {
+      "name": "Qiita - トレンド",
+      "feedURL": "https://qiita.com/popular-items/feed",
+      "siteURL": "https://qiita.com/",
+      "sourceType": "テック",
+      "category": "開発"
+    },
+    {
+      "name": "Product Hunt",
+      "feedURL": "https://www.producthunt.com/feed",
+      "siteURL": "https://www.producthunt.com/",
+      "sourceType": "テック",
+      "category": "プロダクト"
+    }
+  ]
+}

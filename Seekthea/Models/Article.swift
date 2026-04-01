@@ -1,0 +1,67 @@
+import Foundation
+import SwiftData
+
+@Model
+class Article {
+    var id: UUID = UUID()
+    var title: String = ""
+    var articleURL: URL = URL(string: "https://example.com")!
+    var leadText: String? = nil
+    var imageURL: URL? = nil
+    var publishedAt: Date? = nil
+    var fetchedAt: Date = Date()
+
+    // Content Enrichment（LPMetadataProvider）
+    var ogDescription: String? = nil
+    var ogImageURL: URL? = nil
+    var siteFaviconData: Data? = nil
+    var isEnriched: Bool = false
+
+    // AI処理結果
+    var summary: String? = nil
+    var aiCategory: String? = nil
+    var keywordsRaw: String = ""
+    var isAIProcessed: Bool = false
+
+    // ユーザー操作
+    var isRead: Bool = false
+    var isFavorite: Bool = false
+
+    var source: Source? = nil
+
+    init(
+        title: String,
+        articleURL: URL,
+        leadText: String? = nil,
+        imageURL: URL? = nil,
+        publishedAt: Date? = nil,
+        source: Source? = nil
+    ) {
+        self.id = UUID()
+        self.title = title
+        self.articleURL = articleURL
+        self.leadText = leadText
+        self.imageURL = imageURL
+        self.publishedAt = publishedAt
+        self.fetchedAt = Date()
+        self.source = source
+    }
+
+    var keywords: [String] {
+        get { keywordsRaw.isEmpty ? [] : keywordsRaw.components(separatedBy: ",") }
+        set { keywordsRaw = newValue.joined(separator: ",") }
+    }
+
+    var displayImageURL: URL? {
+        imageURL ?? ogImageURL
+    }
+
+    var displayDescription: String? {
+        summary ?? ogDescription ?? leadText
+    }
+
+    var textForAI: String {
+        let desc = ogDescription ?? leadText ?? ""
+        return "タイトル: \(title)\n内容: \(desc)"
+    }
+}

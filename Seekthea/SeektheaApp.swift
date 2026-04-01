@@ -1,10 +1,3 @@
-//
-//  SeektheaApp.swift
-//  Seekthea
-//
-//  Created by SAWADA Shigeru on 2026/04/01.
-//
-
 import SwiftUI
 import SwiftData
 
@@ -12,9 +5,15 @@ import SwiftData
 struct SeektheaApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            Source.self,
+            Article.self,
+            DiscoveredDomain.self,
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            cloudKitDatabase: .automatic
+        )
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])

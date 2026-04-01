@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		2A5CE6242F7CCA590099E5ED /* FeedKit in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000002 /* FeedKit */; };
+		BB000000000000000000000D /* SeektheaShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000002 /* SeektheaShareExtension.appex */; platformFilters = (ios, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		2A5CE5C52F7CBDE40099E5ED /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,12 +26,20 @@
 			remoteGlobalIDString = 2A5CE5B22F7CBDE20099E5ED;
 			remoteInfo = Seekthea;
 		};
+		BB000000000000000000000A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2A5CE5AB2F7CBDE20099E5ED /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BB0000000000000000000001;
+			remoteInfo = SeektheaShareExtension;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		2A5CE5B32F7CBDE20099E5ED /* Seekthea.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Seekthea.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2A5CE5C42F7CBDE40099E5ED /* SeektheaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SeektheaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2A5CE5CE2F7CBDE40099E5ED /* SeektheaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SeektheaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BB0000000000000000000002 /* SeektheaShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SeektheaShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -36,6 +49,13 @@
 				Info.plist,
 			);
 			target = 2A5CE5B22F7CBDE20099E5ED /* Seekthea */;
+		};
+		BB000000000000000000000E /* Exceptions for "SeektheaShareExtension" folder in "SeektheaShareExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = BB0000000000000000000001 /* SeektheaShareExtension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -58,6 +78,14 @@
 			path = SeektheaUITests;
 			sourceTree = "<group>";
 		};
+		BB0000000000000000000009 /* SeektheaShareExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				BB000000000000000000000E /* Exceptions for "SeektheaShareExtension" folder in "SeektheaShareExtension" target */,
+			);
+			path = SeektheaShareExtension;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -65,6 +93,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2A5CE6242F7CCA590099E5ED /* FeedKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -82,6 +111,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BB0000000000000000000007 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -89,6 +125,7 @@
 			isa = PBXGroup;
 			children = (
 				2A5CE5B52F7CBDE20099E5ED /* Seekthea */,
+				BB0000000000000000000009 /* SeektheaShareExtension */,
 				2A5CE5C72F7CBDE40099E5ED /* SeektheaTests */,
 				2A5CE5D12F7CBDE40099E5ED /* SeektheaUITests */,
 				2A5CE5B42F7CBDE20099E5ED /* Products */,
@@ -99,6 +136,7 @@
 			isa = PBXGroup;
 			children = (
 				2A5CE5B32F7CBDE20099E5ED /* Seekthea.app */,
+				BB0000000000000000000002 /* SeektheaShareExtension.appex */,
 				2A5CE5C42F7CBDE40099E5ED /* SeektheaTests.xctest */,
 				2A5CE5CE2F7CBDE40099E5ED /* SeektheaUITests.xctest */,
 			);
@@ -115,16 +153,19 @@
 				2A5CE5AF2F7CBDE20099E5ED /* Sources */,
 				2A5CE5B02F7CBDE20099E5ED /* Frameworks */,
 				2A5CE5B12F7CBDE20099E5ED /* Resources */,
+				BB000000000000000000000C /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				BB000000000000000000000B /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				2A5CE5B52F7CBDE20099E5ED /* Seekthea */,
 			);
 			name = Seekthea;
 			packageProductDependencies = (
+				AA0000000000000000000002 /* FeedKit */,
 			);
 			productName = Seekthea;
 			productReference = 2A5CE5B32F7CBDE20099E5ED /* Seekthea.app */;
@@ -176,6 +217,28 @@
 			productReference = 2A5CE5CE2F7CBDE40099E5ED /* SeektheaUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		BB0000000000000000000001 /* SeektheaShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BB0000000000000000000003 /* Build configuration list for PBXNativeTarget "SeektheaShareExtension" */;
+			buildPhases = (
+				BB0000000000000000000006 /* Sources */,
+				BB0000000000000000000007 /* Frameworks */,
+				BB0000000000000000000008 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BB0000000000000000000009 /* SeektheaShareExtension */,
+			);
+			name = SeektheaShareExtension;
+			packageProductDependencies = (
+			);
+			productName = SeektheaShareExtension;
+			productReference = BB0000000000000000000002 /* SeektheaShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -208,12 +271,16 @@
 			);
 			mainGroup = 2A5CE5AA2F7CBDE20099E5ED;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				AA0000000000000000000001 /* XCRemoteSwiftPackageReference "FeedKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 2A5CE5B42F7CBDE20099E5ED /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				2A5CE5B22F7CBDE20099E5ED /* Seekthea */,
+				BB0000000000000000000001 /* SeektheaShareExtension */,
 				2A5CE5C32F7CBDE40099E5ED /* SeektheaTests */,
 				2A5CE5CD2F7CBDE40099E5ED /* SeektheaUITests */,
 			);
@@ -244,6 +311,20 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		BB000000000000000000000C /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				BB000000000000000000000D /* SeektheaShareExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		2A5CE5AF2F7CBDE20099E5ED /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -266,6 +347,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BB0000000000000000000006 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BB0000000000000000000008 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -278,6 +373,11 @@
 			isa = PBXTargetDependency;
 			target = 2A5CE5B22F7CBDE20099E5ED /* Seekthea */;
 			targetProxy = 2A5CE5CF2F7CBDE40099E5ED /* PBXContainerItemProxy */;
+		};
+		BB000000000000000000000B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BB0000000000000000000001 /* SeektheaShareExtension */;
+			targetProxy = BB000000000000000000000A /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -590,6 +690,68 @@
 			};
 			name = Release;
 		};
+		BB0000000000000000000004 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SeektheaShareExtension/SeektheaShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U9296HT99T;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SeektheaShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SeektheaShareExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.himatsubu.Seekthea.ShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		BB0000000000000000000005 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SeektheaShareExtension/SeektheaShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U9296HT99T;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SeektheaShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SeektheaShareExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.himatsubu.Seekthea.ShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -629,7 +791,35 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		BB0000000000000000000003 /* Build configuration list for PBXNativeTarget "SeektheaShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BB0000000000000000000004 /* Debug */,
+				BB0000000000000000000005 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA0000000000000000000001 /* XCRemoteSwiftPackageReference "FeedKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/nmdias/FeedKit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.1.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA0000000000000000000002 /* FeedKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0000000000000000000001 /* XCRemoteSwiftPackageReference "FeedKit" */;
+			productName = FeedKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 2A5CE5AB2F7CBDE20099E5ED /* Project object */;
 }
