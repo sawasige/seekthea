@@ -122,7 +122,7 @@ actor FeedFetcher {
     }
 
     private func existingArticleURLs(for source: Source, context: ModelContext) -> Set<URL> {
-        let articles = source.articles
+        let articles = source.articles ?? []
         return Set(articles.map(\.articleURL))
     }
 }

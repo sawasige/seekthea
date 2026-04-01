@@ -4,9 +4,25 @@ struct ArticleCardView: View {
     let article: Article
     var showScore: Bool = false
 
+    #if os(macOS)
+    private let titleFont: Font = .title3.weight(.semibold)
+    private let descFont: Font = .body
+    private let metaFont: Font = .subheadline
+    private let badgeFont: Font = .subheadline
+    private let imageHeight: CGFloat = 180
+    private let faviconSize: CGFloat = 16
+    #else
+    private let titleFont: Font = .body.weight(.semibold)
+    private let descFont: Font = .subheadline
+    private let metaFont: Font = .caption
+    private let badgeFont: Font = .caption
+    private let imageHeight: CGFloat = 160
+    private let faviconSize: CGFloat = 12
+    #endif
+
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            // サムネイル
+        VStack(alignment: .leading, spacing: 0) {
+            // サムネイル画像
             if let imageURL = article.displayImageURL {
                 AsyncImage(url: imageURL) { phase in
                     switch phase {
@@ -17,82 +33,80 @@ struct ArticleCardView: View {
                         placeholderImage
                     }
                 }
-                .frame(width: 80, height: 80)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .frame(height: imageHeight)
+                .clipped()
+            } else {
+                placeholderImage
+                    .frame(height: imageHeight * 0.6)
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 8) {
                 // タイトル
                 Text(article.title)
-                    .font(.headline)
-                    .lineLimit(2)
+                    .font(titleFont)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 // 要約 or 説明文
                 if let description = article.displayDescription {
                     Text(description)
-                        .font(.subheadline)
+                        .font(descFont)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
-                } else if !article.isAIProcessed && !article.isEnriched {
-                    // shimmer placeholder
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(.quaternary)
-                        .frame(height: 32)
                 }
 
+                // メタ情報
                 HStack(spacing: 6) {
-                    // ソースfavicon
                     if let faviconData = article.siteFaviconData,
-                       let uiImage = platformImage(from: faviconData) {
-                        Image(platformImage: uiImage)
+                       let img = platformImage(from: faviconData) {
+                        Image(platformImage: img)
                             .resizable()
-                            .frame(width: 14, height: 14)
+                            .frame(width: faviconSize, height: faviconSize)
                     }
 
-                    // ソース名
                     if let source = article.source {
                         Text(source.name)
-                            .font(.caption)
+                            .font(metaFont)
                             .foregroundStyle(.secondary)
-                    }
-
-                    // カテゴリバッジ
-                    if let category = article.aiCategory {
-                        Text(category)
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.blue.opacity(0.1))
-                            .foregroundStyle(.blue)
-                            .clipShape(Capsule())
                     }
 
                     Spacer()
 
-                    // 興味スコア
                     if showScore && article.relevanceScore > 0.1 {
                         Text("\(Int(article.relevanceScore * 100))%")
-                            .font(.caption2)
+                            .font(metaFont)
                             .fontWeight(.medium)
                             .foregroundStyle(.orange)
                     }
 
-                    // 公開日時
                     if let date = article.publishedAt {
                         Text(date, style: .relative)
-                            .font(.caption2)
+                            .font(metaFont)
                             .foregroundStyle(.tertiary)
                     }
                 }
+
+                // カテゴリバッジ
+                if let category = article.aiCategory {
+                    Text(category)
+                        .font(badgeFont)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(.blue.opacity(0.1))
+                        .foregroundStyle(.blue)
+                        .clipShape(Capsule())
+                }
             }
+            .padding(12)
         }
-        .padding(.vertical, 4)
-        .opacity(article.isRead ? 0.6 : 1.0)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .opacity(article.isRead ? 0.7 : 1.0)
     }
 
     private var placeholderImage: some View {
-        RoundedRectangle(cornerRadius: 8)
-            .fill(.quaternary)
+        Rectangle()
+            .fill(Color.gray.opacity(0.15))
     }
 }
 

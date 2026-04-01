@@ -4,7 +4,7 @@ import SwiftData
 struct DiscoveryView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(
-        filter: #Predicate<DiscoveredDomain> { $0.isSuggested && !$0.isRejected },
+        filter: #Predicate<DiscoveredDomain> { $0.isSuggested && !$0.isRejected && $0.detectedFeedURL != nil },
         sort: \DiscoveredDomain.mentionCount,
         order: .reverse
     ) private var suggestions: [DiscoveredDomain]
@@ -21,7 +21,7 @@ struct DiscoveryView: View {
                         ForEach(suggestions, id: \.domain) { domain in
                             SourceSuggestionCard(
                                 domain: domain,
-                                onAccept: { Task { await viewModel?.acceptSource(domain) } },
+                                onAccept: { viewModel?.acceptSource(domain) },
                                 onReject: { viewModel?.rejectSource(domain) }
                             )
                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
@@ -55,6 +55,7 @@ struct DiscoveryView: View {
             .task {
                 if viewModel == nil {
                     viewModel = DiscoveryViewModel(modelContainer: modelContainer)
+                    await viewModel?.checkForNewSources()
                 }
             }
         }

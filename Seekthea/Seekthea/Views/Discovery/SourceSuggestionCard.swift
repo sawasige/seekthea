@@ -32,16 +32,19 @@ struct SourceSuggestionCard: View {
             HStack(spacing: 12) {
                 Button(action: onAccept) {
                     Label("追加", systemImage: "plus.circle.fill")
+                        .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(domain.detectedFeedURL == nil)
+                .tint(.blue)
 
                 Button(action: onReject) {
                     Label("スキップ", systemImage: "xmark.circle")
+                        .foregroundStyle(.primary)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .tint(.gray)
             }
         }
         .padding()

@@ -72,7 +72,7 @@ class InterestEngine {
 
         // お気に入りソースからのボーナス
         if let source = article.source {
-            let favCount = source.articles.filter(\.isFavorite).count
+            let favCount = (source.articles ?? []).filter(\.isFavorite).count
             if favCount > 0 {
                 score += Double(min(favCount, 5)) * 0.5
             }

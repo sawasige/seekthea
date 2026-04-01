@@ -18,6 +18,8 @@ struct FeedView: View {
 
     private var displayArticles: [Article] {
         var articles = allArticles.filter { article in
+            // OFFのソースの記事を除外
+            if article.source?.isActive == false { return false }
             if let type = selectedSourceType, article.source?.sourceTypeEnum != type {
                 return false
             }
@@ -31,7 +33,6 @@ struct FeedView: View {
         }
 
         if feedMode == .forYou {
-            // 興味スコア順（スコア同じなら新しい順）
             articles.sort { a, b in
                 if abs(a.relevanceScore - b.relevanceScore) > 0.01 {
                     return a.relevanceScore > b.relevanceScore
@@ -39,9 +40,24 @@ struct FeedView: View {
                 return (a.publishedAt ?? .distantPast) > (b.publishedAt ?? .distantPast)
             }
         }
-        // .latest はQuery既定の publishedAt desc
 
         return articles
+    }
+
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var columns: [GridItem] {
+        #if os(macOS)
+        [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)]
+        #else
+        if horizontalSizeClass == .regular {
+            // iPad
+            [GridItem(.adaptive(minimum: 260, maximum: 360), spacing: 12)]
+        } else {
+            // iPhone: 1カラム
+            [GridItem(.flexible())]
+        }
+        #endif
     }
 
     var body: some View {
@@ -61,17 +77,21 @@ struct FeedView: View {
                 CategoryFilterView(selectedCategory: $selectedCategory)
                     .padding(.vertical, 8)
 
-                // 記事リスト
-                List {
-                    ForEach(displayArticles, id: \.id) { article in
-                        NavigationLink {
-                            ArticleDetailView(article: article)
-                        } label: {
-                            ArticleCardView(article: article, showScore: feedMode == .forYou)
+                // 記事タイルグリッド
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 16) {
+                        ForEach(displayArticles, id: \.id) { article in
+                            NavigationLink {
+                                ArticleDetailView(article: article)
+                            } label: {
+                                ArticleCardView(article: article, showScore: feedMode == .forYou)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
+                    .padding(.horizontal)
+                    .padding(.bottom, 20)
                 }
-                .listStyle(.plain)
                 .refreshable {
                     await refreshAll()
                 }
@@ -105,6 +125,12 @@ struct FeedView: View {
                     viewModel = FeedViewModel(modelContainer: modelContainer)
                 }
                 await refreshAll()
+            }
+            .onAppear {
+                // タブ切り替え時に新しいソースの記事を取得
+                if viewModel != nil {
+                    Task { await refreshAll() }
+                }
             }
         }
     }

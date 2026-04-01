@@ -13,7 +13,6 @@ class DiscoveryViewModel {
         self.discovery = GoogleNewsDiscovery(modelContainer: modelContainer)
     }
 
-    /// 新しいソースをチェック
     func checkForNewSources() async {
         isChecking = true
         defer { isChecking = false }
@@ -21,21 +20,10 @@ class DiscoveryViewModel {
     }
 
     /// 発見されたドメインをソースとして追加
-    func acceptSource(_ domain: DiscoveredDomain) async {
+    func acceptSource(_ domain: DiscoveredDomain) {
+        guard let feedURL = domain.detectedFeedURL else { return }
         let context = modelContainer.mainContext
         let siteURL = URL(string: "https://\(domain.domain)")!
-
-        // RSSが見つかっていなければ検出を試みる
-        var feedURL = domain.detectedFeedURL
-        if feedURL == nil {
-            feedURL = await RSSDetector.detectFeed(from: siteURL)
-            domain.detectedFeedURL = feedURL
-        }
-
-        guard let feedURL else {
-            // RSSが見つからない場合は追加できない
-            return
-        }
 
         let source = Source(
             name: domain.domain,
@@ -45,10 +33,10 @@ class DiscoveryViewModel {
             category: ""
         )
         context.insert(source)
+        domain.isRejected = true
         try? context.save()
     }
 
-    /// ドメインを拒否
     func rejectSource(_ domain: DiscoveredDomain) {
         domain.isRejected = true
         try? modelContainer.mainContext.save()

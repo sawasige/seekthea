@@ -38,24 +38,16 @@ class AIProcessor {
         guard let article = context.model(for: articleID) as? Article,
               !article.isAIProcessed else { return }
 
-        // 本文未抽出なら Readability.js で取得を試みる
-        if article.extractedBody == nil {
-            let extractor = ReadabilityExtractor()
-            if let extracted = await extractor.extract(from: article.articleURL) {
-                article.extractedBody = extracted.textContent
-            }
-        }
-
         #if canImport(FoundationModels)
         do {
             let session = LanguageModelSession()
-            let hasBody = article.extractedBody != nil
+            // RSSのtitle + descriptionで要約（本文抽出は記事詳細時のみ）
             let prompt = """
             以下のニュース記事を分析してください。
 
             \(article.textForAI)
 
-            \(hasBody ? "記事本文に基づいて" : "タイトルと概要から")、以下を生成してください:
+            タイトルと概要から、以下を生成してください:
             - category: 最も適切なカテゴリ1つ
             - summary: 記事の要点を100〜200文字で日本語要約（3文以内）
             - keywords: 重要キーワード（最大3つ）
@@ -69,6 +61,7 @@ class AIProcessor {
             article.isAIProcessed = true
             try? context.save()
         } catch {
+            print("AI processing failed for '\(article.title)': \(error)")
             applyFallback(article: article)
             try? context.save()
         }

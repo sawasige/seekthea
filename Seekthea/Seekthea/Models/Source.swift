@@ -23,7 +23,7 @@ class Source {
     var articleCount: Int = 0
 
     @Relationship(deleteRule: .cascade, inverse: \Article.source)
-    var articles: [Article] = []
+    var articles: [Article]? = nil
 
     init(
         name: String,
