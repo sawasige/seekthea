@@ -64,6 +64,12 @@ class Article {
         set { keywordsRaw = newValue.joined(separator: ",") }
     }
 
+    /// カテゴリ配列（カンマ区切りで複数対応）
+    var categories: [String] {
+        guard let cat = aiCategory, !cat.isEmpty else { return [] }
+        return cat.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
+
     var displayImageURL: URL? {
         imageURL ?? ogImageURL
     }

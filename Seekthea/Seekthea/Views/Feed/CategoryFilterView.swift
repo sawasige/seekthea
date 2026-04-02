@@ -6,7 +6,7 @@ struct CategoryFilterView: View {
 
     private var sortedCategories: [(name: String, count: Int)] {
         categoryCounts
-            .sorted { $0.value > $1.value }
+            .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
             .map { (name: $0.key, count: $0.value) }
     }
 

@@ -19,7 +19,7 @@ struct FeedView: View {
         let activeFeedURLs = viewModel?.activeSourceFeedURLs() ?? []
         var counts: [String: Int] = [:]
         for article in allArticles where activeFeedURLs.contains(article.sourceFeedURL) {
-            if let cat = article.aiCategory, !cat.isEmpty {
+            for cat in article.categories {
                 counts[cat, default: 0] += 1
             }
         }
@@ -30,10 +30,9 @@ struct FeedView: View {
         let activeFeedURLs = viewModel?.activeSourceFeedURLs() ?? []
 
         var articles = allArticles.filter { article in
-            // OFFのソースの記事を除外
             guard activeFeedURLs.contains(article.sourceFeedURL) else { return false }
             if let cat = selectedCategory {
-                if article.aiCategory != cat { return false }
+                if !article.categories.contains(cat) { return false }
             }
             return true
         }

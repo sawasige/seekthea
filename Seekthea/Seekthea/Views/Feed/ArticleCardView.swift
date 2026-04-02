@@ -24,20 +24,24 @@ struct ArticleCardView: View {
         VStack(alignment: .leading, spacing: 0) {
             // サムネイル画像（URLがある場合のみ）
             if let imageURL = article.displayImageURL {
-                Color.gray.opacity(0.1)
-                    .frame(height: imageHeight)
-                    .overlay {
-                        AsyncImage(url: imageURL) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image.resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            default:
-                                EmptyView()
-                            }
-                        }
+                AsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(height: imageHeight)
+                            .clipped()
+                    case .empty:
+                        // 読み込み中
+                        Color.gray.opacity(0.1)
+                            .frame(height: imageHeight)
+                    case .failure:
+                        // 失敗 → 非表示
+                        EmptyView()
+                    @unknown default:
+                        EmptyView()
                     }
-                    .clipped()
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -92,14 +96,18 @@ struct ArticleCardView: View {
                 }
 
                 // カテゴリバッジ
-                if let category = article.aiCategory {
-                    Text(category)
-                        .font(badgeFont)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(.blue.opacity(0.1))
-                        .foregroundStyle(.blue)
-                        .clipShape(Capsule())
+                if !article.categories.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(article.categories, id: \.self) { cat in
+                            Text(cat)
+                                .font(badgeFont)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(.blue.opacity(0.1))
+                                .foregroundStyle(.blue)
+                                .clipShape(Capsule())
+                        }
+                    }
                 }
             }
             .padding(12)
