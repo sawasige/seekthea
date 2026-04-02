@@ -6,11 +6,11 @@ import FoundationModels
 /// AI処理結果（Guided Generation用）
 @Generable
 struct ArticleAnalysis {
-    @Guide(description: "カテゴリ名: テクノロジー, ビジネス, 政治, 社会, スポーツ, エンタメ, サイエンス, ライフ, 開発, プロダクト, トレンド")
+    @Guide(description: "カテゴリ名")
     var category: String
-    @Guide(description: "200〜400文字の日本語要約。重要なキーワードやフレーズは**太字**で囲む")
+    @Guide(description: "日本語要約")
     var summary: String
-    @Guide(description: "関連キーワード（最大3つ）")
+    @Guide(description: "キーワード")
     var keywords: [String]
 }
 #endif
@@ -48,7 +48,7 @@ class AIProcessor {
 
             タイトルと概要から、以下を生成してください:
             - category: 最も適切なカテゴリ1つ
-            - summary: 記事の要点を200〜400文字で日本語要約。重要なキーワードやフレーズは**太字マーカー**で囲んでください（例: **AI技術**が急速に発展している）
+            - summary: 記事の長さに比例した日本語要約（短い記事は100文字程度、中程度なら300文字程度、長い記事は600〜800文字）。単語ではなく、記事の核心となる主張・結論・最も重要な事実を文章単位で**太字マーカー**で囲んでください（例: **トランプ政権の関税政策が日本の輸出産業に深刻な打撃を与える見通し**であることが明らかになった）
             - keywords: 重要キーワード（最大5つ）
             """
 

@@ -54,6 +54,7 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
             // タイムアウト
             timeoutTask = Task {
                 try? await Task.sleep(for: .seconds(8))
+                print("[Reader] Timeout for \(url)")
                 self.finish(nil)
             }
         }
@@ -71,10 +72,12 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
     }
 
     nonisolated func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        print("[Reader] Navigation failed: \(error.localizedDescription)")
         Task { @MainActor in self.finish(nil) }
     }
 
     nonisolated func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        print("[Reader] Provisional navigation failed: \(error.localizedDescription)")
         Task { @MainActor in self.finish(nil) }
     }
 
@@ -82,7 +85,10 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
 
     private func loadReadabilityJS() -> String? {
         guard let url = Bundle.main.url(forResource: "Readability", withExtension: "js"),
-              let js = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+              let js = try? String(contentsOf: url, encoding: .utf8) else {
+            print("[Reader] Readability.js not found in bundle")
+            return nil
+        }
         return js
     }
 
@@ -131,6 +137,7 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
     }
 
     private func finish(_ article: Article?) {
+        guard continuation != nil else { return }  // 2回目以降は無視
         timeoutTask?.cancel()
         timeoutTask = nil
         if let config = webView?.configuration {
@@ -152,12 +159,15 @@ extension ReadabilityExtractor: WKScriptMessageHandler {
         let messageBody = message.body
         Task { @MainActor in
             guard let dict = messageBody as? [String: Any] else {
+                print("[Reader] Message body is not a dictionary")
                 self.finish(nil)
                 return
             }
 
             let success = dict["success"] as? Bool ?? false
             guard success else {
+                let error = dict["error"] as? String ?? "unknown"
+                print("[Reader] Readability.js failed: \(error)")
                 self.finish(nil)
                 return
             }
@@ -171,9 +181,14 @@ extension ReadabilityExtractor: WKScriptMessageHandler {
                 siteName: (dict["siteName"] as? String).flatMap { $0.isEmpty ? nil : $0 }
             )
 
-            if article.textContent.count < 100 || self.looksLikeConsentPage(article.textContent) {
+            if article.textContent.count < 100 {
+                print("[Reader] Content too short: \(article.textContent.count) chars")
+                self.finish(nil)
+            } else if self.looksLikeConsentPage(article.textContent) {
+                print("[Reader] Detected consent page")
                 self.finish(nil)
             } else {
+                print("[Reader] Success: \(article.title) (\(article.textContent.count) chars)")
                 self.finish(article)
             }
         }

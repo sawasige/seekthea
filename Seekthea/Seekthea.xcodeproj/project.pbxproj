@@ -389,7 +389,7 @@
 		2A5CE5D82F7CBDE40099E5ED /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Theia;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Seekthea/Seekthea.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -436,7 +436,7 @@
 		2A5CE5D92F7CBDE40099E5ED /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Theia;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Seekthea/Seekthea.entitlements;
 				CODE_SIGN_STYLE = Automatic;

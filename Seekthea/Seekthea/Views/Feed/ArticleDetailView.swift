@@ -7,20 +7,25 @@ struct ArticleDetailView: View {
     let article: Article
     @State private var extractedArticle: ReadabilityExtractor.Article?
     @State private var isLoading = true
-    @State private var extractionFailed = false
+    @State private var isAIProcessing = false
+    @State private var webViewStore = ReaderWebViewStore()
+    @State private var showOriginal = false
 
     var body: some View {
         ZStack {
             if isLoading {
                 ProgressView("記事を読み込み中...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if showOriginal {
+                OriginalPageWebView(url: article.articleURL)
             } else if let extracted = extractedArticle {
                 ReaderView(
                     article: article,
-                    extracted: extracted
+                    extracted: extracted,
+                    isAIProcessing: isAIProcessing,
+                    store: webViewStore
                 )
             } else {
-                // 抽出失敗: 元記事をWebViewで表示
                 OriginalPageWebView(url: article.articleURL)
             }
         }
@@ -30,6 +35,15 @@ struct ArticleDetailView: View {
         #endif
         .toolbar {
             ToolbarItemGroup(placement: .automatic) {
+                // Reader/ソース切り替え
+                if extractedArticle != nil {
+                    Button {
+                        showOriginal.toggle()
+                    } label: {
+                        Image(systemName: showOriginal ? "doc.richtext" : "globe")
+                    }
+                }
+
                 Button {
                     article.isFavorite.toggle()
                     try? modelContext.save()
@@ -64,13 +78,23 @@ struct ArticleDetailView: View {
         extractedArticle = extracted
         isLoading = false
 
-        // 全文が取れたらAI要約を実行
+        // 全文が取れたらAI要約を実行（画面を閉じてもキャンセルしない）
         if let extracted, !article.isAIProcessed {
             article.extractedBody = extracted.textContent
-            let processor = AIProcessor(modelContainer: modelContext.container)
-            await processor.analyze(articleID: article.persistentModelID)
-            // AI完了後にReader表示を更新
-            extractedArticle = extracted
+            isAIProcessing = true
+            let container = modelContext.container
+            let articleID = article.persistentModelID
+            let store = webViewStore
+            Task.detached { @MainActor in
+                let processor = AIProcessor(modelContainer: container)
+                await processor.analyze(articleID: articleID)
+                // AI完了 → WebViewのsummary divをJS更新
+                let context = container.mainContext
+                if let updated = context.model(for: articleID) as? Article,
+                   let summary = updated.summary {
+                    store.updateSummary(summary)
+                }
+            }
         }
     }
 }
@@ -80,9 +104,11 @@ struct ArticleDetailView: View {
 private struct ReaderView: View {
     let article: Article
     let extracted: ReadabilityExtractor.Article
+    var isAIProcessing: Bool = false
+    var store: ReaderWebViewStore
 
     var body: some View {
-        ReaderWebView(html: buildReaderHTML())
+        ReaderWebView(html: buildReaderHTML(), store: store)
     }
 
     private func buildReaderHTML() -> String {
@@ -95,7 +121,6 @@ private struct ReaderView: View {
 
         let summarySection: String
         if let summary = article.summary, !summary.isEmpty {
-            // **太字**を<strong>に変換
             let htmlSummary = escapeHTML(summary)
                 .replacingOccurrences(of: "\\*\\*(.+?)\\*\\*",
                                       with: "<strong>$1</strong>",
@@ -104,6 +129,13 @@ private struct ReaderView: View {
             <div class="ai-summary">
                 <div class="ai-label">✦ AI要約</div>
                 <p>\(htmlSummary)</p>
+            </div>
+            """
+        } else if isAIProcessing {
+            summarySection = """
+            <div class="ai-summary ai-loading">
+                <div class="ai-label">✦ AI要約を生成中...</div>
+                <div class="shimmer"></div>
             </div>
             """
         } else {
@@ -147,6 +179,22 @@ private struct ReaderView: View {
             background: #f5f5f7; border-radius: 12px;
             padding: 14px 16px; margin-bottom: 24px;
             font-size: 15px; line-height: 1.6;
+        }
+        .shimmer {
+            height: 48px; border-radius: 8px;
+            background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        @media (prefers-color-scheme: dark) {
+            .shimmer {
+                background: linear-gradient(90deg, #3a3a3c 25%, #48484a 50%, #3a3a3c 75%);
+                background-size: 200% 100%;
+            }
         }
         .ai-label { font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #6e6e73; }
         .ai-summary p { margin: 0; }
@@ -201,12 +249,37 @@ private struct ReaderView: View {
 
 // MARK: - Reader WebView
 
+/// AI要約の更新をJS経由で行えるWebView
+class ReaderWebViewStore {
+    var webView: WKWebView?
+
+    func updateSummary(_ summary: String) {
+        let escaped = summary
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+            .replacingOccurrences(of: "\n", with: "\\n")
+        let js = """
+        (function() {
+            var el = document.querySelector('.ai-summary');
+            if (el) {
+                var html = '\(escaped)';
+                html = html.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
+                el.innerHTML = '<div class="ai-label">✦ AI要約</div><p>' + html + '</p>';
+            }
+        })();
+        """
+        webView?.evaluateJavaScript(js)
+    }
+}
+
 #if os(macOS)
 struct ReaderWebView: NSViewRepresentable {
     let html: String
+    let store: ReaderWebViewStore
     func makeNSView(context: Context) -> WKWebView {
         let webView = WKWebView()
         webView.loadHTMLString(html, baseURL: nil)
+        store.webView = webView
         return webView
     }
     func updateNSView(_ webView: WKWebView, context: Context) {}
@@ -224,9 +297,11 @@ struct OriginalPageWebView: NSViewRepresentable {
 #else
 struct ReaderWebView: UIViewRepresentable {
     let html: String
+    let store: ReaderWebViewStore
     func makeUIView(context: Context) -> WKWebView {
         let webView = WKWebView()
         webView.loadHTMLString(html, baseURL: nil)
+        store.webView = webView
         return webView
     }
     func updateUIView(_ webView: WKWebView, context: Context) {}
