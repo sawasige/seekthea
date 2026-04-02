@@ -12,13 +12,20 @@ struct FeedView: View {
     @State private var viewModel: FeedViewModel?
     @State private var feedMode: FeedMode = .forYou
     @State private var selectedCategory: String? = nil
-    @State private var stickyOffset: CGFloat = 0
+    @State private var hideAmount: CGFloat = 0
     @State private var lastScrollY: CGFloat = 0
     @State private var currentScrollY: CGFloat = 0
+    @State private var topInset: CGFloat = 0
 
     let modelContainer: ModelContainer
 
     private let headerHeight: CGFloat = 90
+    private var fullHideAmount: CGFloat { -(headerHeight + topInset) }
+
+    /// ヘッダーのoffset: スクロール位置を打ち消して画面上部に留め、hideAmountで隠す
+    private var headerOffset: CGFloat {
+        max(0, currentScrollY) + hideAmount
+    }
 
     private var categoryCounts: [String: Int] {
         let activeFeedURLs = viewModel?.activeSourceFeedURLs() ?? []
@@ -68,16 +75,11 @@ struct FeedView: View {
         #endif
     }
 
-    /// ヘッダーのoffset: stickyOffset分だけスクロールを打ち消して留まる
-    private var headerOffset: CGFloat {
-        min(stickyOffset, max(0, currentScrollY))
-    }
-
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
-                    // ヘッダー（コンテンツと同じ層、stickyOffsetで制御）
+                    // ヘッダー（コンテンツと同じ層）
                     VStack(spacing: 0) {
                         Picker("モード", selection: $feedMode) {
                             ForEach(FeedMode.allCases, id: \.self) { mode in
@@ -102,6 +104,11 @@ struct FeedView: View {
                             .frame(height: headerHeight + 500)
                             .offset(y: -500)
                         #endif
+                    }
+                    .onGeometryChange(for: CGFloat.self) { geo in
+                        geo.frame(in: .global).minY
+                    } action: { minY in
+                        if topInset == 0 && minY > 0 { topInset = minY }
                     }
                     .offset(y: headerOffset)
                     .zIndex(1)
@@ -138,21 +145,17 @@ struct FeedView: View {
                 lastScrollY = newValue
 
                 if delta > 0 {
-                    // スクロールダウン: stickyOffsetを減らす（ヘッダーがスクロールに従って消える）
-                    stickyOffset = max(0, stickyOffset - delta)
+                    // スクロールダウン: hideAmountを減らす（ヘッダーが消える）
+                    hideAmount = max(fullHideAmount, hideAmount - delta)
                 } else {
-                    // スクロールアップ: stickyOffsetを増やす（ヘッダーが戻る）
-                    stickyOffset = min(currentScrollY, stickyOffset - delta)
+                    // スクロールアップ: hideAmountを増やす（ヘッダーが戻る）
+                    hideAmount = min(0, hideAmount - delta)
                 }
             }
             .onScrollPhaseChange { _, newPhase in
                 if newPhase == .idle {
                     withAnimation(.snappy(duration: 0.2)) {
-                        if stickyOffset < headerHeight * 0.5 {
-                            stickyOffset = 0
-                        } else {
-                            stickyOffset = currentScrollY
-                        }
+                        hideAmount = hideAmount < fullHideAmount * 0.5 ? fullHideAmount : 0
                     }
                 }
             }
