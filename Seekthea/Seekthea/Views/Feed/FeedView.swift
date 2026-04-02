@@ -11,23 +11,29 @@ struct FeedView: View {
     @Query(sort: \Article.publishedAt, order: .reverse) private var allArticles: [Article]
     @State private var viewModel: FeedViewModel?
     @State private var feedMode: FeedMode = .forYou
-    @State private var selectedSourceType: SourceType? = nil
-    @State private var selectedCategory: ContentCategory? = nil
+    @State private var selectedCategory: String? = nil
 
     let modelContainer: ModelContainer
 
+    private var categoryCounts: [String: Int] {
+        let activeFeedURLs = viewModel?.activeSourceFeedURLs() ?? []
+        var counts: [String: Int] = [:]
+        for article in allArticles where activeFeedURLs.contains(article.sourceFeedURL) {
+            if let cat = article.aiCategory, !cat.isEmpty {
+                counts[cat, default: 0] += 1
+            }
+        }
+        return counts
+    }
+
     private var displayArticles: [Article] {
+        let activeFeedURLs = viewModel?.activeSourceFeedURLs() ?? []
+
         var articles = allArticles.filter { article in
             // OFFのソースの記事を除外
-            if article.source?.isActive == false { return false }
-            if let type = selectedSourceType, article.source?.sourceTypeEnum != type {
-                return false
-            }
-            if let cat = selectedCategory, cat != .all {
-                let catRaw = cat.rawValue
-                if article.aiCategory != catRaw && article.source?.category != catRaw {
-                    return false
-                }
+            guard activeFeedURLs.contains(article.sourceFeedURL) else { return false }
+            if let cat = selectedCategory {
+                if article.aiCategory != cat { return false }
             }
             return true
         }
@@ -74,7 +80,7 @@ struct FeedView: View {
                 .padding(.top, 8)
 
                 // カテゴリフィルタ
-                CategoryFilterView(selectedCategory: $selectedCategory)
+                CategoryFilterView(selectedCategory: $selectedCategory, categoryCounts: categoryCounts)
                     .padding(.vertical, 8)
 
                 // 記事タイルグリッド
@@ -138,5 +144,6 @@ struct FeedView: View {
     private func refreshAll() async {
         await viewModel?.refresh()
         viewModel?.updateRelevanceScores()
+        viewModel?.classifyInBackground()
     }
 }

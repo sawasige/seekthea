@@ -1,23 +1,6 @@
 import Foundation
 import SwiftData
 
-enum ContentCategory: String, CaseIterable, Identifiable {
-    case all = "全て"
-    case technology = "テクノロジー"
-    case business = "ビジネス"
-    case politics = "政治"
-    case society = "社会"
-    case sports = "スポーツ"
-    case entertainment = "エンタメ"
-    case science = "サイエンス"
-    case lifestyle = "ライフ"
-    case dev = "開発"
-    case product = "プロダクト"
-    case trend = "トレンド"
-
-    var id: String { rawValue }
-}
-
 @Observable
 @MainActor
 class FeedViewModel {
@@ -25,11 +8,13 @@ class FeedViewModel {
     private(set) var isLoading = false
 
     private var feedFetcher: FeedFetcher
+    private var aiProcessor: AIProcessor
     private var interestEngine: InterestEngine
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
         self.feedFetcher = FeedFetcher(modelContainer: modelContainer)
+        self.aiProcessor = AIProcessor(modelContainer: modelContainer)
         self.interestEngine = InterestEngine(modelContainer: modelContainer)
     }
 
@@ -38,6 +23,21 @@ class FeedViewModel {
         isLoading = true
         defer { isLoading = false }
         await feedFetcher.fetchAll()
+    }
+
+    /// 未分類記事をバックグラウンドでカテゴリ分類
+    func classifyInBackground() {
+        Task {
+            await aiProcessor.classifyBatch()
+        }
+    }
+
+    /// アクティブなソースのfeedURLセットを取得
+    func activeSourceFeedURLs() -> Set<URL> {
+        let context = modelContainer.mainContext
+        let descriptor = FetchDescriptor<Source>(predicate: #Predicate { $0.isActive })
+        let sources = (try? context.fetch(descriptor)) ?? []
+        return Set(sources.map(\.feedURL))
     }
 
     /// 興味スコアを更新

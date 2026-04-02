@@ -68,8 +68,9 @@ struct ArticleCardView: View {
                             .frame(width: faviconSize, height: faviconSize)
                     }
 
-                    if let source = article.source {
-                        Text(source.name)
+                    let name = article.sourceName.isEmpty ? article.articleURL.host() ?? "" : article.sourceName
+                    if !name.isEmpty {
+                        Text(name)
                             .font(metaFont)
                             .foregroundStyle(.secondary)
                     }

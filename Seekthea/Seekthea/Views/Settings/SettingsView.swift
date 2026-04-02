@@ -6,6 +6,7 @@ struct SettingsView: View {
     @AppStorage("aiProcessingEnabled") private var aiProcessingEnabled = true
     @AppStorage("discoveryEnabled") private var discoveryEnabled = true
     @Environment(\.modelContext) private var modelContext
+    @State private var toastMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -31,6 +32,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                     Button("全記事のAI要約を再生成") {
                         resetAIProcessing()
+                        showToast("AI要約をリセットしました")
                     }
                 }
 
@@ -38,15 +40,18 @@ struct SettingsView: View {
                     Toggle("ソース自動発見", isOn: $discoveryEnabled)
                     Button("スキップしたソースを復元") {
                         restoreRejectedDomains()
+                        showToast("スキップしたソースを復元しました")
                     }
                 }
 
                 Section("データ管理") {
                     Button("古い記事を削除（30日以上前）", role: .destructive) {
                         deleteOldArticles()
+                        showToast("古い記事を削除しました")
                     }
-                    Button("キャッシュをクリア", role: .destructive) {
-                        clearCache()
+                    Button("全記事を削除", role: .destructive) {
+                        deleteAllArticles()
+                        showToast("全記事を削除しました")
                     }
                 }
 
@@ -60,6 +65,28 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity)
             #endif
             .navigationTitle("設定")
+            .overlay(alignment: .bottom) {
+                if let message = toastMessage {
+                    Text(message)
+                        .font(.subheadline)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
+                        .shadow(radius: 4)
+                        .padding(.bottom, 20)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: toastMessage)
+        }
+    }
+
+    private func showToast(_ message: String) {
+        toastMessage = message
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            toastMessage = nil
         }
     }
 
@@ -99,14 +126,15 @@ struct SettingsView: View {
         }
     }
 
-    private func clearCache() {
-        let predicate = #Predicate<Article> { _ in true }
-        let descriptor = FetchDescriptor<Article>(predicate: predicate)
-        if let articles = try? modelContext.fetch(descriptor) {
-            for article in articles {
-                article.siteFaviconData = nil
-                article.isEnriched = false
-            }
+    private func deleteAllArticles() {
+        do {
+            try modelContext.delete(model: Article.self)
+            // ソースの記事数もリセット
+            let sources = (try? modelContext.fetch(FetchDescriptor<Source>())) ?? []
+            for source in sources { source.articleCount = 0 }
+            try? modelContext.save()
+        } catch {
+            print("Failed to delete all articles: \(error)")
         }
     }
 }

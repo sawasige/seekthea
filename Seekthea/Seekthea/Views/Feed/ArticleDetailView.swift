@@ -35,12 +35,18 @@ struct ArticleDetailView: View {
         #endif
         .toolbar {
             ToolbarItemGroup(placement: .automatic) {
-                // Reader/ソース切り替え
+                // Reader/ソース切り替え or リトライ
                 if extractedArticle != nil {
                     Button {
                         showOriginal.toggle()
                     } label: {
                         Image(systemName: showOriginal ? "doc.richtext" : "globe")
+                    }
+                } else if !isLoading {
+                    Button {
+                        Task { await retryReader() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
                     }
                 }
 
@@ -70,6 +76,11 @@ struct ArticleDetailView: View {
                 try? modelContext.save()
             }
         }
+    }
+
+    private func retryReader() async {
+        isLoading = true
+        await loadContent()
     }
 
     private func loadContent() async {

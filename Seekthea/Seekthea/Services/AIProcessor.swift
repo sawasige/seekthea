@@ -11,6 +11,13 @@ struct ArticleMeta {
     @Guide(description: "キーワード")
     var keywords: [String]
 }
+
+/// バッチ分類用（入力順と同じ順序でカテゴリを返す）
+@Generable
+struct BatchCategories {
+    @Guide(description: "入力と同じ順序のカテゴリ名リスト")
+    var categories: [String]
+}
 #endif
 
 /// Apple Intelligence によるオンデバイスAI処理
@@ -101,6 +108,54 @@ class AIProcessor {
             processed += 1
             try? await Task.sleep(for: .milliseconds(100))
         }
+    }
+
+    /// 未分類記事をまとめてカテゴリ分類（10件ずつバッチ処理）
+    private var isClassifying = false
+
+    func classifyBatch() async {
+        guard !isClassifying else { return }
+        isClassifying = true
+        defer { isClassifying = false }
+
+        #if canImport(FoundationModels)
+        let context = modelContainer.mainContext
+        let descriptor = FetchDescriptor<Article>(
+            predicate: #Predicate { $0.aiCategory == nil },
+            sortBy: [SortDescriptor(\Article.fetchedAt, order: .reverse)]
+        )
+        guard let articles = try? context.fetch(descriptor), !articles.isEmpty else { return }
+
+        // 10件ずつバッチ処理
+        let batchSize = 10
+        for batchStart in stride(from: 0, to: articles.count, by: batchSize) {
+            let batch = Array(articles[batchStart..<min(batchStart + batchSize, articles.count)])
+            let titles = batch.enumerated().map { "\($0.offset + 1). \($0.element.title)" }.joined(separator: "\n")
+
+            do {
+                let session = LanguageModelSession()
+                let prompt = """
+                以下の記事タイトルそれぞれにカテゴリを1つ割り当ててください。
+                カテゴリ: テクノロジー, ビジネス, 政治, 社会, スポーツ, エンタメ, サイエンス, ライフ, 開発, プロダクト, トレンド
+
+                \(titles)
+
+                入力と同じ順序でカテゴリ名だけをリストで返してください。
+                """
+                let response = try await session.respond(to: prompt, generating: BatchCategories.self)
+                let categories = response.content.categories
+
+                for (index, article) in batch.enumerated() {
+                    if index < categories.count {
+                        article.aiCategory = categories[index]
+                    }
+                }
+                try? context.save()
+            } catch {
+                // バッチ失敗時はスキップ（次回リトライ）
+            }
+        }
+        #endif
     }
 
     private func applyFallback(article: Article) {

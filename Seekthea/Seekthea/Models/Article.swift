@@ -29,6 +29,10 @@ class Article {
     // パーソナライズ
     var relevanceScore: Double = 0  // 興味スコア（0〜1）
 
+    // ソース紐付け（URLベース、リレーションなし）
+    var sourceFeedURL: URL = URL(string: "https://example.com")!
+    var sourceName: String = ""
+
     // ユーザー操作
     var isRead: Bool = false
     var isFavorite: Bool = false
@@ -51,6 +55,8 @@ class Article {
         self.publishedAt = publishedAt
         self.fetchedAt = Date()
         self.source = source
+        self.sourceFeedURL = source?.feedURL ?? URL(string: "https://example.com")!
+        self.sourceName = source?.name ?? ""
     }
 
     var keywords: [String] {
