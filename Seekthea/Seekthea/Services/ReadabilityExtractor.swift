@@ -54,7 +54,6 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
             // タイムアウト
             timeoutTask = Task {
                 try? await Task.sleep(for: .seconds(8))
-                print("[Reader] Timeout for \(url)")
                 self.finish(nil)
             }
         }
@@ -182,13 +181,10 @@ extension ReadabilityExtractor: WKScriptMessageHandler {
             )
 
             if article.textContent.count < 100 {
-                print("[Reader] Content too short: \(article.textContent.count) chars")
                 self.finish(nil)
             } else if self.looksLikeConsentPage(article.textContent) {
-                print("[Reader] Detected consent page")
                 self.finish(nil)
             } else {
-                print("[Reader] Success: \(article.title) (\(article.textContent.count) chars)")
                 self.finish(article)
             }
         }

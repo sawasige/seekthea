@@ -27,11 +27,14 @@ class InterestEngine {
             allTopics[topic] = (allTopics[topic] ?? 0) + weight * 2  // 明示的な興味は2倍
         }
 
-        // 4. 未スコアの記事のみスコアリング
-        let predicate = #Predicate<Article> { $0.relevanceScore == 0 }
-        let articles = (try? context.fetch(FetchDescriptor(predicate: predicate))) ?? []
+        // 4. 全記事をスコアリング（既読は大幅に下げる）
+        let articles = (try? context.fetch(FetchDescriptor<Article>())) ?? []
         for article in articles {
-            article.relevanceScore = computeScore(article: article, topics: allTopics)
+            var score = computeScore(article: article, topics: allTopics)
+            if article.isRead {
+                score *= 0.05  // 既読は95%減
+            }
+            article.relevanceScore = score
         }
 
         try? context.save()
@@ -79,7 +82,7 @@ class InterestEngine {
 
     // MARK: - 行動から興味を学習
 
-    private func learnFromHistory(context: ModelContext) -> [String: Double] {
+    func learnFromHistory(context: ModelContext) -> [String: Double] {
         // お気に入り記事のキーワード・カテゴリを集計
         let favPredicate = #Predicate<Article> { $0.isFavorite }
         let favorites = (try? context.fetch(FetchDescriptor(predicate: favPredicate))) ?? []

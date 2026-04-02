@@ -5,6 +5,7 @@ struct InterestSettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \UserInterest.addedAt) private var interests: [UserInterest]
     @State private var newTopic = ""
+    @State private var learnedTopics: [(topic: String, weight: Double)] = []
 
     // プリセットの興味トピック候補
     private let suggestions = [
@@ -86,8 +87,34 @@ struct InterestSettingsView: View {
                     }
                 }
             }
+            if !learnedTopics.isEmpty {
+                Section("行動から学習した興味") {
+                    ForEach(learnedTopics, id: \.topic) { item in
+                        HStack {
+                            Text(item.topic)
+                            Spacer()
+                            ProgressView(value: item.weight)
+                                .frame(width: 80)
+                            Text(String(format: "%.0f%%", item.weight * 100))
+                                .font(.caption).monospacedDigit()
+                                .foregroundStyle(.secondary)
+                                .frame(width: 40, alignment: .trailing)
+                        }
+                    }
+                }
+            }
         }
         .navigationTitle("興味トピック")
+        .onAppear { loadLearnedTopics() }
+    }
+
+    private func loadLearnedTopics() {
+        let engine = InterestEngine(modelContainer: modelContext.container)
+        let raw = engine.learnFromHistory(context: modelContext)
+        learnedTopics = raw
+            .sorted { $0.value > $1.value }
+            .prefix(20)
+            .map { (topic: $0.key, weight: $0.value) }
     }
 
     private func addTopic(_ topic: String) {

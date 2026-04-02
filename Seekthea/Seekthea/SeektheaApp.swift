@@ -23,8 +23,6 @@ struct SeektheaApp: App {
             return container
         }
 
-        print("CloudKit sync unavailable, falling back to local-only storage")
-
         // ローカルのみ（古いストア削除してリトライ）
         let localConfig = ModelConfiguration(
             schema: schema,

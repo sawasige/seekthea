@@ -36,9 +36,9 @@ struct SettingsView: View {
 
                 Section("発見") {
                     Toggle("ソース自動発見", isOn: $discoveryEnabled)
-                    Text("Google Newsから新しいソースを自動的に発見します")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Button("スキップしたソースを復元") {
+                        restoreRejectedDomains()
+                    }
                 }
 
                 Section("データ管理") {
@@ -66,6 +66,17 @@ struct SettingsView: View {
                 article.aiCategory = nil
                 article.keywordsRaw = ""
                 article.isAIProcessed = false
+            }
+            try? modelContext.save()
+        }
+    }
+
+    private func restoreRejectedDomains() {
+        let predicate = #Predicate<DiscoveredDomain> { $0.isRejected }
+        if let domains = try? modelContext.fetch(FetchDescriptor(predicate: predicate)) {
+            for domain in domains {
+                domain.isRejected = false
+                domain.isSuggested = true
             }
             try? modelContext.save()
         }

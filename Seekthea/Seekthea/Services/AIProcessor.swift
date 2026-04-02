@@ -57,7 +57,6 @@ class AIProcessor {
 
             let summaryResponse = try await session.respond(to: summaryPrompt)
             let summary = summaryResponse.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            print("[AI] Summary: \(summary.prefix(200))")
 
             // 2. カテゴリ・キーワードをGuided Generationで生成
             let metaPrompt = """
@@ -92,24 +91,16 @@ class AIProcessor {
     private var isProcessing = false
 
     func processBatch(articleIDs: [PersistentIdentifier]) async {
-        guard !isProcessing else {
-            print("[AI] Already processing, skipping")
-            return
-        }
+        guard !isProcessing else { return }
         isProcessing = true
         defer { isProcessing = false }
 
-        print("[AI] Processing \(articleIDs.count) articles")
         var processed = 0
         for id in articleIDs {
             await analyze(articleID: id)
             processed += 1
-            if processed % 10 == 0 {
-                print("[AI] Progress: \(processed)/\(articleIDs.count)")
-            }
             try? await Task.sleep(for: .milliseconds(100))
         }
-        print("[AI] Batch complete: \(processed) articles")
     }
 
     private func applyFallback(article: Article) {

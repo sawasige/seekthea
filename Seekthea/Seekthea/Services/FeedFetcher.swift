@@ -59,7 +59,6 @@ actor FeedFetcher {
         guard let (data, response) = try? await URLSession.shared.data(from: url),
               let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
-            print("[Image] HTTP取得失敗: \(url)")
             return nil
         }
 
@@ -72,7 +71,6 @@ actor FeedFetcher {
         } else if let s = String(data: data, encoding: .japaneseEUC) {
             html = s
         } else {
-            print("[Image] 文字コード変換失敗: \(url)")
             return nil
         }
 
@@ -89,7 +87,6 @@ actor FeedFetcher {
             }
         }
 
-        print("[Image] og:imageタグ未検出: \(url)")
         return nil
     }
 

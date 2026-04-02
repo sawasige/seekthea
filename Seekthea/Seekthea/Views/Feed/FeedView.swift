@@ -140,7 +140,6 @@ struct FeedView: View {
 
     private func refreshAll() async {
         await viewModel?.refresh()
-        await viewModel?.processUnanalyzedArticles(displayArticles)
         viewModel?.updateRelevanceScores()
     }
 }

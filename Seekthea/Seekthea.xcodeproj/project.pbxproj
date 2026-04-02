@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		2A5CE6242F7CCA590099E5ED /* FeedKit in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000002 /* FeedKit */; };
 		BB000000000000000000000D /* SeektheaShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000002 /* SeektheaShareExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		CC0000000000000000000002 /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = CC0000000000000000000003 /* SwiftSoup */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -109,7 +108,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				2A5CE6242F7CCA590099E5ED /* FeedKit in Frameworks */,
-				CC0000000000000000000002 /* SwiftSoup in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -182,7 +180,6 @@
 			name = Seekthea;
 			packageProductDependencies = (
 				AA0000000000000000000002 /* FeedKit */,
-				CC0000000000000000000003 /* SwiftSoup */,
 			);
 			productName = Seekthea;
 			productReference = 2A5CE5B32F7CBDE20099E5ED /* Seekthea.app */;
@@ -290,7 +287,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				AA0000000000000000000001 /* XCRemoteSwiftPackageReference "FeedKit" */,
-				CC0000000000000000000001 /* XCRemoteSwiftPackageReference "SwiftSoup" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 2A5CE5B42F7CBDE20099E5ED /* Products */;
@@ -819,14 +815,6 @@
 				minimumVersion = 9.1.2;
 			};
 		};
-		CC0000000000000000000001 /* XCRemoteSwiftPackageReference "SwiftSoup" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/scinfu/SwiftSoup.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.7.6;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -834,11 +822,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AA0000000000000000000001 /* XCRemoteSwiftPackageReference "FeedKit" */;
 			productName = FeedKit;
-		};
-		CC0000000000000000000003 /* SwiftSoup */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CC0000000000000000000001 /* XCRemoteSwiftPackageReference "SwiftSoup" */;
-			productName = SwiftSoup;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
