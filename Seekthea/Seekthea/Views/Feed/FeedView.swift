@@ -23,8 +23,9 @@ struct FeedView: View {
     private var fullHideAmount: CGFloat { -(headerHeight + topInset) }
 
     /// ヘッダーのoffset: スクロール位置を打ち消して画面上部に留め、hideAmountで隠す
+    /// バウンス含め全スクロール位置で同じ式（特別分岐なし）
     private var headerOffset: CGFloat {
-        max(0, currentScrollY) + hideAmount
+        currentScrollY + hideAmount
     }
 
     private var categoryCounts: [String: Int] {
@@ -128,6 +129,7 @@ struct FeedView: View {
                     .padding(.bottom, 20)
                 }
             }
+            .contentMargins(.top, headerHeight, for: .scrollIndicators)
             .refreshable {
                 await refreshAll()
             }
@@ -136,19 +138,17 @@ struct FeedView: View {
             } action: { _, newValue in
                 currentScrollY = newValue
 
-                guard newValue >= 0 else {
-                    lastScrollY = newValue
-                    return
-                }
-
-                let delta = newValue - lastScrollY
+                // バウンス領域をクランプしてdelta計算（バウンス中はdelta=0）
+                let clampedNew = max(0, newValue)
+                let clampedOld = max(0, lastScrollY)
                 lastScrollY = newValue
 
+                let delta = clampedNew - clampedOld
+                guard abs(delta) > 0.5 else { return }
+
                 if delta > 0 {
-                    // スクロールダウン: hideAmountを減らす（ヘッダーが消える）
                     hideAmount = max(fullHideAmount, hideAmount - delta)
                 } else {
-                    // スクロールアップ: hideAmountを増やす（ヘッダーが戻る）
                     hideAmount = min(0, hideAmount - delta)
                 }
             }
@@ -175,7 +175,6 @@ struct FeedView: View {
             .navigationTitle("Seekthea")
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
             #endif
             .toolbar {
                 ToolbarItem(placement: .automatic) {
