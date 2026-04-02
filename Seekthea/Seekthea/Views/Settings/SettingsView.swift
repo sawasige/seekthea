@@ -29,6 +29,9 @@ struct SettingsView: View {
                     Text("Apple Intelligenceを使用して記事を要約・分類します")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    Button("全記事のAI要約を再生成") {
+                        resetAIProcessing()
+                    }
                 }
 
                 Section("発見") {
@@ -52,6 +55,19 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("設定")
+        }
+    }
+
+    private func resetAIProcessing() {
+        let descriptor = FetchDescriptor<Article>()
+        if let articles = try? modelContext.fetch(descriptor) {
+            for article in articles {
+                article.summary = nil
+                article.aiCategory = nil
+                article.keywordsRaw = ""
+                article.isAIProcessed = false
+            }
+            try? modelContext.save()
         }
     }
 

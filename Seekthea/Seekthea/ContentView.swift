@@ -35,6 +35,9 @@ struct ContentView: View {
                 }
         }
         .task {
+            // 重複ソースを削除
+            deduplicateSources()
+
             // プリセット読み込み
             do {
                 try PresetLoader.loadIfNeeded(context: modelContext)
@@ -108,6 +111,33 @@ struct ContentView: View {
         for preset in newPresets {
             service.addSource(preset)
         }
+    }
+
+    /// 重複を削除（CloudKit同期で発生しうる）
+    private func deduplicateSources() {
+        // ソースの重複削除
+        let sources = (try? modelContext.fetch(FetchDescriptor<Source>())) ?? []
+        var seenSources = Set<URL>()
+        for source in sources {
+            if seenSources.contains(source.feedURL) {
+                modelContext.delete(source)
+            } else {
+                seenSources.insert(source.feedURL)
+            }
+        }
+
+        // 記事の重複削除
+        let articles = (try? modelContext.fetch(FetchDescriptor<Article>())) ?? []
+        var seenArticles = Set<URL>()
+        for article in articles {
+            if seenArticles.contains(article.articleURL) {
+                modelContext.delete(article)
+            } else {
+                seenArticles.insert(article.articleURL)
+            }
+        }
+
+        try? modelContext.save()
     }
 }
 

@@ -60,8 +60,18 @@ struct ArticleDetailView: View {
 
     private func loadContent() async {
         let extractor = ReadabilityExtractor()
-        extractedArticle = await extractor.extract(from: article.articleURL)
+        let extracted = await extractor.extract(from: article.articleURL)
+        extractedArticle = extracted
         isLoading = false
+
+        // 全文が取れたらAI要約を実行
+        if let extracted, !article.isAIProcessed {
+            article.extractedBody = extracted.textContent
+            let processor = AIProcessor(modelContainer: modelContext.container)
+            await processor.analyze(articleID: article.persistentModelID)
+            // AI完了後にReader表示を更新
+            extractedArticle = extracted
+        }
     }
 }
 
@@ -85,10 +95,15 @@ private struct ReaderView: View {
 
         let summarySection: String
         if let summary = article.summary, !summary.isEmpty {
+            // **太字**を<strong>に変換
+            let htmlSummary = escapeHTML(summary)
+                .replacingOccurrences(of: "\\*\\*(.+?)\\*\\*",
+                                      with: "<strong>$1</strong>",
+                                      options: .regularExpression)
             summarySection = """
             <div class="ai-summary">
                 <div class="ai-label">✦ AI要約</div>
-                <p>\(escapeHTML(summary))</p>
+                <p>\(htmlSummary)</p>
             </div>
             """
         } else {

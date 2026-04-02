@@ -93,7 +93,7 @@ struct FeedView: View {
                     .padding(.bottom, 20)
                 }
                 .refreshable {
-                    await refreshAll()
+                    await viewModel?.refresh()
                 }
                 .overlay {
                     if allArticles.isEmpty {
@@ -113,7 +113,7 @@ struct FeedView: View {
             .toolbar {
                 ToolbarItem(placement: .automatic) {
                     Button {
-                        Task { await refreshAll() }
+                        Task { await viewModel?.refresh() }
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -124,12 +124,15 @@ struct FeedView: View {
                 if viewModel == nil {
                     viewModel = FeedViewModel(modelContainer: modelContainer)
                 }
-                await refreshAll()
+                await viewModel?.refresh()
+                viewModel?.updateRelevanceScores()
             }
             .onAppear {
-                // タブ切り替え時に新しいソースの記事を取得
+                // タブ切り替え時に新しいソースの記事を取得（フィードのみ、AI処理はスキップ）
                 if viewModel != nil {
-                    Task { await refreshAll() }
+                    Task {
+                        await viewModel?.refresh()
+                    }
                 }
             }
         }
@@ -137,7 +140,6 @@ struct FeedView: View {
 
     private func refreshAll() async {
         await viewModel?.refresh()
-        await viewModel?.enrichVisibleArticles(Array(displayArticles.prefix(20)))
         await viewModel?.processUnanalyzedArticles(displayArticles)
         viewModel?.updateRelevanceScores()
     }

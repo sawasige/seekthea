@@ -27,8 +27,9 @@ class InterestEngine {
             allTopics[topic] = (allTopics[topic] ?? 0) + weight * 2  // 明示的な興味は2倍
         }
 
-        // 4. 未スコアの記事をスコアリング
-        let articles = (try? context.fetch(FetchDescriptor<Article>())) ?? []
+        // 4. 未スコアの記事のみスコアリング
+        let predicate = #Predicate<Article> { $0.relevanceScore == 0 }
+        let articles = (try? context.fetch(FetchDescriptor(predicate: predicate))) ?? []
         for article in articles {
             article.relevanceScore = computeScore(article: article, topics: allTopics)
         }

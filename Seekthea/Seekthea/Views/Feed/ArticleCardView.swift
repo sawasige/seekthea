@@ -49,10 +49,14 @@ struct ArticleCardView: View {
 
                 // 要約 or 説明文
                 if let description = article.displayDescription {
-                    Text(description)
-                        .font(descFont)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                    MarkdownText(
+                        text: description,
+                        font: descFont,
+                        boldFont: descFont.bold(),
+                        boldColor: .primary
+                    )
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
                 }
 
                 // メタ情報
@@ -102,6 +106,13 @@ struct ArticleCardView: View {
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .opacity(article.isRead ? 0.7 : 1.0)
+        .task {
+            if article.displayImageURL == nil {
+                if let ogImage = await FeedFetcher.fetchOGImage(from: article.articleURL) {
+                    article.ogImageURL = ogImage
+                }
+            }
+        }
     }
 
     private var placeholderImage: some View {

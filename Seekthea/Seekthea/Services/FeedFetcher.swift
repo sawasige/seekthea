@@ -4,45 +4,39 @@ import SwiftData
 
 actor FeedFetcher {
     private let modelContainer: ModelContainer
+    private var isFetching = false
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
     }
 
-    /// アクティブな全ソースからRSS取得
+    /// アクティブな全ソースからRSS取得（直列・重複防止）
     func fetchAll() async {
+        guard !isFetching else { return }
+        isFetching = true
+        defer { isFetching = false }
+
         let context = ModelContext(modelContainer)
         let descriptor = FetchDescriptor<Source>(predicate: #Predicate { $0.isActive })
         guard let sources = try? context.fetch(descriptor) else { return }
 
-        await withTaskGroup(of: Void.self) { group in
-            for source in sources {
-                let sourceID = source.persistentModelID
-                group.addTask {
-                    await self.fetchFeed(sourceID: sourceID)
-                }
-            }
-        }
-    }
+        // 既存記事URLを一度だけ取得し、追加分も追跡
+        var knownURLs = Set(
+            ((try? context.fetch(FetchDescriptor<Article>())) ?? []).map(\.articleURL)
+        )
 
-    /// 個別フィード取得
-    func fetchFeed(sourceID: PersistentIdentifier) async {
-        let context = ModelContext(modelContainer)
-        guard let source = context.model(for: sourceID) as? Source else { return }
+        for source in sources {
+            let feedURL = source.feedURL
+            guard let (data, _) = try? await URLSession.shared.data(from: feedURL) else { continue }
 
-        let feedURL = source.feedURL
-        guard let (data, _) = try? await URLSession.shared.data(from: feedURL) else { return }
+            let parser = FeedParser(data: data)
+            guard case .success(let feed) = parser.parse() else { continue }
 
-        let parser = FeedParser(data: data)
-        let result = parser.parse()
-
-        switch result {
-        case .success(let feed):
             let items = extractItems(from: feed)
-            let existingURLs = existingArticleURLs(for: source, context: context)
-
             for item in items {
-                guard !existingURLs.contains(item.url) else { continue }
+                guard !knownURLs.contains(item.url) else { continue }
+                knownURLs.insert(item.url)
+
                 let article = Article(
                     title: item.title,
                     articleURL: item.url,
@@ -55,11 +49,48 @@ actor FeedFetcher {
                 source.articleCount += 1
             }
             source.lastFetchedAt = Date()
-            try? context.save()
-
-        case .failure:
-            break
         }
+
+        try? context.save()
+
+    }
+
+    static func fetchOGImage(from url: URL) async -> URL? {
+        guard let (data, response) = try? await URLSession.shared.data(from: url),
+              let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            print("[Image] HTTP取得失敗: \(url)")
+            return nil
+        }
+
+        let html: String
+        // 文字コード対応
+        if let s = String(data: data, encoding: .utf8) {
+            html = s
+        } else if let s = String(data: data, encoding: .shiftJIS) {
+            html = s
+        } else if let s = String(data: data, encoding: .japaneseEUC) {
+            html = s
+        } else {
+            print("[Image] 文字コード変換失敗: \(url)")
+            return nil
+        }
+
+        // og:image を探す（属性の順序に依存しない）
+        let patterns = [
+            "property\\s*=\\s*[\"']og:image[\"'][^>]+content\\s*=\\s*[\"']([^\"']+)[\"']",
+            "content\\s*=\\s*[\"']([^\"']+)[\"'][^>]+property\\s*=\\s*[\"']og:image[\"']",
+        ]
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+               let match = regex.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
+               let range = Range(match.range(at: 1), in: html) {
+                return URL(string: String(html[range]))
+            }
+        }
+
+        print("[Image] og:imageタグ未検出: \(url)")
+        return nil
     }
 
     // MARK: - Private
@@ -119,11 +150,6 @@ actor FeedFetcher {
                 )
             } ?? []
         }
-    }
-
-    private func existingArticleURLs(for source: Source, context: ModelContext) -> Set<URL> {
-        let articles = source.articles ?? []
-        return Set(articles.map(\.articleURL))
     }
 }
 

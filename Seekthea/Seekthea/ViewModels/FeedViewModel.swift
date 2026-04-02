@@ -52,9 +52,12 @@ class FeedViewModel {
         await enrichmentQueue.enqueueVisible(articles)
     }
 
-    /// 新着記事のAI処理
+    /// 新着記事のAI処理（直近24時間のみ）
     func processUnanalyzedArticles(_ articles: [Article]) async {
-        let unprocessed = articles.filter { !$0.isAIProcessed }
+        let cutoff = Date().addingTimeInterval(-86400)
+        let unprocessed = articles.filter {
+            !$0.isAIProcessed && $0.fetchedAt > cutoff
+        }
         let ids = unprocessed.map(\.persistentModelID)
         await aiProcessor.processBatch(articleIDs: ids)
     }
