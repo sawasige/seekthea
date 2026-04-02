@@ -173,7 +173,6 @@ private struct ReaderView: View {
         }
         @media (prefers-color-scheme: dark) {
             body { color: #f5f5f7; background: #1c1c1e; }
-            .ai-summary { background: #2c2c2e; }
             .meta { color: #98989d; }
             a { color: #64d2ff; }
             blockquote { border-color: #48484a; color: #98989d; }
@@ -184,9 +183,14 @@ private struct ReaderView: View {
         h1 { font-size: 24px; line-height: 1.4; margin: 0 0 8px; font-weight: 700; }
         .meta { font-size: 13px; color: #86868b; margin-bottom: 20px; }
         .ai-summary {
-            background: #f5f5f7; border-radius: 12px;
+            border-radius: 12px;
             padding: 14px 16px; margin-bottom: 24px;
             font-size: 15px; line-height: 1.6;
+            background: #f5f5f7;
+            color: #1d1d1f;
+        }
+        @media (prefers-color-scheme: dark) {
+            .ai-summary { background: #2c2c2e; color: #f5f5f7; }
         }
         .shimmer {
             height: 48px; border-radius: 8px;
