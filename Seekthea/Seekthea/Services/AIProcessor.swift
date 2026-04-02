@@ -3,13 +3,11 @@ import SwiftData
 #if canImport(FoundationModels)
 import FoundationModels
 
-/// AI処理結果（Guided Generation用）
+/// カテゴリ・キーワード（Guided Generation用）
 @Generable
-struct ArticleAnalysis {
+struct ArticleMeta {
     @Guide(description: "カテゴリ名")
     var category: String
-    @Guide(description: "日本語要約")
-    var summary: String
     @Guide(description: "キーワード")
     var keywords: [String]
 }
@@ -41,23 +39,42 @@ class AIProcessor {
         #if canImport(FoundationModels)
         do {
             let session = LanguageModelSession()
-            let prompt = """
-            以下のニュース記事を分析してください。
+
+            // 1. 要約を自由文で生成（Guided Generationなし）
+            let summaryPrompt = """
+            あなたはニュース記者です。以下の記事を書き直してください。元の記事の内容を忠実に、しかし簡潔に伝える記事を書いてください。
 
             \(article.textForAI)
 
-            タイトルと概要から、以下を生成してください:
-            - category: 最も適切なカテゴリ1つ
-            - summary: 記事の長さに比例した日本語要約（短い記事は100文字程度、中程度なら300文字程度、長い記事は600〜800文字）。単語ではなく、記事の核心となる主張・結論・最も重要な事実を文章単位で**太字マーカー**で囲んでください（例: **トランプ政権の関税政策が日本の輸出産業に深刻な打撃を与える見通し**であることが明らかになった）
+            書き方:
+            - あなた自身が記者としてこのニュースを伝えてください。「この記事では」「紹介しています」「述べています」のような第三者的な表現は使わないでください
+            - 重要な情報は省略せず、読者がこれだけで内容を理解できるように書いてください
+            - 読みやすいよう適切に改行してください
+            - 複数の論点やポイントがある場合は「・」で列挙してください
+            - 核心となる事実や結論は **太字** で囲んでください
+            - 前置きは不要です。本文だけを出力してください
+            """
+
+            let summaryResponse = try await session.respond(to: summaryPrompt)
+            let summary = summaryResponse.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            print("[AI] Summary: \(summary.prefix(200))")
+
+            // 2. カテゴリ・キーワードをGuided Generationで生成
+            let metaPrompt = """
+            以下の記事のカテゴリとキーワードを抽出してください。
+
+            \(article.textForAI)
+
+            - category: テクノロジー, ビジネス, 政治, 社会, スポーツ, エンタメ, サイエンス, ライフ, 開発, プロダクト, トレンド から1つ
             - keywords: 重要キーワード（最大5つ）
             """
 
-            let response = try await session.respond(to: prompt, generating: ArticleAnalysis.self)
-            let analysis = response.content
+            let metaResponse = try await session.respond(to: metaPrompt, generating: ArticleMeta.self)
+            let meta = metaResponse.content
 
-            article.summary = analysis.summary
-            article.aiCategory = analysis.category
-            article.keywords = analysis.keywords
+            article.summary = summary
+            article.aiCategory = meta.category
+            article.keywords = meta.keywords
             article.isAIProcessed = true
             try? context.save()
         } catch {

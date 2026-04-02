@@ -121,14 +121,11 @@ private struct ReaderView: View {
 
         let summarySection: String
         if let summary = article.summary, !summary.isEmpty {
-            let htmlSummary = escapeHTML(summary)
-                .replacingOccurrences(of: "\\*\\*(.+?)\\*\\*",
-                                      with: "<strong>$1</strong>",
-                                      options: .regularExpression)
+            let htmlSummary = formatSummaryHTML(summary)
             summarySection = """
             <div class="ai-summary">
                 <div class="ai-label">✦ AI要約</div>
-                <p>\(htmlSummary)</p>
+                \(htmlSummary)
             </div>
             """
         } else if isAIProcessing {
@@ -197,7 +194,11 @@ private struct ReaderView: View {
             }
         }
         .ai-label { font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #6e6e73; }
-        .ai-summary p { margin: 0; }
+        .ai-summary p { margin: 0 0 8px; }
+        .ai-summary p:last-child { margin-bottom: 0; }
+        .ai-summary ul { margin: 8px 0; padding-left: 20px; }
+        .ai-summary ul ul { margin: 4px 0; }
+        .ai-summary li { margin-bottom: 4px; }
         hr { border: none; border-top: 1px solid #d2d2d7; margin: 0 0 24px; }
         /* Readabilityが出力するコンテンツのスタイル */
         .content img {
@@ -240,6 +241,61 @@ private struct ReaderView: View {
         """
     }
 
+    private func formatSummaryHTML(_ summary: String) -> String {
+        let escaped = escapeHTML(summary)
+        let bolded = escaped.replacingOccurrences(
+            of: "\\*\\*(.+?)\\*\\*", with: "<strong>$1</strong>", options: .regularExpression)
+        let lines = bolded.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+
+        var html = ""
+        var listDepth = 0  // 現在のネスト深さ
+
+        for line in lines {
+            // インデントの深さを計算（スペース2つ or 全角スペース1つ = 1レベル）
+            let indent = measureIndent(line)
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            if trimmed.hasPrefix("・") || trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
+                let targetDepth = indent + 1
+                // 必要な深さまで<ul>を開く
+                while listDepth < targetDepth {
+                    html += "<ul>"
+                    listDepth += 1
+                }
+                // 深すぎたら閉じる
+                while listDepth > targetDepth {
+                    html += "</ul>"
+                    listDepth -= 1
+                }
+                let content = trimmed.replacingOccurrences(of: "^[・\\-\\*]\\s*", with: "", options: .regularExpression)
+                html += "<li>\(content)</li>"
+            } else {
+                // リストを全部閉じる
+                while listDepth > 0 {
+                    html += "</ul>"
+                    listDepth -= 1
+                }
+                html += "<p>\(trimmed)</p>"
+            }
+        }
+        while listDepth > 0 {
+            html += "</ul>"
+            listDepth -= 1
+        }
+        return html
+    }
+
+    private func measureIndent(_ line: String) -> Int {
+        var spaces = 0
+        for char in line {
+            if char == " " { spaces += 1 }
+            else if char == "　" { spaces += 2 }  // 全角スペース
+            else if char == "\t" { spaces += 2 }
+            else { break }
+        }
+        return spaces / 2
+    }
+
     private func escapeHTML(_ text: String) -> String {
         text.replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
@@ -261,11 +317,30 @@ class ReaderWebViewStore {
         let js = """
         (function() {
             var el = document.querySelector('.ai-summary');
-            if (el) {
-                var html = '\(escaped)';
-                html = html.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
-                el.innerHTML = '<div class="ai-label">✦ AI要約</div><p>' + html + '</p>';
+            if (!el) return;
+            var raw = '\(escaped)';
+            raw = raw.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
+            var lines = raw.split('\\n').filter(function(l) { return l.trim().length > 0; });
+            var html = '<div class="ai-label">✦ AI要約</div>';
+            var depth = 0;
+            function indent(line) {
+                var m = line.match(/^(\\s|　)*/);
+                return m ? Math.floor(m[0].replace(/　/g,'  ').length / 2) : 0;
             }
+            lines.forEach(function(line) {
+                var t = line.trim();
+                if (t.match(/^[・\\-\\*]\\s/)) {
+                    var target = indent(line) + 1;
+                    while (depth < target) { html += '<ul>'; depth++; }
+                    while (depth > target) { html += '</ul>'; depth--; }
+                    html += '<li>' + t.replace(/^[・\\-\\*]\\s*/, '') + '</li>';
+                } else {
+                    while (depth > 0) { html += '</ul>'; depth--; }
+                    html += '<p>' + t + '</p>';
+                }
+            });
+            while (depth > 0) { html += '</ul>'; depth--; }
+            el.innerHTML = html;
         })();
         """
         webView?.evaluateJavaScript(js)
