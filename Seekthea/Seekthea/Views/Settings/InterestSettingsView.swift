@@ -104,6 +104,11 @@ struct InterestSettingsView: View {
                 }
             }
         }
+        #if os(macOS)
+        .formStyle(.grouped)
+        .frame(maxWidth: 600)
+        .frame(maxWidth: .infinity)
+        #endif
         .navigationTitle("興味トピック")
         .onAppear { loadLearnedTopics() }
     }

@@ -65,6 +65,10 @@ struct SourcesListView: View {
                 .listStyle(.insetGrouped)
                 #endif
             }
+            #if os(macOS)
+            .frame(maxWidth: 600)
+            .frame(maxWidth: .infinity)
+            #endif
             .navigationTitle("ソース管理")
             .toolbar {
                 ToolbarItem(placement: .automatic) {

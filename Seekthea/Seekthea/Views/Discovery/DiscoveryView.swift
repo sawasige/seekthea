@@ -39,6 +39,10 @@ struct DiscoveryView: View {
                 }
             }
             .listStyle(.plain)
+            #if os(macOS)
+            .frame(maxWidth: 600)
+            .frame(maxWidth: .infinity)
+            #endif
             .navigationTitle("発見")
             .toolbar {
                 ToolbarItem(placement: .automatic) {

@@ -54,6 +54,11 @@ struct SettingsView: View {
                     LabeledContent("バージョン", value: "1.0")
                 }
             }
+            #if os(macOS)
+            .formStyle(.grouped)
+            .frame(maxWidth: 600)
+            .frame(maxWidth: .infinity)
+            #endif
             .navigationTitle("設定")
         }
     }
