@@ -24,24 +24,7 @@ struct ArticleCardView: View {
         VStack(alignment: .leading, spacing: 0) {
             // サムネイル画像（URLがある場合のみ）
             if let imageURL = article.displayImageURL {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(height: imageHeight)
-                            .clipped()
-                    case .empty:
-                        // 読み込み中
-                        Color.gray.opacity(0.1)
-                            .frame(height: imageHeight)
-                    case .failure:
-                        // 失敗 → 非表示
-                        EmptyView()
-                    @unknown default:
-                        EmptyView()
-                    }
-                }
+                ArticleImageView(url: imageURL, height: imageHeight)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -112,7 +95,7 @@ struct ArticleCardView: View {
             }
             .padding(12)
         }
-        .frame(minHeight: 120)
+        .frame(maxWidth: .infinity, minHeight: 120)
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .contentShape(RoundedRectangle(cornerRadius: 12))
@@ -130,6 +113,38 @@ struct ArticleCardView: View {
     private var placeholderImage: some View {
         Rectangle()
             .fill(Color.gray.opacity(0.15))
+    }
+}
+
+// MARK: - Article Image (failure時に非表示)
+
+private struct ArticleImageView: View {
+    let url: URL
+    let height: CGFloat
+    @State private var failed = false
+
+    var body: some View {
+        if failed {
+            EmptyView()
+        } else {
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .frame(height: height)
+                .overlay {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable()
+                                .aspectRatio(contentMode: .fill)
+                        case .failure:
+                            Color.clear.onAppear { failed = true }
+                        default:
+                            Color.gray.opacity(0.1)
+                        }
+                    }
+                }
+                .clipped()
+        }
     }
 }
 
