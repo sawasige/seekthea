@@ -12,8 +12,18 @@ struct FeedView: View {
     @State private var viewModel: FeedViewModel?
     @State private var feedMode: FeedMode = .forYou
     @State private var selectedCategory: String? = nil
+    @State private var headerOffset: CGFloat = 0
+    @State private var lastScrollY: CGFloat = 0
+    @State private var topInset: CGFloat = 0
 
     let modelContainer: ModelContainer
+
+    private let headerHeight: CGFloat = 90
+    private var hideOffset: CGFloat { -(headerHeight + topInset) }
+
+    private var isHeaderFullyHidden: Bool {
+        headerOffset <= hideOffset
+    }
 
     private var categoryCounts: [String: Int] {
         let activeFeedURLs = viewModel?.activeSourceFeedURLs() ?? []
@@ -56,10 +66,8 @@ struct FeedView: View {
         [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)]
         #else
         if horizontalSizeClass == .regular {
-            // iPad
             [GridItem(.adaptive(minimum: 260, maximum: 360), spacing: 12)]
         } else {
-            // iPhone: 1カラム
             [GridItem(.flexible())]
         }
         #endif
@@ -67,22 +75,7 @@ struct FeedView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // おすすめ / 新着 切り替え
-                Picker("モード", selection: $feedMode) {
-                    ForEach(FeedMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.top, 8)
-
-                // カテゴリフィルタ
-                CategoryFilterView(selectedCategory: $selectedCategory, categoryCounts: categoryCounts)
-                    .padding(.vertical, 8)
-
-                // 記事タイルグリッド
+            ZStack(alignment: .top) {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 16) {
                         ForEach(displayArticles, id: \.id) { article in
@@ -95,26 +88,78 @@ struct FeedView: View {
                         }
                     }
                     .padding(.horizontal)
+                    .padding(.top, headerHeight)
                     .padding(.bottom, 20)
                 }
                 .refreshable {
                     await refreshAll()
                 }
-                .overlay {
-                    if allArticles.isEmpty {
-                        if viewModel == nil {
-                            ProgressView("読み込み中...")
-                        } else {
-                            ContentUnavailableView(
-                                "記事がありません",
-                                systemImage: "newspaper",
-                                description: Text("更新ボタンを押してください")
-                            )
+                .contentMargins(.top, headerHeight, for: .scrollIndicators)
+                .onScrollGeometryChange(for: CGFloat.self) { geo in
+                    geo.contentOffset.y + geo.contentInsets.top
+                } action: { _, newValue in
+                    guard newValue >= 0 else {
+                        lastScrollY = newValue
+                        return
+                    }
+
+                    let delta = newValue - lastScrollY
+                    lastScrollY = newValue
+
+                    let newOffset = headerOffset - delta
+                    headerOffset = min(0, max(hideOffset, newOffset))
+                }
+                .onScrollPhaseChange { _, newPhase in
+                    if newPhase == .idle {
+                        withAnimation(.snappy(duration: 0.2)) {
+                            headerOffset = headerOffset < hideOffset * 0.5 ? hideOffset : 0
                         }
                     }
                 }
+
+                // ヘッダー
+                VStack(spacing: 0) {
+                    Picker("モード", selection: $feedMode) {
+                        ForEach(FeedMode.allCases, id: \.self) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                    .padding(.top, 4)
+
+                    CategoryFilterView(selectedCategory: $selectedCategory, categoryCounts: categoryCounts)
+                        .padding(.vertical, 6)
+                }
+                .frame(height: headerHeight)
+                .frame(maxWidth: .infinity)
+                .background(.ultraThinMaterial)
+                .offset(y: headerOffset)
+                .allowsHitTesting(headerOffset > hideOffset)
+                .onGeometryChange(for: CGFloat.self) { geo in
+                    geo.frame(in: .global).minY
+                } action: { minY in
+                    // ヘッダーのグローバルY座標 = SafeArea上部 + ナビバーの高さ
+                    if minY > 0 { topInset = minY }
+                }
             }
-            .navigationTitle("フィード")
+            .overlay {
+                if allArticles.isEmpty {
+                    if viewModel == nil {
+                        ProgressView("読み込み中...")
+                    } else {
+                        ContentUnavailableView(
+                            "記事がありません",
+                            systemImage: "newspaper",
+                            description: Text("更新ボタンを押してください")
+                        )
+                    }
+                }
+            }
+            .navigationTitle("Seekthea")
+            #if !os(macOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .automatic) {
                     Button {
