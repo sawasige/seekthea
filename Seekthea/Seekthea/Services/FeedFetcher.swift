@@ -2,7 +2,8 @@ import Foundation
 import FeedKit
 import SwiftData
 
-actor FeedFetcher {
+@MainActor
+class FeedFetcher {
     private let modelContainer: ModelContainer
     private var isFetching = false
 
@@ -10,17 +11,16 @@ actor FeedFetcher {
         self.modelContainer = modelContainer
     }
 
-    /// アクティブな全ソースからRSS取得（直列・重複防止）
+    /// アクティブな全ソースからRSS取得
     func fetchAll() async {
         guard !isFetching else { return }
         isFetching = true
         defer { isFetching = false }
 
-        let context = ModelContext(modelContainer)
+        let context = modelContainer.mainContext
         let descriptor = FetchDescriptor<Source>(predicate: #Predicate { $0.isActive })
         guard let sources = try? context.fetch(descriptor) else { return }
 
-        // 既存記事URLを一度だけ取得し、追加分も追跡
         var knownURLs = Set(
             ((try? context.fetch(FetchDescriptor<Article>())) ?? []).map(\.articleURL)
         )
@@ -52,7 +52,6 @@ actor FeedFetcher {
         }
 
         try? context.save()
-
     }
 
     static func fetchOGImage(from url: URL) async -> URL? {
@@ -63,7 +62,6 @@ actor FeedFetcher {
         }
 
         let html: String
-        // 文字コード対応
         if let s = String(data: data, encoding: .utf8) {
             html = s
         } else if let s = String(data: data, encoding: .shiftJIS) {
@@ -74,7 +72,6 @@ actor FeedFetcher {
             return nil
         }
 
-        // og:image を探す（属性の順序に依存しない）
         let patterns = [
             "property\\s*=\\s*[\"']og:image[\"'][^>]+content\\s*=\\s*[\"']([^\"']+)[\"']",
             "content\\s*=\\s*[\"']([^\"']+)[\"'][^>]+property\\s*=\\s*[\"']og:image[\"']",
