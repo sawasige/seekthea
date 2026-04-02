@@ -12,18 +12,13 @@ struct FeedView: View {
     @State private var viewModel: FeedViewModel?
     @State private var feedMode: FeedMode = .forYou
     @State private var selectedCategory: String? = nil
-    @State private var headerOffset: CGFloat = 0
+    @State private var stickyOffset: CGFloat = 0
     @State private var lastScrollY: CGFloat = 0
-    @State private var topInset: CGFloat = 0
+    @State private var currentScrollY: CGFloat = 0
 
     let modelContainer: ModelContainer
 
     private let headerHeight: CGFloat = 90
-    private var hideOffset: CGFloat { -(headerHeight + topInset) }
-
-    private var isHeaderFullyHidden: Bool {
-        headerOffset <= hideOffset
-    }
 
     private var categoryCounts: [String: Int] {
         let activeFeedURLs = viewModel?.activeSourceFeedURLs() ?? []
@@ -73,10 +68,45 @@ struct FeedView: View {
         #endif
     }
 
+    /// ヘッダーのoffset: stickyOffset分だけスクロールを打ち消して留まる
+    private var headerOffset: CGFloat {
+        min(stickyOffset, max(0, currentScrollY))
+    }
+
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .top) {
-                ScrollView {
+            ScrollView {
+                VStack(spacing: 0) {
+                    // ヘッダー（コンテンツと同じ層、stickyOffsetで制御）
+                    VStack(spacing: 0) {
+                        Picker("モード", selection: $feedMode) {
+                            ForEach(FeedMode.allCases, id: \.self) { mode in
+                                Text(mode.rawValue).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal)
+                        .padding(.top, 4)
+
+                        CategoryFilterView(selectedCategory: $selectedCategory, categoryCounts: categoryCounts)
+                            .padding(.vertical, 6)
+                    }
+                    .frame(height: headerHeight)
+                    .background(alignment: .top) {
+                        #if os(macOS)
+                        Color(nsColor: .windowBackgroundColor)
+                            .frame(height: headerHeight + 500)
+                            .offset(y: -500)
+                        #else
+                        Color(uiColor: .systemBackground)
+                            .frame(height: headerHeight + 500)
+                            .offset(y: -500)
+                        #endif
+                    }
+                    .offset(y: headerOffset)
+                    .zIndex(1)
+
+                    // 記事グリッド
                     LazyVGrid(columns: columns, spacing: 16) {
                         ForEach(displayArticles, id: \.id) { article in
                             NavigationLink {
@@ -88,59 +118,42 @@ struct FeedView: View {
                         }
                     }
                     .padding(.horizontal)
-                    .padding(.top, headerHeight)
                     .padding(.bottom, 20)
                 }
-                .refreshable {
-                    await refreshAll()
-                }
-                .contentMargins(.top, headerHeight, for: .scrollIndicators)
-                .onScrollGeometryChange(for: CGFloat.self) { geo in
-                    geo.contentOffset.y + geo.contentInsets.top
-                } action: { _, newValue in
-                    guard newValue >= 0 else {
-                        lastScrollY = newValue
-                        return
-                    }
+            }
+            .refreshable {
+                await refreshAll()
+            }
+            .onScrollGeometryChange(for: CGFloat.self) { geo in
+                geo.contentOffset.y + geo.contentInsets.top
+            } action: { _, newValue in
+                currentScrollY = newValue
 
-                    let delta = newValue - lastScrollY
+                guard newValue >= 0 else {
                     lastScrollY = newValue
-
-                    let newOffset = headerOffset - delta
-                    headerOffset = min(0, max(hideOffset, newOffset))
+                    return
                 }
-                .onScrollPhaseChange { _, newPhase in
-                    if newPhase == .idle {
-                        withAnimation(.snappy(duration: 0.2)) {
-                            headerOffset = headerOffset < hideOffset * 0.5 ? hideOffset : 0
+
+                let delta = newValue - lastScrollY
+                lastScrollY = newValue
+
+                if delta > 0 {
+                    // スクロールダウン: stickyOffsetを減らす（ヘッダーがスクロールに従って消える）
+                    stickyOffset = max(0, stickyOffset - delta)
+                } else {
+                    // スクロールアップ: stickyOffsetを増やす（ヘッダーが戻る）
+                    stickyOffset = min(currentScrollY, stickyOffset - delta)
+                }
+            }
+            .onScrollPhaseChange { _, newPhase in
+                if newPhase == .idle {
+                    withAnimation(.snappy(duration: 0.2)) {
+                        if stickyOffset < headerHeight * 0.5 {
+                            stickyOffset = 0
+                        } else {
+                            stickyOffset = currentScrollY
                         }
                     }
-                }
-
-                // ヘッダー
-                VStack(spacing: 0) {
-                    Picker("モード", selection: $feedMode) {
-                        ForEach(FeedMode.allCases, id: \.self) { mode in
-                            Text(mode.rawValue).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
-                    .padding(.top, 4)
-
-                    CategoryFilterView(selectedCategory: $selectedCategory, categoryCounts: categoryCounts)
-                        .padding(.vertical, 6)
-                }
-                .frame(height: headerHeight)
-                .frame(maxWidth: .infinity)
-                .background(.ultraThinMaterial)
-                .offset(y: headerOffset)
-                .allowsHitTesting(headerOffset > hideOffset)
-                .onGeometryChange(for: CGFloat.self) { geo in
-                    geo.frame(in: .global).minY
-                } action: { minY in
-                    // ヘッダーのグローバルY座標 = SafeArea上部 + ナビバーの高さ
-                    if minY > 0 { topInset = minY }
                 }
             }
             .overlay {
@@ -159,6 +172,7 @@ struct FeedView: View {
             .navigationTitle("Seekthea")
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
             #endif
             .toolbar {
                 ToolbarItem(placement: .automatic) {
