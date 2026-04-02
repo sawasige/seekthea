@@ -71,13 +71,7 @@ class InterestEngine {
             score *= 1.2
         }
 
-        // お気に入りソースからのボーナス
-        if let source = article.source {
-            let favCount = (source.articles ?? []).filter(\.isFavorite).count
-            if favCount > 0 {
-                score += Double(min(favCount, 5)) * 0.5
-            }
-        }
+        // お気に入りソースからのボーナス（リレーション経由のアクセスを避ける）
 
         // 0〜1に正規化（sigmoidライク）
         return min(score / (score + 5.0), 1.0)

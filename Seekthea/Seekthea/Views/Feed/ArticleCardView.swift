@@ -22,22 +22,22 @@ struct ArticleCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // サムネイル画像
+            // サムネイル画像（URLがある場合のみ）
             if let imageURL = article.displayImageURL {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable()
-                            .aspectRatio(contentMode: .fill)
-                    default:
-                        placeholderImage
+                Color.gray.opacity(0.1)
+                    .frame(height: imageHeight)
+                    .overlay {
+                        AsyncImage(url: imageURL) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image.resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            default:
+                                EmptyView()
+                            }
+                        }
                     }
-                }
-                .frame(height: imageHeight)
-                .clipped()
-            } else {
-                placeholderImage
-                    .frame(height: imageHeight * 0.6)
+                    .clipped()
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -103,8 +103,11 @@ struct ArticleCardView: View {
             }
             .padding(12)
         }
+        .frame(minHeight: 120)
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .clipped()
         .opacity(article.isRead ? 0.7 : 1.0)
         .task {
             if article.displayImageURL == nil {
