@@ -56,28 +56,32 @@ struct FeedView: View {
     private func updateCachedData() {
         let activeFeedURLs = viewModel?.activeSourceFeedURLs() ?? []
 
+        // feedModeに合致する記事を抽出（カテゴリフィルタ前）
+        let modeFiltered = allArticles.filter { article in
+            guard activeFeedURLs.contains(article.sourceFeedURL) else { return false }
+            switch feedMode {
+            case .favorites:
+                return article.isFavorite
+            case .history:
+                return article.isRead
+            default:
+                return true
+            }
+        }
+
         var counts: [String: Int] = [:]
-        for article in allArticles where activeFeedURLs.contains(article.sourceFeedURL) {
+        for article in modeFiltered {
             for cat in article.categories {
                 counts[cat, default: 0] += 1
             }
         }
         cachedCategoryCounts = counts
 
-        var articles = allArticles.filter { article in
-            guard activeFeedURLs.contains(article.sourceFeedURL) else { return false }
-            switch feedMode {
-            case .favorites:
-                guard article.isFavorite else { return false }
-            case .history:
-                guard article.isRead else { return false }
-            default:
-                break
-            }
-            if let cat = selectedCategory {
-                if !article.categories.contains(cat) { return false }
-            }
-            return true
+        var articles: [Article]
+        if let cat = selectedCategory {
+            articles = modeFiltered.filter { $0.categories.contains(cat) }
+        } else {
+            articles = modeFiltered
         }
 
         switch feedMode {
