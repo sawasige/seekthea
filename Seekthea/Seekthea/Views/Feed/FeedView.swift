@@ -4,6 +4,8 @@ import SwiftData
 enum FeedMode: String, CaseIterable {
     case forYou = "おすすめ"
     case latest = "新着"
+    case favorites = "お気に入り"
+    case history = "閲覧履歴"
 }
 
 // MARK: - 記事グリッド（スクロール状態に依存しない）
@@ -66,19 +68,33 @@ struct FeedView: View {
 
         var articles = allArticles.filter { article in
             guard activeFeedURLs.contains(article.sourceFeedURL) else { return false }
+            switch feedMode {
+            case .favorites:
+                guard article.isFavorite else { return false }
+            case .history:
+                guard article.isRead else { return false }
+            default:
+                break
+            }
             if let cat = selectedCategory {
                 if !article.categories.contains(cat) { return false }
             }
             return true
         }
 
-        if feedMode == .forYou {
+        switch feedMode {
+        case .forYou:
             articles.sort { a, b in
                 if abs(a.relevanceScore - b.relevanceScore) > 0.01 {
                     return a.relevanceScore > b.relevanceScore
                 }
                 return (a.publishedAt ?? .distantPast) > (b.publishedAt ?? .distantPast)
             }
+        case .latest, .favorites:
+            break // @Queryの既定ソート（publishedAt desc）
+        case .history:
+            // 最近読んだ順（fetchedAtで代用）
+            articles.sort { ($0.fetchedAt) > ($1.fetchedAt) }
         }
 
         cachedArticles = articles
