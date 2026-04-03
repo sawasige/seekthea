@@ -8,11 +8,11 @@ struct MarkdownText: View {
     var boldColor: Color = .primary
 
     var body: some View {
-        parsedText
+        buildText()
     }
 
-    private var parsedText: Text {
-        let parts = parse(text)
+    private func buildText() -> Text {
+        let parts = Self.parse(text)
         guard let first = parts.first else { return Text("") }
 
         var result = makeText(first)
@@ -35,7 +35,12 @@ struct MarkdownText: View {
         let isBold: Bool
     }
 
-    private func parse(_ input: String) -> [TextPart] {
+    // nonisolated static to avoid re-parsing when only fonts change
+    private static func parse(_ input: String) -> [TextPart] {
+        guard input.contains("**") else {
+            return [TextPart(text: input, isBold: false)]
+        }
+
         var parts: [TextPart] = []
         var remaining = input
 

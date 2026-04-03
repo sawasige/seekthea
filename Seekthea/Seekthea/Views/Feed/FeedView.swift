@@ -18,9 +18,7 @@ private struct ArticleGridView: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: 16) {
             ForEach(articles, id: \.id) { article in
-                NavigationLink {
-                    ArticleDetailView(article: article)
-                } label: {
+                NavigationLink(value: article) {
                     ArticleCardView(article: article, showScore: showScore)
                 }
                 .buttonStyle(.plain)
@@ -104,13 +102,11 @@ struct FeedView: View {
 
     private var columns: [GridItem] {
         #if os(macOS)
-        [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)]
+        return [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)]
         #else
-        if horizontalSizeClass == .regular {
-            [GridItem(.adaptive(minimum: 260, maximum: 360), spacing: 12)]
-        } else {
-            [GridItem(.flexible())]
-        }
+        return horizontalSizeClass == .regular
+            ? [GridItem(.adaptive(minimum: 260, maximum: 360), spacing: 12)]
+            : [GridItem(.flexible())]
         #endif
     }
 
@@ -231,6 +227,9 @@ struct FeedView: View {
                 if viewModel != nil {
                     Task { await refreshAll() }
                 }
+            }
+            .navigationDestination(for: Article.self) { article in
+                ArticleDetailView(article: article)
             }
         }
     }

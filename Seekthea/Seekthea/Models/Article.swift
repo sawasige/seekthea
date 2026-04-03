@@ -78,6 +78,11 @@ class Article {
         summary ?? ogDescription ?? leadText
     }
 
+    /// カード用（AI要約を含まない軽量な説明文）
+    var cardDescription: String? {
+        ogDescription ?? leadText
+    }
+
     var textForAI: String {
         let body = extractedBody ?? ogDescription ?? leadText ?? ""
         let truncated = String(body.prefix(2000))

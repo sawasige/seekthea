@@ -35,15 +35,11 @@ struct ArticleCardView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 // 要約 or 説明文
-                if let description = article.displayDescription {
-                    MarkdownText(
-                        text: description,
-                        font: descFont,
-                        boldFont: descFont.bold(),
-                        boldColor: .primary
-                    )
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
+                if let description = article.cardDescription {
+                    Text(description)
+                        .font(descFont)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
                 }
 
                 // メタ情報
