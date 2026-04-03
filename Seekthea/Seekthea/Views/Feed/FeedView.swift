@@ -376,6 +376,7 @@ struct FeedView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 0) {
+                    #if !os(macOS)
                     ScrollViewSwipeHelper(
                         onSwipeLeft: { switchCategory(direction: 1) },
                         onSwipeRight: { switchCategory(direction: -1) },
@@ -387,6 +388,11 @@ struct FeedView: View {
                     )
                     .frame(height: 0)
                     .id("scrollTop")
+                    #else
+                    Color.clear
+                        .frame(height: 0)
+                        .id("scrollTop")
+                    #endif
 
                     headerView
                         .zIndex(1)
