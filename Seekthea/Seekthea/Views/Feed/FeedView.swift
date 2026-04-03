@@ -342,6 +342,7 @@ struct FeedView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
                 .toolbar {
+                    #if os(macOS)
                     ToolbarItem(placement: .automatic) {
                         Button {
                             Task { await refreshAll() }
@@ -349,6 +350,14 @@ struct FeedView: View {
                             Image(systemName: "arrow.clockwise")
                         }
                         .disabled(viewModel?.isLoading ?? false)
+                    }
+                    #endif
+                    ToolbarItem(placement: .automatic) {
+                        NavigationLink {
+                            SettingsView()
+                        } label: {
+                            Image(systemName: "gear")
+                        }
                     }
                 }
                 .task {

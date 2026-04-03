@@ -13,64 +13,39 @@ struct ContentView: View {
     }
 
     var body: some View {
-        TabView {
-            FeedView(modelContainer: modelContainer)
-                .tabItem {
-                    Label("フィード", systemImage: "newspaper")
+        FeedView(modelContainer: modelContainer)
+            .task {
+                deduplicateSources()
+
+                do {
+                    try PresetLoader.loadIfNeeded(context: modelContext)
+                } catch {
+                    print("Failed to load presets: \(error)")
                 }
 
-            DiscoveryView(modelContainer: modelContainer)
-                .tabItem {
-                    Label("発見", systemImage: "sparkle.magnifyingglass")
+                checkPendingSources()
+                await checkRemotePresets()
+            }
+            .alert("新しいソースが共有されました", isPresented: $pendingSourceAlert) {
+                Button("追加") {
+                    addPendingSources()
                 }
-
-            SourcesListView(modelContainer: modelContainer)
-                .tabItem {
-                    Label("ソース", systemImage: "list.bullet")
+                Button("キャンセル", role: .cancel) {
+                    PendingSourcesStore.clear()
                 }
-
-            SettingsView()
-                .tabItem {
-                    Label("設定", systemImage: "gear")
+            } message: {
+                let names = pendingSources.compactMap(\.title).joined(separator: ", ")
+                Text("\(names) をソースに追加しますか？")
+            }
+            .alert("新しいプリセットソース", isPresented: $showPresetAlert) {
+                Button("すべて追加") {
+                    addRemotePresets()
                 }
-        }
-        .task {
-            // 重複ソースを削除
-            deduplicateSources()
-
-            // プリセット読み込み
-            do {
-                try PresetLoader.loadIfNeeded(context: modelContext)
-            } catch {
-                print("Failed to load presets: \(error)")
+                Button("後で", role: .cancel) {}
+            } message: {
+                let names = newPresets.map(\.name).joined(separator: ", ")
+                Text("\(names) が利用可能です")
             }
-
-            // Share Extensionからのpending sources確認
-            checkPendingSources()
-
-            // Remote Presetの更新チェック
-            await checkRemotePresets()
-        }
-        .alert("新しいソースが共有されました", isPresented: $pendingSourceAlert) {
-            Button("追加") {
-                addPendingSources()
-            }
-            Button("キャンセル", role: .cancel) {
-                PendingSourcesStore.clear()
-            }
-        } message: {
-            let names = pendingSources.compactMap(\.title).joined(separator: ", ")
-            Text("\(names) をソースに追加しますか？")
-        }
-        .alert("新しいプリセットソース", isPresented: $showPresetAlert) {
-            Button("すべて追加") {
-                addRemotePresets()
-            }
-            Button("後で", role: .cancel) {}
-        } message: {
-            let names = newPresets.map(\.name).joined(separator: ", ")
-            Text("\(names) が利用可能です")
-        }
     }
 
     private func checkPendingSources() {
@@ -115,7 +90,6 @@ struct ContentView: View {
 
     /// 重複を削除（CloudKit同期で発生しうる）
     private func deduplicateSources() {
-        // ソースの重複削除
         let sources = (try? modelContext.fetch(FetchDescriptor<Source>())) ?? []
         var seenSources = Set<URL>()
         for source in sources {
@@ -126,7 +100,6 @@ struct ContentView: View {
             }
         }
 
-        // 記事の重複削除
         let articles = (try? modelContext.fetch(FetchDescriptor<Article>())) ?? []
         var seenArticles = Set<URL>()
         for article in articles {

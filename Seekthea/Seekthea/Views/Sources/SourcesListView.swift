@@ -15,7 +15,6 @@ struct SourcesListView: View {
     }
 
     var body: some View {
-        NavigationStack {
             VStack(spacing: 0) {
                 Picker("種別", selection: $selectedTab) {
                     ForEach(SourceType.allCases.filter { $0 != .discovery }, id: \.self) { type in
@@ -87,6 +86,5 @@ struct SourcesListView: View {
                     viewModel = SourcesViewModel(modelContainer: modelContainer)
                 }
             }
-        }
     }
 }

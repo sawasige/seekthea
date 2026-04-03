@@ -8,78 +8,89 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var toastMessage: String?
 
+    private var modelContainer: ModelContainer {
+        modelContext.container
+    }
+
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("パーソナライズ") {
-                    NavigationLink("興味トピック") {
-                        InterestSettingsView()
-                    }
+        Form {
+            Section("ソース") {
+                NavigationLink("ソース管理") {
+                    SourcesListView(modelContainer: modelContainer)
                 }
-
-                Section("更新") {
-                    Picker("更新間隔", selection: $refreshInterval) {
-                        Text("30分").tag(30)
-                        Text("1時間").tag(60)
-                        Text("3時間").tag(180)
-                    }
-                }
-
-                Section("AI処理") {
-                    Toggle("AI要約・分類", isOn: $aiProcessingEnabled)
-                    Text("Apple Intelligenceを使用して記事を要約・分類します")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Button("全記事のAI要約を再生成") {
-                        resetAIProcessing()
-                        showToast("AI要約をリセットしました")
-                    }
-                }
-
-                Section("発見") {
-                    Toggle("ソース自動発見", isOn: $discoveryEnabled)
-                    Button("スキップしたソースを復元") {
-                        restoreRejectedDomains()
-                        showToast("スキップしたソースを復元しました")
-                    }
-                }
-
-                Section("データ管理") {
-                    Button("古い記事を削除（30日以上前）", role: .destructive) {
-                        deleteOldArticles()
-                        showToast("古い記事を削除しました")
-                    }
-                    Button("全記事を削除", role: .destructive) {
-                        deleteAllArticles()
-                        showToast("全記事を削除しました")
-                    }
-                }
-
-                Section("情報") {
-                    LabeledContent("バージョン", value: "1.0")
+                NavigationLink("ソース発見") {
+                    DiscoveryView(modelContainer: modelContainer)
                 }
             }
-            #if os(macOS)
-            .formStyle(.grouped)
-            .frame(maxWidth: 600)
-            .frame(maxWidth: .infinity)
-            #endif
-            .navigationTitle("設定")
-            .overlay(alignment: .bottom) {
-                if let message = toastMessage {
-                    Text(message)
-                        .font(.subheadline)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Capsule())
-                        .shadow(radius: 4)
-                        .padding(.bottom, 20)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+
+            Section("パーソナライズ") {
+                NavigationLink("興味トピック") {
+                    InterestSettingsView()
                 }
             }
-            .animation(.easeInOut(duration: 0.3), value: toastMessage)
+
+            Section("更新") {
+                Picker("更新間隔", selection: $refreshInterval) {
+                    Text("30分").tag(30)
+                    Text("1時間").tag(60)
+                    Text("3時間").tag(180)
+                }
+            }
+
+            Section("AI処理") {
+                Toggle("AI要約・分類", isOn: $aiProcessingEnabled)
+                Text("Apple Intelligenceを使用して記事を要約・分類します")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("全記事のAI要約を再生成") {
+                    resetAIProcessing()
+                    showToast("AI要約をリセットしました")
+                }
+            }
+
+            Section("発見") {
+                Toggle("ソース自動発見", isOn: $discoveryEnabled)
+                Button("スキップしたソースを復元") {
+                    restoreRejectedDomains()
+                    showToast("スキップしたソースを復元しました")
+                }
+            }
+
+            Section("データ管理") {
+                Button("古い記事を削除（30日以上前）", role: .destructive) {
+                    deleteOldArticles()
+                    showToast("古い記事を削除しました")
+                }
+                Button("全記事を削除", role: .destructive) {
+                    deleteAllArticles()
+                    showToast("全記事を削除しました")
+                }
+            }
+
+            Section("情報") {
+                LabeledContent("バージョン", value: "1.0")
+            }
         }
+        #if os(macOS)
+        .formStyle(.grouped)
+        .frame(maxWidth: 600)
+        .frame(maxWidth: .infinity)
+        #endif
+        .navigationTitle("設定")
+        .overlay(alignment: .bottom) {
+            if let message = toastMessage {
+                Text(message)
+                    .font(.subheadline)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                    .shadow(radius: 4)
+                    .padding(.bottom, 20)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: toastMessage)
     }
 
     private func showToast(_ message: String) {
@@ -129,7 +140,6 @@ struct SettingsView: View {
     private func deleteAllArticles() {
         do {
             try modelContext.delete(model: Article.self)
-            // ソースの記事数もリセット
             let sources = (try? modelContext.fetch(FetchDescriptor<Source>())) ?? []
             for source in sources { source.articleCount = 0 }
             try? modelContext.save()

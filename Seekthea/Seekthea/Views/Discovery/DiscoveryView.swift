@@ -14,7 +14,6 @@ struct DiscoveryView: View {
     let modelContainer: ModelContainer
 
     var body: some View {
-        NavigationStack {
             List {
                 if !suggestions.isEmpty {
                     Section("新しいソース候補") {
@@ -62,6 +61,5 @@ struct DiscoveryView: View {
                     await viewModel?.checkForNewSources()
                 }
             }
-        }
     }
 }
