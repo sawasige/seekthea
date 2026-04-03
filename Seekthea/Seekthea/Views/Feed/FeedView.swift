@@ -39,6 +39,8 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
     @Binding var isSwiping: Bool
     @Binding var swipeProgress: CGFloat
     @Binding var swipeDirection: CGFloat
+    var canSwipeLeft: Bool
+    var canSwipeRight: Bool
 
     func makeUIView(context: Context) -> UIView {
         let view = SwipeInstallerView()
@@ -61,6 +63,8 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
         context.coordinator.setIsSwiping = { val in
             DispatchQueue.main.async { self.isSwiping = val }
         }
+        context.coordinator.canSwipeLeft = canSwipeLeft
+        context.coordinator.canSwipeRight = canSwipeRight
         context.coordinator.setSwipeProgress = { progress, direction in
             DispatchQueue.main.async {
                 self.swipeProgress = progress
@@ -87,6 +91,8 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
         var onSwipeRight: () -> Void
         var setIsSwiping: ((Bool) -> Void)?
         var setSwipeProgress: ((CGFloat, CGFloat) -> Void)?
+        var canSwipeLeft = true
+        var canSwipeRight = true
         weak var addedTo: UIScrollView?
         private var isHorizontalPan = false
         private let threshold: CGFloat = 50
@@ -102,6 +108,11 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
             switch gesture.state {
             case .changed:
                 if !isHorizontalPan && abs(translation.x) > 15 && abs(translation.x) > abs(translation.y) * 1.5 {
+                    let goingLeft = translation.x < 0
+                    // 端にいる場合はスワイプを開始しない
+                    if (goingLeft && !canSwipeLeft) || (!goingLeft && !canSwipeRight) {
+                        break
+                    }
                     isHorizontalPan = true
                     setIsSwiping?(true)
                     addedTo?.isScrollEnabled = false
@@ -370,7 +381,9 @@ struct FeedView: View {
                         onSwipeRight: { switchCategory(direction: -1) },
                         isSwiping: $isSwiping,
                         swipeProgress: $swipeProgress,
-                        swipeDirection: $swipeDirection
+                        swipeDirection: $swipeDirection,
+                        canSwipeLeft: selectedCategoryIndex < allCategoryOptions.count - 1,
+                        canSwipeRight: selectedCategoryIndex > 0
                     )
                     .frame(height: 0)
                     .id("scrollTop")
