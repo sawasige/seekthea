@@ -11,20 +11,33 @@ struct CategoryFilterView: View {
     }
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                let totalCount = categoryCounts.values.reduce(0, +)
-                FilterChip(title: "全て", count: totalCount, isSelected: selectedCategory == nil) {
-                    selectedCategory = nil
-                }
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    let totalCount = categoryCounts.values.reduce(0, +)
+                    FilterChip(title: "全て", count: totalCount, isSelected: selectedCategory == nil) {
+                        selectedCategory = nil
+                    }
+                    .id("chip_all")
 
-                ForEach(sortedCategories, id: \.name) { item in
-                    FilterChip(title: item.name, count: item.count, isSelected: selectedCategory == item.name) {
-                        selectedCategory = (selectedCategory == item.name) ? nil : item.name
+                    ForEach(sortedCategories, id: \.name) { item in
+                        FilterChip(title: item.name, count: item.count, isSelected: selectedCategory == item.name) {
+                            selectedCategory = (selectedCategory == item.name) ? nil : item.name
+                        }
+                        .id("chip_\(item.name)")
+                    }
+                }
+                .padding(.horizontal)
+            }
+            .onChange(of: selectedCategory) {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    if let cat = selectedCategory {
+                        proxy.scrollTo("chip_\(cat)", anchor: .center)
+                    } else {
+                        proxy.scrollTo("chip_all", anchor: .center)
                     }
                 }
             }
-            .padding(.horizontal)
         }
     }
 }

@@ -37,6 +37,8 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
     let onSwipeLeft: () -> Void
     let onSwipeRight: () -> Void
     @Binding var isSwiping: Bool
+    @Binding var swipeProgress: CGFloat
+    @Binding var swipeDirection: CGFloat
 
     func makeUIView(context: Context) -> UIView {
         let view = SwipeInstallerView()
@@ -56,8 +58,14 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
     func updateUIView(_ uiView: UIView, context: Context) {
         context.coordinator.onSwipeLeft = onSwipeLeft
         context.coordinator.onSwipeRight = onSwipeRight
-        context.coordinator.setIsSwiping = { isSwiping in
-            DispatchQueue.main.async { self.isSwiping = isSwiping }
+        context.coordinator.setIsSwiping = { val in
+            DispatchQueue.main.async { self.isSwiping = val }
+        }
+        context.coordinator.setSwipeProgress = { progress, direction in
+            DispatchQueue.main.async {
+                self.swipeProgress = progress
+                self.swipeDirection = direction
+            }
         }
     }
 
@@ -78,9 +86,9 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
         var onSwipeLeft: () -> Void
         var onSwipeRight: () -> Void
         var setIsSwiping: ((Bool) -> Void)?
+        var setSwipeProgress: ((CGFloat, CGFloat) -> Void)?
         weak var addedTo: UIScrollView?
         private var isHorizontalPan = false
-        private var hasFired = false
         private let threshold: CGFloat = 50
 
         init(onSwipeLeft: @escaping () -> Void, onSwipeRight: @escaping () -> Void) {
@@ -93,24 +101,37 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
 
             switch gesture.state {
             case .changed:
-                // 横方向の移動が縦より大きいか判定
                 if !isHorizontalPan && abs(translation.x) > 15 && abs(translation.x) > abs(translation.y) * 1.5 {
                     isHorizontalPan = true
                     setIsSwiping?(true)
+                    addedTo?.isScrollEnabled = false
                 }
-                // 閾値を超えたらカテゴリ切り替え（1回だけ）
-                if isHorizontalPan && !hasFired && abs(translation.x) > threshold {
-                    hasFired = true
+                if isHorizontalPan {
+                    let progress = min(1, abs(translation.x) / threshold)
+                    let direction: CGFloat = translation.x < 0 ? -1 : 1
+                    setSwipeProgress?(progress, direction)
+                }
+            case .ended:
+                if isHorizontalPan && abs(translation.x) > threshold {
                     if translation.x < 0 {
                         onSwipeLeft()
                     } else {
                         onSwipeRight()
                     }
                 }
-            case .ended, .cancelled:
+                if isHorizontalPan {
+                    addedTo?.isScrollEnabled = true
+                }
                 isHorizontalPan = false
-                hasFired = false
                 setIsSwiping?(false)
+                setSwipeProgress?(0, 0)
+            case .cancelled:
+                if isHorizontalPan {
+                    addedTo?.isScrollEnabled = true
+                }
+                isHorizontalPan = false
+                setIsSwiping?(false)
+                setSwipeProgress?(0, 0)
             default:
                 break
             }
@@ -118,6 +139,15 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
 
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
             true
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+            // ネストされた横スクロール（カテゴリチップ等）を優先
+            if let otherScrollView = otherGestureRecognizer.view as? UIScrollView,
+               otherScrollView != addedTo {
+                return true
+            }
+            return false
         }
     }
 }
@@ -138,6 +168,8 @@ struct FeedView: View {
     @State private var sortedCategories: [String] = []
     @State private var gridOpacity: Double = 1
     @State private var isSwiping: Bool = false
+    @State private var swipeProgress: CGFloat = 0
+    @State private var swipeDirection: CGFloat = 0  // -1: left, 1: right
     @State private var currentScrollY: CGFloat = 0
     @State private var lastScrollY: CGFloat = 0
 
@@ -336,7 +368,9 @@ struct FeedView: View {
                     ScrollViewSwipeHelper(
                         onSwipeLeft: { switchCategory(direction: 1) },
                         onSwipeRight: { switchCategory(direction: -1) },
-                        isSwiping: $isSwiping
+                        isSwiping: $isSwiping,
+                        swipeProgress: $swipeProgress,
+                        swipeDirection: $swipeDirection
                     )
                     .frame(height: 0)
                     .id("scrollTop")
@@ -358,7 +392,8 @@ struct FeedView: View {
                     }
                     .padding(.horizontal)
                     .padding(.bottom, 20)
-                    .opacity(gridOpacity)
+                    .offset(x: isSwiping ? swipeDirection * swipeProgress * 30 : 0)
+                    .opacity(isSwiping ? 1 - swipeProgress * 0.6 : gridOpacity)
                 }
             }
             .onAppear { scrollProxy = proxy }
