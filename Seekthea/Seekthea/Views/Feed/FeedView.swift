@@ -6,6 +6,31 @@ enum FeedMode: String, CaseIterable {
     case latest = "新着"
 }
 
+// MARK: - 記事グリッド（スクロール状態に依存しない）
+
+private struct ArticleGridView: View {
+    let articles: [Article]
+    let showScore: Bool
+    let columns: [GridItem]
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 16) {
+            ForEach(articles, id: \.id) { article in
+                NavigationLink {
+                    ArticleDetailView(article: article)
+                } label: {
+                    ArticleCardView(article: article, showScore: showScore)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 20)
+    }
+}
+
+// MARK: - FeedView
+
 struct FeedView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Article.publishedAt, order: .reverse) private var allArticles: [Article]
@@ -22,8 +47,6 @@ struct FeedView: View {
     private let headerHeight: CGFloat = 90
     private var fullHideAmount: CGFloat { -(headerHeight + topInset) }
 
-    /// ヘッダーのoffset: スクロール位置を打ち消して画面上部に留め、hideAmountで隠す
-    /// バウンス含め全スクロール位置で同じ式（特別分岐なし）
     private var headerOffset: CGFloat {
         currentScrollY + hideAmount
     }
@@ -80,7 +103,7 @@ struct FeedView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
-                    // ヘッダー（コンテンツと同じ層）
+                    // ヘッダー
                     VStack(spacing: 0) {
                         Picker("モード", selection: $feedMode) {
                             ForEach(FeedMode.allCases, id: \.self) { mode in
@@ -114,19 +137,12 @@ struct FeedView: View {
                     .offset(y: headerOffset)
                     .zIndex(1)
 
-                    // 記事グリッド
-                    LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(displayArticles, id: \.id) { article in
-                            NavigationLink {
-                                ArticleDetailView(article: article)
-                            } label: {
-                                ArticleCardView(article: article, showScore: feedMode == .forYou)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom, 20)
+                    // 記事グリッド（別View、スクロール状態で再描画されない）
+                    ArticleGridView(
+                        articles: displayArticles,
+                        showScore: feedMode == .forYou,
+                        columns: columns
+                    )
                 }
             }
             .contentMargins(.top, headerHeight, for: .scrollIndicators)
@@ -138,7 +154,6 @@ struct FeedView: View {
             } action: { _, newValue in
                 currentScrollY = newValue
 
-                // バウンス領域をクランプしてdelta計算（バウンス中はdelta=0）
                 let clampedNew = max(0, newValue)
                 let clampedOld = max(0, lastScrollY)
                 lastScrollY = newValue
