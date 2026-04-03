@@ -41,6 +41,8 @@ struct FeedView: View {
     @State private var lastScrollY: CGFloat = 0
     @State private var currentScrollY: CGFloat = 0
     @State private var topInset: CGFloat = 0
+    @State private var cachedArticles: [Article] = []
+    @State private var cachedCategoryCounts: [String: Int] = [:]
 
     let modelContainer: ModelContainer
 
@@ -51,19 +53,16 @@ struct FeedView: View {
         currentScrollY + hideAmount
     }
 
-    private var categoryCounts: [String: Int] {
+    private func updateCachedData() {
         let activeFeedURLs = viewModel?.activeSourceFeedURLs() ?? []
+
         var counts: [String: Int] = [:]
         for article in allArticles where activeFeedURLs.contains(article.sourceFeedURL) {
             for cat in article.categories {
                 counts[cat, default: 0] += 1
             }
         }
-        return counts
-    }
-
-    private var displayArticles: [Article] {
-        let activeFeedURLs = viewModel?.activeSourceFeedURLs() ?? []
+        cachedCategoryCounts = counts
 
         var articles = allArticles.filter { article in
             guard activeFeedURLs.contains(article.sourceFeedURL) else { return false }
@@ -82,7 +81,7 @@ struct FeedView: View {
             }
         }
 
-        return articles
+        cachedArticles = articles
     }
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -114,7 +113,7 @@ struct FeedView: View {
                         .padding(.horizontal)
                         .padding(.top, 4)
 
-                        CategoryFilterView(selectedCategory: $selectedCategory, categoryCounts: categoryCounts)
+                        CategoryFilterView(selectedCategory: $selectedCategory, categoryCounts: cachedCategoryCounts)
                             .padding(.vertical, 6)
                     }
                     .frame(height: headerHeight)
@@ -139,7 +138,7 @@ struct FeedView: View {
 
                     // 記事グリッド（別View、スクロール状態で再描画されない）
                     ArticleGridView(
-                        articles: displayArticles,
+                        articles: cachedArticles,
                         showScore: feedMode == .forYou,
                         columns: columns
                     )
@@ -187,6 +186,9 @@ struct FeedView: View {
                     }
                 }
             }
+            .onChange(of: feedMode) { updateCachedData() }
+            .onChange(of: selectedCategory) { updateCachedData() }
+            .onChange(of: allArticles.count) { updateCachedData() }
             .navigationTitle("Seekthea")
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -207,6 +209,7 @@ struct FeedView: View {
                 }
                 await viewModel?.refresh()
                 viewModel?.updateRelevanceScores()
+                updateCachedData()
             }
             .onAppear {
                 if viewModel != nil {
@@ -220,5 +223,6 @@ struct FeedView: View {
         await viewModel?.refresh()
         viewModel?.updateRelevanceScores()
         viewModel?.classifyInBackground()
+        updateCachedData()
     }
 }
