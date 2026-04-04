@@ -337,6 +337,13 @@ struct FeedView: View {
                     updateCachedData()
                 }
                 .onChange(of: allArticles.count) { updateCachedData() }
+                .onChange(of: isSwiping) {
+                    if isSwiping, hideAmount < 0 {
+                        withAnimation(.snappy(duration: 0.2)) {
+                            hideAmount = 0
+                        }
+                    }
+                }
                 .navigationTitle("Seekthea")
                 #if !os(macOS)
                 .navigationBarTitleDisplayMode(.inline)
