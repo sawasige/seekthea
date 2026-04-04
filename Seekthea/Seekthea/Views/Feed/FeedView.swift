@@ -289,10 +289,20 @@ struct FeedView: View {
     // MARK: - Hide on Scroll
 
     private var headerOffset: CGFloat {
-        currentScrollY + hideAmount
+        max(0, currentScrollY) + hideAmount
     }
 
     private func handleScroll(_ newValue: CGFloat, _ oldValue: CGFloat) {
+        // Pull-to-refresh中（上に引っ張り）はヘッダーを表示
+        if newValue < 0 {
+            if hideAmount < 0 {
+                withAnimation(.snappy(duration: 0.2)) {
+                    hideAmount = 0
+                }
+            }
+            return
+        }
+
         let clampedNew = max(0, newValue)
         let clampedOld = max(0, oldValue)
 
@@ -436,24 +446,24 @@ struct FeedView: View {
                 }
             }
             .onAppear { scrollProxy = proxy }
-        }
-        .contentMargins(.top, headerHeight, for: .scrollIndicators)
-        .refreshable {
-            await refreshAll()
-        }
-        .onScrollGeometryChange(for: CGFloat.self) { geo in
-            geo.contentOffset.y + geo.contentInsets.top
-        } action: { _, newValue in
-            let oldValue = lastScrollY
-            currentScrollY = newValue
-            lastScrollY = newValue
-            handleScroll(newValue, oldValue)
-        }
-        .onScrollPhaseChange { _, newPhase in
-            if newPhase == .idle {
-                handleScrollIdle()
+            .onScrollGeometryChange(for: CGFloat.self) { geo in
+                geo.contentOffset.y + geo.contentInsets.top
+            } action: { _, newValue in
+                let oldValue = lastScrollY
+                currentScrollY = newValue
+                lastScrollY = newValue
+                handleScroll(newValue, oldValue)
+            }
+            .onScrollPhaseChange { _, newPhase in
+                if newPhase == .idle {
+                    handleScrollIdle()
+                }
+            }
+            .refreshable {
+                await refreshAll()
             }
         }
+        .contentMargins(.top, headerHeight, for: .scrollIndicators)
     }
 
     private var headerView: some View {
@@ -472,14 +482,15 @@ struct FeedView: View {
         }
         .frame(height: headerHeight)
         .background(alignment: .top) {
+            let extraHeight: CGFloat = currentScrollY < 0 ? 0 : 500
             #if os(macOS)
             Color(nsColor: .windowBackgroundColor)
-                .frame(height: headerHeight + 500)
-                .offset(y: -500)
+                .frame(height: headerHeight + extraHeight)
+                .offset(y: -extraHeight)
             #else
             Color(uiColor: .systemBackground)
-                .frame(height: headerHeight + 500)
-                .offset(y: -500)
+                .frame(height: headerHeight + extraHeight)
+                .offset(y: -extraHeight)
             #endif
         }
         .offset(y: headerOffset)
