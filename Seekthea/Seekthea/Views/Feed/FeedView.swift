@@ -108,6 +108,10 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
             switch gesture.state {
             case .changed:
                 if !isHorizontalPan && abs(translation.x) > 15 && abs(translation.x) > abs(translation.y) * 1.5 {
+                    // 縦スクロール中は横スワイプを開始しない
+                    if let sv = addedTo, sv.isDragging || sv.isDecelerating {
+                        break
+                    }
                     let goingLeft = translation.x < 0
                     // 端にいる場合はスワイプを開始しない
                     if (goingLeft && !canSwipeLeft) || (!goingLeft && !canSwipeRight) {
