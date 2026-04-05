@@ -6,6 +6,7 @@ import SwiftData
 class FeedViewModel {
     let modelContainer: ModelContainer
     private(set) var isLoading = false
+    var statusMessage: String?
 
     private var feedFetcher: FeedFetcher
     private var aiProcessor: AIProcessor
@@ -22,12 +23,17 @@ class FeedViewModel {
     func refresh() async {
         isLoading = true
         defer { isLoading = false }
-        await feedFetcher.fetchAll()
+        await feedFetcher.fetchAll { [weak self] message in
+            self?.statusMessage = message
+        }
     }
 
     /// 未分類記事をカテゴリ分類
     func classifyAll() async {
-        await aiProcessor.classifyBatch()
+        await aiProcessor.classifyBatch { [weak self] message in
+            self?.statusMessage = message
+        }
+        statusMessage = nil
     }
 
     /// アクティブなソースのfeedURLセットを取得

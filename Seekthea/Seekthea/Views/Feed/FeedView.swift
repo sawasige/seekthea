@@ -397,6 +397,27 @@ struct FeedView: View {
                 .navigationDestination(for: Article.self) { article in
                     ArticleDetailView(article: article)
                 }
+                .overlay(alignment: .bottom) {
+                    if let status = viewModel?.statusMessage {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                #if !os(macOS)
+                                .controlSize(.small)
+                                #endif
+                            Text(status)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
+                        .shadow(radius: 4)
+                        .padding(.bottom, 20)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                }
+                .animation(.easeInOut(duration: 0.3), value: viewModel?.statusMessage)
         }
     }
 
@@ -499,7 +520,9 @@ struct FeedView: View {
 
     private func refreshAll() async {
         await viewModel?.refresh()
+        viewModel?.statusMessage = "スコアを計算中..."
         viewModel?.updateRelevanceScores()
+        viewModel?.statusMessage = nil
         updateCachedData()
         Task {
             await viewModel?.classifyAll()

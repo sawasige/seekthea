@@ -127,7 +127,7 @@ class AIProcessor {
     /// 未分類記事をまとめてカテゴリ分類（10件ずつバッチ処理）
     private var isClassifying = false
 
-    func classifyBatch() async {
+    func classifyBatch(onProgress: ((String) -> Void)? = nil) async {
         guard !isClassifying else { return }
         isClassifying = true
         defer { isClassifying = false }
@@ -142,7 +142,11 @@ class AIProcessor {
 
         // 10件ずつバッチ処理
         let batchSize = 10
+        let totalBatches = (articles.count + batchSize - 1) / batchSize
+        var batchIndex = 0
         for batchStart in stride(from: 0, to: articles.count, by: batchSize) {
+            batchIndex += 1
+            onProgress?("カテゴリ分類中... (\(batchIndex)/\(totalBatches))")
             let batch = Array(articles[batchStart..<min(batchStart + batchSize, articles.count)])
             let titles = batch.enumerated().map { "\($0.offset + 1). \($0.element.title)" }.joined(separator: "\n")
 

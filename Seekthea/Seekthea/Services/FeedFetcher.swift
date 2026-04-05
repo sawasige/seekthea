@@ -12,7 +12,7 @@ class FeedFetcher {
     }
 
     /// アクティブな全ソースからRSS取得
-    func fetchAll() async {
+    func fetchAll(onProgress: ((String) -> Void)? = nil) async {
         guard !isFetching else { return }
         isFetching = true
         defer { isFetching = false }
@@ -25,7 +25,8 @@ class FeedFetcher {
             ((try? context.fetch(FetchDescriptor<Article>())) ?? []).map(\.articleURL)
         )
 
-        for source in sources {
+        for (index, source) in sources.enumerated() {
+            onProgress?("\(source.name) を取得中... (\(index + 1)/\(sources.count))")
             let feedURL = source.feedURL
             guard let (data, _) = try? await URLSession.shared.data(from: feedURL) else { continue }
 
