@@ -500,7 +500,10 @@ struct FeedView: View {
     private func refreshAll() async {
         await viewModel?.refresh()
         viewModel?.updateRelevanceScores()
-        viewModel?.classifyInBackground()
         updateCachedData()
+        Task {
+            await viewModel?.classifyAll()
+            updateCachedData()
+        }
     }
 }

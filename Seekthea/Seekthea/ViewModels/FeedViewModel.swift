@@ -25,11 +25,9 @@ class FeedViewModel {
         await feedFetcher.fetchAll()
     }
 
-    /// 未分類記事をバックグラウンドでカテゴリ分類
-    func classifyInBackground() {
-        Task {
-            await aiProcessor.classifyBatch()
-        }
+    /// 未分類記事をカテゴリ分類
+    func classifyAll() async {
+        await aiProcessor.classifyBatch()
     }
 
     /// アクティブなソースのfeedURLセットを取得

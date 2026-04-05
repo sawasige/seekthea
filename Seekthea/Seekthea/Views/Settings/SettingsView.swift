@@ -24,6 +24,9 @@ struct SettingsView: View {
             }
 
             Section("パーソナライズ") {
+                NavigationLink("カテゴリ管理") {
+                    CategorySettingsView()
+                }
                 NavigationLink("興味トピック") {
                     InterestSettingsView()
                 }

@@ -25,6 +25,20 @@ struct BatchCategories {
 class AIProcessor {
     private let modelContainer: ModelContainer
 
+    /// ユーザー定義カテゴリリスト
+    private var userCategories: [String] {
+        guard let data = UserDefaults.standard.string(forKey: "userCategories")?.data(using: .utf8),
+              let categories = try? JSONDecoder().decode([String].self, from: data),
+              !categories.isEmpty else {
+            return CategorySettingsView.defaultCategories
+        }
+        return categories
+    }
+
+    private var categoryList: String {
+        userCategories.joined(separator: "、")
+    }
+
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
     }
@@ -71,7 +85,7 @@ class AIProcessor {
 
             \(article.textForAI)
 
-            - category: テクノロジー, ビジネス, 政治, 社会, スポーツ, エンタメ, サイエンス, ライフ, 開発, プロダクト, トレンド から1つ
+            - category: 以下から最も適切なものを1つ選択: \(categoryList)。どれにも合わない場合は最も近いものを選んでください
             - keywords: 重要キーワード（最大5つ）
             """
 
@@ -134,9 +148,10 @@ class AIProcessor {
 
             do {
                 let session = LanguageModelSession()
+                let catList = categoryList
                 let prompt = """
                 以下の記事タイトルそれぞれにカテゴリを1つ割り当ててください。
-                カテゴリ: テクノロジー, ビジネス, 政治, 社会, スポーツ, エンタメ, サイエンス, ライフ, 開発, プロダクト, トレンド
+                カテゴリは以下から選択: \(catList)。どれにも合わない場合は最も近いものを選んでください。
 
                 \(titles)
 
