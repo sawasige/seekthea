@@ -96,7 +96,14 @@ struct ArticleCardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .clipped()
-        .opacity(article.isRead ? 0.7 : 1.0)
+        .overlay(alignment: .topTrailing) {
+            if article.isRead {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(.white, .gray)
+                    .padding(8)
+            }
+        }
         .task {
             if article.displayImageURL == nil {
                 if let ogImage = await FeedFetcher.fetchOGImage(from: article.articleURL) {
