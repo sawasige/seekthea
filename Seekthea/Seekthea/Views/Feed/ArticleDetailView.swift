@@ -127,103 +127,238 @@ struct ArticleDetailView: View {
     }
 }
 
-// MARK: - AI要約ビュー（SwiftUIネイティブ）
+// MARK: - AI要約ビュー
 
 private struct AISummaryView: View {
     let article: Article
     var isAIProcessing: Bool
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                // タイトル
-                Text(article.title)
-                    .font(.title2.weight(.bold))
-                    .fixedSize(horizontal: false, vertical: true)
-
-                // メタ情報
-                HStack(spacing: 8) {
-                    if let sourceName = article.source?.name {
-                        Text(sourceName)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let date = article.publishedAt {
-                        Text(date, style: .date)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Divider()
-
-                // AI要約
-                if let summary = article.summary, !summary.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label("AI要約", systemImage: "sparkles")
-                            .font(.headline)
-                            .foregroundStyle(.blue)
-
-                        Text(LocalizedStringKey(formatMarkdown(summary)))
-                            .font(.body)
-                            .lineSpacing(6)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                } else if isAIProcessing {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label("AI要約を生成中...", systemImage: "sparkles")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-
-                        ShimmerView()
-                            .frame(height: 80)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                } else {
-                    Text("AI要約はまだ生成されていません")
-                        .foregroundStyle(.secondary)
-                }
-
-                // キーワード
-                if !article.keywords.isEmpty {
-                    Divider()
-                    FlowLayout(spacing: 6) {
-                        ForEach(article.keywords, id: \.self) { keyword in
-                            Text(keyword)
-                                .font(.caption)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(.blue.opacity(0.1))
-                                .foregroundStyle(.blue)
-                                .clipShape(Capsule())
-                        }
-                    }
-                }
-
-                // カテゴリ
-                if !article.categories.isEmpty {
-                    FlowLayout(spacing: 6) {
-                        ForEach(article.categories, id: \.self) { cat in
-                            Text(cat)
-                                .font(.caption)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(.orange.opacity(0.1))
-                                .foregroundStyle(.orange)
-                                .clipShape(Capsule())
-                        }
-                    }
-                }
+        if let summary = article.summary, !summary.isEmpty {
+            SummaryWebView(html: buildSummaryHTML(summary))
+        } else if isAIProcessing {
+            VStack(spacing: 16) {
+                Spacer()
+                Label("AI要約を生成中...", systemImage: "sparkles")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                ShimmerView()
+                    .frame(height: 80)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding(.horizontal, 20)
+                Spacer()
             }
-            .padding(20)
+        } else {
+            ContentUnavailableView(
+                "AI要約なし",
+                systemImage: "sparkles",
+                description: Text("この記事のAI要約はまだ生成されていません")
+            )
         }
     }
 
-    private func formatMarkdown(_ text: String) -> String {
-        // Markdownをそのまま渡す（LocalizedStringKeyがMarkdown解釈する）
-        text
+    private func buildSummaryHTML(_ summary: String) -> String {
+        let title = escapeHTML(article.title)
+        let sourceName = escapeHTML(article.source?.name ?? "")
+        let dateStr = article.publishedAt.map {
+            DateFormatter.localizedString(from: $0, dateStyle: .long, timeStyle: .short)
+        } ?? ""
+
+        let keywordsHTML = article.keywords.isEmpty ? "" : {
+            let tags = article.keywords.map { "<span class=\"tag keyword\">\(escapeHTML($0))</span>" }.joined()
+            return "<div class=\"tags\">\(tags)</div>"
+        }()
+
+        let categoriesHTML = article.categories.isEmpty ? "" : {
+            let tags = article.categories.map { "<span class=\"tag category\">\(escapeHTML($0))</span>" }.joined()
+            return "<div class=\"tags\">\(tags)</div>"
+        }()
+
+        // Markdown→HTML簡易変換
+        let summaryHTML = markdownToHTML(summary)
+
+        return """
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=3">
+        <style>
+        :root { color-scheme: light dark; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif;
+            font-size: 18px;
+            line-height: 1.8;
+            color: #1d1d1f;
+            background: #fff;
+            padding: 20px 20px 80px;
+            max-width: 720px;
+            margin: 0 auto;
+            -webkit-text-size-adjust: 100%;
+        }
+        @media (prefers-color-scheme: dark) {
+            body { color: #f5f5f7; background: #1c1c1e; }
+            .meta { color: #98989d; }
+            hr { border-color: #38383a; }
+            .summary h2, .summary h3, .summary h4 { color: #f5f5f7; }
+            table { border-color: #48484a; }
+            th { background: #2c2c2e; }
+            th, td { border-color: #48484a; }
+            .tag.keyword { background: rgba(50,130,246,0.2); color: #64a8ff; }
+            .tag.category { background: rgba(255,159,10,0.2); color: #ffa33a; }
+        }
+        h1 { font-size: 22px; line-height: 1.4; margin-bottom: 8px; font-weight: 700; }
+        .meta { font-size: 13px; color: #86868b; margin-bottom: 16px; }
+        .ai-label {
+            font-size: 14px; font-weight: 600; color: #007aff;
+            margin-bottom: 12px;
+        }
+        hr { border: none; border-top: 1px solid #d2d2d7; margin: 16px 0; }
+        .summary p { margin-bottom: 14px; }
+        .summary h2 { font-size: 20px; margin: 24px 0 10px; font-weight: 700; color: #1d1d1f; }
+        .summary h3 { font-size: 18px; margin: 20px 0 8px; font-weight: 600; color: #1d1d1f; }
+        .summary h4 { font-size: 16px; margin: 18px 0 6px; font-weight: 600; color: #1d1d1f; }
+        .summary ul, .summary ol { padding-left: 24px; margin: 10px 0; }
+        .summary li { margin-bottom: 6px; }
+        .summary strong { font-weight: 600; }
+        .summary blockquote {
+            border-left: 3px solid #d2d2d7; margin: 14px 0;
+            padding: 8px 16px; color: #6e6e73; font-style: italic;
+        }
+        table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 15px; }
+        th, td { border: 1px solid #d2d2d7; padding: 8px 12px; text-align: left; }
+        th { background: #f5f5f7; font-weight: 600; }
+        .tags { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+        .tag {
+            font-size: 13px; padding: 4px 10px; border-radius: 20px; display: inline-block;
+        }
+        .tag.keyword { background: rgba(50,130,246,0.1); color: #007aff; }
+        .tag.category { background: rgba(255,159,10,0.1); color: #ff9500; }
+        </style>
+        </head>
+        <body>
+            <h1>\(title)</h1>
+            <div class="meta">\(sourceName)　\(escapeHTML(dateStr))</div>
+            <div class="ai-label">✦ AI要約</div>
+            <div class="summary">\(summaryHTML)</div>
+            \(keywordsHTML.isEmpty && categoriesHTML.isEmpty ? "" : "<hr>" + keywordsHTML + categoriesHTML)
+        </body>
+        </html>
+        """
+    }
+
+    private func markdownToHTML(_ markdown: String) -> String {
+        var html = ""
+        var inList = false
+        var inTable = false
+        var tableHeaderDone = false
+
+        let lines = markdown.components(separatedBy: "\n")
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty {
+                if inList { html += "</ul>"; inList = false }
+                if inTable { html += "</tbody></table>"; inTable = false; tableHeaderDone = false }
+                continue
+            }
+
+            // テーブル区切り行（|---|---|）はスキップ
+            if trimmed.hasPrefix("|") && trimmed.contains("---") {
+                tableHeaderDone = true
+                continue
+            }
+
+            // テーブル行
+            if trimmed.hasPrefix("|") && trimmed.hasSuffix("|") {
+                if !inTable {
+                    if inList { html += "</ul>"; inList = false }
+                    html += "<table><thead>"
+                    inTable = true
+                    tableHeaderDone = false
+                }
+                let cells = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "|"))
+                    .components(separatedBy: "|")
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                if !tableHeaderDone {
+                    html += "<tr>" + cells.map { "<th>\(inlineMarkdown($0))</th>" }.joined() + "</tr></thead><tbody>"
+                } else {
+                    html += "<tr>" + cells.map { "<td>\(inlineMarkdown($0))</td>" }.joined() + "</tr>"
+                }
+                continue
+            }
+
+            if inTable { html += "</tbody></table>"; inTable = false; tableHeaderDone = false }
+
+            // 見出し
+            if trimmed.hasPrefix("#### ") {
+                if inList { html += "</ul>"; inList = false }
+                html += "<h4>\(inlineMarkdown(String(trimmed.dropFirst(5))))</h4>"
+            } else if trimmed.hasPrefix("### ") {
+                if inList { html += "</ul>"; inList = false }
+                html += "<h3>\(inlineMarkdown(String(trimmed.dropFirst(4))))</h3>"
+            } else if trimmed.hasPrefix("## ") {
+                if inList { html += "</ul>"; inList = false }
+                html += "<h2>\(inlineMarkdown(String(trimmed.dropFirst(3))))</h2>"
+            }
+            // リスト
+            else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("・") {
+                if !inList { html += "<ul>"; inList = true }
+                let content = trimmed.replacingOccurrences(of: "^[・\\-\\*]\\s*", with: "", options: .regularExpression)
+                html += "<li>\(inlineMarkdown(content))</li>"
+            }
+            // 通常の段落
+            else {
+                if inList { html += "</ul>"; inList = false }
+                html += "<p>\(inlineMarkdown(trimmed))</p>"
+            }
+        }
+        if inList { html += "</ul>" }
+        if inTable { html += "</tbody></table>" }
+        return html
+    }
+
+    private func inlineMarkdown(_ text: String) -> String {
+        var result = escapeHTML(text)
+        // **bold**
+        result = result.replacingOccurrences(
+            of: "\\*\\*(.+?)\\*\\*", with: "<strong>$1</strong>", options: .regularExpression)
+        // `code`
+        result = result.replacingOccurrences(
+            of: "`(.+?)`", with: "<code>$1</code>", options: .regularExpression)
+        return result
+    }
+
+    private func escapeHTML(_ text: String) -> String {
+        text.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
     }
 }
+
+// MARK: - Summary WebView
+
+#if os(macOS)
+private struct SummaryWebView: NSViewRepresentable {
+    let html: String
+    func makeNSView(context: Context) -> WKWebView {
+        let webView = WKWebView()
+        webView.loadHTMLString(html, baseURL: nil)
+        return webView
+    }
+    func updateNSView(_ webView: WKWebView, context: Context) {}
+}
+#else
+private struct SummaryWebView: UIViewRepresentable {
+    let html: String
+    func makeUIView(context: Context) -> WKWebView {
+        let webView = WKWebView()
+        webView.loadHTMLString(html, baseURL: nil)
+        return webView
+    }
+    func updateUIView(_ webView: WKWebView, context: Context) {}
+}
+#endif
 
 // MARK: - Shimmer
 
