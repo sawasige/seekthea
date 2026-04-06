@@ -90,21 +90,36 @@ class AIProcessor {
             let summary = summaryResponse.content.trimmingCharacters(in: .whitespacesAndNewlines)
 
             // 2. カテゴリ・キーワードをGuided Generationで生成
-            let metaPrompt = """
-            以下の記事のカテゴリとキーワードを抽出してください。
+            let needsCategory = article.aiCategory == nil
+            let metaPrompt: String
+            if needsCategory {
+                metaPrompt = """
+                以下の記事のカテゴリとキーワードを抽出してください。
 
-            \(article.textForAI)
+                \(article.textForAI)
 
-            - category: 必ず以下のリストの中から選んでください。複数該当する場合はカンマ区切りで指定（最大3つ）。リストにない単語は絶対に使わないでください。
-              選択肢: [\(categoryList)]
-            - keywords: 重要キーワード（最大5つ）
-            """
+                - category: 必ず以下のリストの中から選んでください。複数該当する場合はカンマ区切りで指定（最大3つ）。リストにない単語は絶対に使わないでください。
+                  選択肢: [\(categoryList)]
+                - keywords: 重要キーワード（最大5つ）
+                """
+            } else {
+                metaPrompt = """
+                以下の記事のキーワードを抽出してください。
+
+                \(article.textForAI)
+
+                - category: \(article.aiCategory ?? "")
+                - keywords: 重要キーワード（最大5つ）
+                """
+            }
 
             let metaResponse = try await session.respond(to: metaPrompt, generating: ArticleMeta.self)
             let meta = metaResponse.content
 
             article.summary = summary
-            article.aiCategory = validateCategories(meta.category)
+            if needsCategory {
+                article.aiCategory = validateCategories(meta.category)
+            }
             article.keywords = meta.keywords
             article.isAIProcessed = true
             try? context.save()

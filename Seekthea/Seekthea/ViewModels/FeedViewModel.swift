@@ -22,9 +22,23 @@ class FeedViewModel {
     /// 全フィードを更新
     func refresh() async {
         isLoading = true
-        defer { isLoading = false }
         await feedFetcher.fetchAll { [weak self] message in
             self?.statusMessage = message
+        }
+        statusMessage = "スコアを計算中..."
+        interestEngine.scoreArticles()
+        statusMessage = nil
+        isLoading = false
+    }
+
+    /// 分類をバックグラウンドで実行
+    func classifyInBackground(onComplete: (@MainActor () -> Void)? = nil) {
+        Task {
+            await aiProcessor.classifyBatch { [weak self] message in
+                self?.statusMessage = message
+            }
+            statusMessage = nil
+            onComplete?()
         }
     }
 

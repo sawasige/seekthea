@@ -385,13 +385,11 @@ struct FeedView: View {
                     if viewModel == nil {
                         viewModel = FeedViewModel(modelContainer: modelContainer)
                     }
-                    await viewModel?.refresh()
-                    viewModel?.updateRelevanceScores()
-                    updateCachedData()
+                    await refreshAll()
                 }
                 .onAppear {
                     if viewModel != nil {
-                        Task { await refreshAll() }
+                        updateCachedData()
                     }
                 }
                 .navigationDestination(for: Article.self) { article in
@@ -520,12 +518,8 @@ struct FeedView: View {
 
     private func refreshAll() async {
         await viewModel?.refresh()
-        viewModel?.statusMessage = "スコアを計算中..."
-        viewModel?.updateRelevanceScores()
-        viewModel?.statusMessage = nil
         updateCachedData()
-        Task {
-            await viewModel?.classifyAll()
+        viewModel?.classifyInBackground { [self] in
             updateCachedData()
         }
     }

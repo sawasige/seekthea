@@ -50,9 +50,10 @@ class FeedFetcher {
                 source.articleCount += 1
             }
             source.lastFetchedAt = Date()
+            onProgress?("\(source.name) を保存中... (\(index + 1)/\(sources.count))")
+            try? context.save()
         }
-
-        try? context.save()
+        onProgress?("フィードを更新中...")
     }
 
     static func fetchOGImage(from url: URL) async -> URL? {
