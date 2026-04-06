@@ -39,6 +39,16 @@ class AIProcessor {
         userCategories.joined(separator: "、")
     }
 
+    private func validateCategories(_ category: String) -> String {
+        var seen = Set<String>()
+        let cats = category.components(separatedBy: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .map { userCategories.contains($0) ? $0 : "その他" }
+            .filter { seen.insert($0).inserted }
+        return (cats.isEmpty ? ["その他"] : cats).joined(separator: ",")
+    }
+
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
     }
@@ -85,7 +95,8 @@ class AIProcessor {
 
             \(article.textForAI)
 
-            - category: 以下から最も適切なものを1つ選択: \(categoryList)。どれにも合わない場合は最も近いものを選んでください
+            - category: 必ず以下のリストの中から選んでください。複数該当する場合はカンマ区切りで指定（最大3つ）。リストにない単語は絶対に使わないでください。
+              選択肢: [\(categoryList)]
             - keywords: 重要キーワード（最大5つ）
             """
 
@@ -93,7 +104,7 @@ class AIProcessor {
             let meta = metaResponse.content
 
             article.summary = summary
-            article.aiCategory = meta.category
+            article.aiCategory = validateCategories(meta.category)
             article.keywords = meta.keywords
             article.isAIProcessed = true
             try? context.save()
@@ -155,7 +166,8 @@ class AIProcessor {
                 let catList = categoryList
                 let prompt = """
                 以下の記事タイトルそれぞれにカテゴリを1つ割り当ててください。
-                カテゴリは以下から選択: \(catList)。どれにも合わない場合は最も近いものを選んでください。
+                必ず以下のリストの中から選んでください。複数該当する場合はカンマ区切り（最大3つ）。リストにない単語は絶対に使わないでください。
+                選択肢: [\(catList)]
 
                 \(titles)
 
@@ -166,7 +178,7 @@ class AIProcessor {
 
                 for (index, article) in batch.enumerated() {
                     if index < categories.count {
-                        article.aiCategory = categories[index]
+                        article.aiCategory = validateCategories(categories[index])
                     }
                 }
                 try? context.save()
