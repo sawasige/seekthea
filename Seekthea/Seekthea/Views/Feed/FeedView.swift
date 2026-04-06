@@ -237,22 +237,43 @@ struct FeedView: View {
 
         cachedModeArticles = modeFiltered
 
+        let knownCategories = Set(userCategories)
         var counts: [String: Int] = [:]
         for article in modeFiltered {
             for cat in article.categories {
-                counts[cat, default: 0] += 1
+                let displayCat = knownCategories.contains(cat) ? cat : "その他"
+                counts[displayCat, default: 0] += 1
             }
         }
         cachedCategoryCounts = counts
-        sortedCategories = counts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }.map(\.key)
+        sortedCategories = counts.sorted {
+            if $0.key == "その他" { return false }
+            if $1.key == "その他" { return true }
+            return $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key
+        }.map(\.key)
 
         if let cat = selectedCategory, counts[cat] == nil {
             selectedCategory = nil
         }
     }
 
+    private var userCategories: [String] {
+        guard let data = UserDefaults.standard.string(forKey: "userCategories")?.data(using: .utf8),
+              let categories = try? JSONDecoder().decode([String].self, from: data),
+              !categories.isEmpty else {
+            return CategorySettingsView.defaultCategories
+        }
+        return categories
+    }
+
     private var displayArticles: [Article] {
         guard let cat = selectedCategory else { return cachedModeArticles }
+        if cat == "その他" {
+            let known = Set(userCategories)
+            return cachedModeArticles.filter { article in
+                article.categories.contains { !known.contains($0) }
+            }
+        }
         return cachedModeArticles.filter { $0.categories.contains(cat) }
     }
 
@@ -496,7 +517,7 @@ struct FeedView: View {
             .padding(.horizontal)
             .padding(.top, 4)
 
-            CategoryFilterView(selectedCategory: $selectedCategory, categoryCounts: cachedCategoryCounts)
+            CategoryFilterView(selectedCategory: $selectedCategory, categoryCounts: cachedCategoryCounts, categoryOrder: sortedCategories)
                 .padding(.vertical, 6)
         }
         .frame(height: headerHeight)

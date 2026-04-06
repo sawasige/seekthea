@@ -39,16 +39,6 @@ class AIProcessor {
         userCategories.joined(separator: "、")
     }
 
-    private func validateCategories(_ category: String) -> String {
-        var seen = Set<String>()
-        let cats = category.components(separatedBy: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-            .map { userCategories.contains($0) ? $0 : "その他" }
-            .filter { seen.insert($0).inserted }
-        return (cats.isEmpty ? ["その他"] : cats).joined(separator: ",")
-    }
-
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
     }
@@ -118,7 +108,7 @@ class AIProcessor {
 
             article.summary = summary
             if needsCategory {
-                article.aiCategory = validateCategories(meta.category)
+                article.aiCategory = meta.category
             }
             article.keywords = meta.keywords
             article.isAIProcessed = true
@@ -193,7 +183,7 @@ class AIProcessor {
 
                 for (index, article) in batch.enumerated() {
                     if index < categories.count {
-                        article.aiCategory = validateCategories(categories[index])
+                        article.aiCategory = categories[index]
                     }
                 }
                 try? context.save()

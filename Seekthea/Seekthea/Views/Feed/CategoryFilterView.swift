@@ -3,11 +3,13 @@ import SwiftUI
 struct CategoryFilterView: View {
     @Binding var selectedCategory: String?
     var categoryCounts: [String: Int] = [:]
+    var categoryOrder: [String] = []
 
     private var sortedCategories: [(name: String, count: Int)] {
-        categoryCounts
-            .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
-            .map { (name: $0.key, count: $0.value) }
+        categoryOrder.compactMap { name in
+            guard let count = categoryCounts[name] else { return nil }
+            return (name: name, count: count)
+        }
     }
 
     var body: some View {
