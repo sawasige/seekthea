@@ -137,16 +137,50 @@ private struct AISummaryView: View {
         if let summary = article.summary, !summary.isEmpty {
             SummaryWebView(html: buildSummaryHTML(summary))
         } else if isAIProcessing {
-            VStack(spacing: 16) {
-                Spacer()
-                Label("AI要約を生成中...", systemImage: "sparkles")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-                ShimmerView()
-                    .frame(height: 80)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .padding(.horizontal, 20)
-                Spacer()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(article.title)
+                        .font(.title2.weight(.bold))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Label("AI要約を生成中...", systemImage: "sparkles")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    ShimmerView()
+                        .frame(height: 80)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                    if !article.keywords.isEmpty || !article.categories.isEmpty {
+                        Divider()
+                    }
+                    if !article.keywords.isEmpty {
+                        FlowLayout(spacing: 6) {
+                            ForEach(article.keywords, id: \.self) { keyword in
+                                Text(keyword)
+                                    .font(.caption)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(.blue.opacity(0.1))
+                                    .foregroundStyle(.blue)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
+                    if !article.categories.isEmpty {
+                        FlowLayout(spacing: 6) {
+                            ForEach(article.categories, id: \.self) { cat in
+                                Text(cat)
+                                    .font(.caption)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(.orange.opacity(0.1))
+                                    .foregroundStyle(.orange)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
+                }
+                .padding(20)
             }
         } else {
             ContentUnavailableView(

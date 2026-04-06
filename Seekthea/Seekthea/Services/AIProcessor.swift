@@ -12,10 +12,10 @@ struct ArticleMeta {
     var keywords: [String]
 }
 
-/// バッチ分類用（入力順と同じ順序でカテゴリを返す）
+/// バッチ分類用（入力順と同じ順序でカテゴリ番号を返す）
 @Generable
 struct BatchCategories {
-    @Guide(description: "入力と同じ順序のカテゴリ名リスト")
+    @Guide(description: "入力と同じ順序のカテゴリ番号リスト。複数の場合はカンマ区切り（例: 1,3）")
     var categories: [String]
 }
 #endif
@@ -35,8 +35,20 @@ class AIProcessor {
         return categories
     }
 
-    private var categoryList: String {
-        userCategories.joined(separator: "、")
+    private var numberedCategoryList: String {
+        userCategories.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
+    }
+
+    /// 番号文字列（"1" or "1,3"）をカテゴリ名のカンマ区切りに変換
+    private func categoryNames(from numberStr: String) -> String? {
+        let names = numberStr.components(separatedBy: ",")
+            .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+            .compactMap { num -> String? in
+                let index = num - 1
+                guard index >= 0, index < userCategories.count else { return nil }
+                return userCategories[index]
+            }
+        return names.isEmpty ? nil : names.joined(separator: ",")
     }
 
     init(modelContainer: ModelContainer) {
@@ -79,38 +91,7 @@ class AIProcessor {
             let summaryResponse = try await session.respond(to: summaryPrompt)
             let summary = summaryResponse.content.trimmingCharacters(in: .whitespacesAndNewlines)
 
-            // 2. カテゴリ・キーワードをGuided Generationで生成
-            let needsCategory = article.aiCategory == nil
-            let metaPrompt: String
-            if needsCategory {
-                metaPrompt = """
-                以下の記事のカテゴリとキーワードを抽出してください。
-
-                \(article.textForAI)
-
-                - category: 必ず以下のリストの中から選んでください。複数該当する場合はカンマ区切りで指定（最大3つ）。リストにない単語は絶対に使わないでください。
-                  選択肢: [\(categoryList)]
-                - keywords: 重要キーワード（最大5つ）
-                """
-            } else {
-                metaPrompt = """
-                以下の記事のキーワードを抽出してください。
-
-                \(article.textForAI)
-
-                - category: \(article.aiCategory ?? "")
-                - keywords: 重要キーワード（最大5つ）
-                """
-            }
-
-            let metaResponse = try await session.respond(to: metaPrompt, generating: ArticleMeta.self)
-            let meta = metaResponse.content
-
             article.summary = summary
-            if needsCategory {
-                article.aiCategory = meta.category
-            }
-            article.keywords = meta.keywords
             article.isAIProcessed = true
             try? context.save()
         } catch {
@@ -168,22 +149,25 @@ class AIProcessor {
 
             do {
                 let session = LanguageModelSession()
-                let catList = categoryList
+                let catList = numberedCategoryList
                 let prompt = """
-                以下の記事タイトルそれぞれにカテゴリを1つ割り当ててください。
-                必ず以下のリストの中から選んでください。複数該当する場合はカンマ区切り（最大3つ）。リストにない単語は絶対に使わないでください。
-                選択肢: [\(catList)]
+                以下の記事タイトルそれぞれに最も適切なカテゴリの番号を1つ選んでください。
 
+                カテゴリ一覧:
+                \(catList)
+
+                記事:
                 \(titles)
 
-                入力と同じ順序でカテゴリ名だけをリストで返してください。
+                各記事に対応するカテゴリ番号を、記事と同じ順序でリストで返してください。複数該当する場合はカンマ区切り（例: 1,3）。最大3つ。
                 """
                 let response = try await session.respond(to: prompt, generating: BatchCategories.self)
-                let categories = response.content.categories
+                let categoryNumbers = response.content.categories
 
                 for (index, article) in batch.enumerated() {
-                    if index < categories.count {
-                        article.aiCategory = categories[index]
+                    if index < categoryNumbers.count,
+                       let names = categoryNames(from: categoryNumbers[index]) {
+                        article.aiCategory = names
                     }
                 }
                 try? context.save()
