@@ -187,6 +187,7 @@ struct FeedView: View {
     @State private var swipeDirection: CGFloat = 0  // -1: left, 1: right
     @State private var currentScrollY: CGFloat = 0
     @State private var lastScrollY: CGFloat = 0
+    @AppStorage("useCompactLayout") private var useCompactLayout = false
 
     let modelContainer: ModelContainer
 
@@ -194,10 +195,21 @@ struct FeedView: View {
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+
     private var columns: [GridItem] {
         #if os(macOS)
         return [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)]
         #else
+        if useCompactLayout {
+            let isPhone = UIDevice.current.userInterfaceIdiom == .phone
+            if isPhone {
+                let count = verticalSizeClass == .compact ? 3 : 2
+                return Array(repeating: GridItem(.flexible(), spacing: 8), count: count)
+            } else {
+                return [GridItem(.adaptive(minimum: 170, maximum: 240), spacing: 8)]
+            }
+        }
         return horizontalSizeClass == .regular
             ? [GridItem(.adaptive(minimum: 260, maximum: 360), spacing: 12)]
             : [GridItem(.flexible())]
@@ -394,6 +406,17 @@ struct FeedView: View {
                         .disabled(viewModel?.isLoading ?? false)
                     }
                     #endif
+                    #if !os(macOS)
+                    ToolbarItem(placement: .automatic) {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                useCompactLayout.toggle()
+                            }
+                        } label: {
+                            Image(systemName: useCompactLayout ? "rectangle.grid.1x2" : "rectangle.grid.2x2")
+                        }
+                    }
+                    #endif
                     ToolbarItem(placement: .automatic) {
                         NavigationLink {
                             SettingsView()
@@ -467,14 +490,18 @@ struct FeedView: View {
                     headerView
                         .zIndex(1)
 
-                    LazyVGrid(columns: columns, spacing: 16) {
+                    LazyVGrid(columns: columns, spacing: useCompactLayout ? 8 : 16) {
                         ForEach(displayArticles, id: \.id) { article in
                             Button {
                                 if !isSwiping {
                                     navigationPath.append(article)
                                 }
                             } label: {
-                                ArticleCardView(article: article, showScore: feedMode == .forYou)
+                                if useCompactLayout {
+                                    CompactArticleCardView(article: article, showScore: feedMode == .forYou)
+                                } else {
+                                    ArticleCardView(article: article, showScore: feedMode == .forYou)
+                                }
                             }
                             .buttonStyle(.plain)
                         }
