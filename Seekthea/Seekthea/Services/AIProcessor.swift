@@ -12,11 +12,11 @@ struct ArticleMeta {
     var keywords: [String]
 }
 
-/// バッチ分類用（入力順と同じ順序でカテゴリ番号を返す）
+/// 単一記事のカテゴリ分類用
 @Generable
-struct BatchCategories {
-    @Guide(description: "入力と同じ順序のカテゴリ番号リスト。複数の場合はカンマ区切り（例: 1,3）")
-    var categories: [String]
+struct CategoryResult {
+    @Guide(description: "カテゴリのアルファベット1文字")
+    var category: String
 }
 #endif
 
@@ -35,20 +35,22 @@ class AIProcessor {
         return categories
     }
 
-    private var numberedCategoryList: String {
-        userCategories.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
+    private static let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+    private var labeledCategoryList: String {
+        userCategories.enumerated().map {
+            let label = $0.offset < Self.alphabet.count ? String(Self.alphabet[$0.offset]) : "\($0.offset)"
+            return "\(label). \($0.element)"
+        }.joined(separator: "\n")
     }
 
-    /// 番号文字列（"1" or "1,3"）をカテゴリ名のカンマ区切りに変換
-    private func categoryNames(from numberStr: String) -> String? {
-        let names = numberStr.components(separatedBy: ",")
-            .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
-            .compactMap { num -> String? in
-                let index = num - 1
-                guard index >= 0, index < userCategories.count else { return nil }
-                return userCategories[index]
-            }
-        return names.isEmpty ? nil : names.joined(separator: ",")
+    /// ラベル文字列（"A"）をカテゴリ名に変換（先頭1文字のみ採用）
+    private func categoryName(from labelStr: String) -> String? {
+        guard let char = labelStr.trimmingCharacters(in: .whitespaces).uppercased().first,
+              char.isLetter,
+              let idx = Self.alphabet.firstIndex(of: char),
+              idx < userCategories.count else { return nil }
+        return userCategories[idx]
     }
 
     init(modelContainer: ModelContainer) {
@@ -121,7 +123,7 @@ class AIProcessor {
         }
     }
 
-    /// 未分類記事をまとめてカテゴリ分類（10件ずつバッチ処理）
+    /// 未分類記事を1件ずつカテゴリ分類
     private var isClassifying = false
 
     func classifyBatch(onProgress: ((String) -> Void)? = nil) async {
@@ -133,46 +135,36 @@ class AIProcessor {
         let context = modelContainer.mainContext
         let descriptor = FetchDescriptor<Article>(
             predicate: #Predicate { $0.aiCategory == nil },
-            sortBy: [SortDescriptor(\Article.fetchedAt, order: .reverse)]
+            sortBy: [SortDescriptor(\Article.publishedAt, order: .reverse)]
         )
         guard let articles = try? context.fetch(descriptor), !articles.isEmpty else { return }
 
-        // 10件ずつバッチ処理
-        let batchSize = 10
-        let totalBatches = (articles.count + batchSize - 1) / batchSize
-        var batchIndex = 0
-        for batchStart in stride(from: 0, to: articles.count, by: batchSize) {
-            batchIndex += 1
-            onProgress?("カテゴリ分類中... (\(batchIndex)/\(totalBatches))")
-            let batch = Array(articles[batchStart..<min(batchStart + batchSize, articles.count)])
-            let titles = batch.enumerated().map { "\($0.offset + 1). \($0.element.title)" }.joined(separator: "\n")
+        let catList = labeledCategoryList
+        for (index, article) in articles.enumerated() {
+            onProgress?("カテゴリ分類中... (\(index + 1)/\(articles.count))")
+
+            let desc = article.leadText ?? article.ogDescription ?? ""
+            let truncated = desc.isEmpty ? "" : "\n内容: \(String(desc.prefix(200)))"
 
             do {
                 let session = LanguageModelSession()
-                let catList = numberedCategoryList
                 let prompt = """
-                以下の記事タイトルそれぞれに最も適切なカテゴリの番号を1つ選んでください。
+                以下の記事に最も適切なカテゴリのアルファベットを選んでください。
 
                 カテゴリ一覧:
                 \(catList)
 
-                記事:
-                \(titles)
+                記事タイトル: \(article.title)\(truncated)
 
-                各記事に対応するカテゴリ番号を、記事と同じ順序でリストで返してください。複数該当する場合はカンマ区切り（例: 1,3）。最大3つ。
+                最も適切なカテゴリのアルファベットを1つだけ返してください。
                 """
-                let response = try await session.respond(to: prompt, generating: BatchCategories.self)
-                let categoryNumbers = response.content.categories
-
-                for (index, article) in batch.enumerated() {
-                    if index < categoryNumbers.count,
-                       let names = categoryNames(from: categoryNumbers[index]) {
-                        article.aiCategory = names
-                    }
+                let response = try await session.respond(to: prompt, generating: CategoryResult.self)
+                if let name = categoryName(from: response.content.category) {
+                    article.aiCategory = name
                 }
                 try? context.save()
             } catch {
-                // バッチ失敗時はスキップ（次回リトライ）
+                // 失敗時はスキップ（次回リトライ）
             }
         }
         #endif
