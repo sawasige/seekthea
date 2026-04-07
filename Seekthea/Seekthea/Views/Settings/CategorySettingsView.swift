@@ -16,8 +16,14 @@ struct CategorySettingsView: View {
     var body: some View {
         List {
             Section {
-                ForEach(categories, id: \.self) { category in
-                    Text(category)
+                ForEach(categories.indices, id: \.self) { index in
+                    TextField("カテゴリ名", text: Binding(
+                        get: { categories[index] },
+                        set: { newValue in
+                            categories[index] = newValue
+                            save()
+                        }
+                    ))
                 }
                 .onDelete(perform: delete)
                 .onMove(perform: move)
@@ -45,6 +51,11 @@ struct CategorySettingsView: View {
                 }
             }
         }
+        #if os(macOS)
+        .formStyle(.grouped)
+        .frame(maxWidth: 600)
+        .frame(maxWidth: .infinity)
+        #endif
         .navigationTitle("カテゴリ管理")
         #if !os(macOS)
         .toolbar { EditButton() }
