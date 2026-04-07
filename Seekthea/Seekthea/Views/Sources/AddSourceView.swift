@@ -12,8 +12,8 @@ struct AddSourceView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("サイトURL") {
-                    TextField("https://example.com", text: $urlString)
+                Section {
+                    TextField("URL", text: $urlString, prompt: Text("サイトまたはRSSのURLを入力"))
                         #if !os(macOS)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
@@ -44,13 +44,17 @@ struct AddSourceView: View {
                             ProgressView()
                                 .frame(maxWidth: .infinity)
                         } else {
-                            Text("RSSを検出して追加")
+                            Text("追加")
                                 .frame(maxWidth: .infinity)
                         }
                     }
                     .disabled(urlString.isEmpty || isAdding)
                 }
             }
+            #if os(macOS)
+            .formStyle(.grouped)
+            .frame(minWidth: 400)
+            #endif
             .navigationTitle("ソースを追加")
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
