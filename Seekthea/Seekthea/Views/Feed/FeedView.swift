@@ -180,6 +180,7 @@ struct FeedView: View {
     @State private var hideAmount: CGFloat = 0
     @State private var cachedModeArticles: [Article] = []
     @State private var cachedCategoryCounts: [String: Int] = [:]
+    @State private var cachedDisplayArticles: [Article] = []
     @State private var sortedCategories: [String] = []
     @State private var gridOpacity: Double = 1
     @State private var isSwiping: Bool = false
@@ -249,7 +250,7 @@ struct FeedView: View {
 
         cachedModeArticles = modeFiltered
 
-        let knownCategories = Set(userCategories)
+        let knownCategories = Set(cachedUserCategories)
         var counts: [String: Int] = [:]
         for article in modeFiltered {
             for cat in article.categories {
@@ -267,26 +268,29 @@ struct FeedView: View {
         if let cat = selectedCategory, counts[cat] == nil {
             selectedCategory = nil
         }
-    }
 
-    private var userCategories: [String] {
-        guard let data = UserDefaults.standard.string(forKey: "userCategories")?.data(using: .utf8),
-              let categories = try? JSONDecoder().decode([String].self, from: data),
-              !categories.isEmpty else {
-            return CategorySettingsView.defaultCategories
-        }
-        return categories
-    }
-
-    private var displayArticles: [Article] {
-        guard let cat = selectedCategory else { return cachedModeArticles }
-        if cat == "その他" {
-            let known = Set(userCategories)
-            return cachedModeArticles.filter { article in
-                article.categories.contains { !known.contains($0) }
+        // displayArticlesをキャッシュ
+        if let cat = selectedCategory {
+            if cat == "その他" {
+                cachedDisplayArticles = modeFiltered.filter { article in
+                    article.categories.contains { !knownCategories.contains($0) }
+                }
+            } else {
+                cachedDisplayArticles = modeFiltered.filter { $0.categories.contains(cat) }
             }
+        } else {
+            cachedDisplayArticles = modeFiltered
         }
-        return cachedModeArticles.filter { $0.categories.contains(cat) }
+    }
+
+    @State private var cachedUserCategories: [String] = CategorySettingsView.defaultCategories
+
+    private func loadUserCategories() {
+        if let data = UserDefaults.standard.string(forKey: "userCategories")?.data(using: .utf8),
+           let categories = try? JSONDecoder().decode([String].self, from: data),
+           !categories.isEmpty {
+            cachedUserCategories = categories
+        }
     }
 
     private var allCategoryOptions: [String?] {
@@ -426,12 +430,14 @@ struct FeedView: View {
                     }
                 }
                 .task {
+                    loadUserCategories()
                     if viewModel == nil {
                         viewModel = FeedViewModel(modelContainer: modelContainer)
                     }
                     await refreshAll()
                 }
                 .onAppear {
+                    loadUserCategories()
                     if viewModel != nil {
                         updateCachedData()
                     }
@@ -491,7 +497,7 @@ struct FeedView: View {
                         .zIndex(1)
 
                     LazyVGrid(columns: columns, spacing: useCompactLayout ? 8 : 16) {
-                        ForEach(displayArticles, id: \.id) { article in
+                        ForEach(cachedDisplayArticles, id: \.id) { article in
                             Button {
                                 if !isSwiping {
                                     navigationPath.append(article)
