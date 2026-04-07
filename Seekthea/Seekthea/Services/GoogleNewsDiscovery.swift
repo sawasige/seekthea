@@ -86,6 +86,16 @@ actor GoogleNewsDiscovery {
     }
 
     private func detectFeedsForCandidates(context: ModelContext) async {
+        // isSuggested=trueだがRSSが消えたレコードをリセット
+        let brokenPredicate = #Predicate<DiscoveredDomain> {
+            $0.isSuggested && !$0.isRejected
+        }
+        if let broken = try? context.fetch(FetchDescriptor(predicate: brokenPredicate)) {
+            for d in broken where d.detectedFeedURL == nil {
+                d.isSuggested = false
+            }
+        }
+
         let predicate = #Predicate<DiscoveredDomain> {
             !$0.isRejected && !$0.isSuggested
         }

@@ -9,6 +9,7 @@ struct DiscoveryView: View {
         order: .reverse
     ) private var suggestions: [DiscoveredDomain]
 
+
     @State private var viewModel: DiscoveryViewModel?
 
     let modelContainer: ModelContainer
