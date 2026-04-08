@@ -8,6 +8,14 @@ private enum DetailViewMode: String, CaseIterable {
     case reader = "リーダー"
     case aiSummary = "AI要約"
     case web = "Web"
+
+    var icon: String {
+        switch self {
+        case .reader: "doc.richtext"
+        case .aiSummary: "sparkles"
+        case .web: "globe"
+        }
+    }
 }
 
 // MARK: - ArticleDetailView
@@ -39,23 +47,24 @@ struct ArticleDetailView: View {
             }
         }
         .ignoresSafeArea()
-        .navigationTitle(extractedArticle != nil ? "" : (article.source?.name ?? "記事"))
+        .safeAreaInset(edge: .bottom) {
+            if extractedArticle != nil {
+                HStack(spacing: 8) {
+                    ForEach(DetailViewMode.allCases, id: \.self) { mode in
+                        DetailModeButton(mode: mode, isSelected: viewMode == mode) {
+                            withAnimation { viewMode = mode }
+                        }
+                    }
+                }
+                .padding(.vertical, 8)
+            }
+        }
+        .navigationTitle(article.source?.name ?? "記事")
         #if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         #endif
         .toolbar {
-            if extractedArticle != nil {
-                ToolbarItem(placement: .principal) {
-                    Picker("表示モード", selection: $viewMode) {
-                        ForEach(DetailViewMode.allCases, id: \.self) { mode in
-                            Text(mode.rawValue).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 240)
-                }
-            }
             ToolbarItemGroup(placement: .automatic) {
                 // リーダー抽出失敗時のリトライボタン
                 if extractedArticle == nil && !isLoading {
@@ -411,6 +420,29 @@ private struct ShimmerView: View {
 }
 
 // MARK: - Reader View (抽出成功時の表示)
+
+private struct DetailModeButton: View {
+    let mode: DetailViewMode
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 2) {
+                Image(systemName: mode.icon)
+                    .font(.callout)
+                Text(mode.rawValue)
+                    .font(.caption2)
+            }
+            .frame(width: 56, height: 40)
+            .foregroundStyle(isSelected ? .primary : .secondary)
+        }
+        .buttonStyle(.borderless)
+        .padding(4)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .opacity(isSelected ? 1 : 0.6)
+    }
+}
 
 private struct ReaderView: View {
     let article: Article
