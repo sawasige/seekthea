@@ -21,44 +21,41 @@ struct ArticleDetailView: View {
     @State private var viewMode: DetailViewMode = .reader
 
     var body: some View {
-        VStack(spacing: 0) {
-            // モード切り替えPicker（リーダー抽出成功時のみ）
-            if extractedArticle != nil {
-                Picker("表示モード", selection: $viewMode) {
-                    ForEach(DetailViewMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-            }
-
-            // コンテンツ
-            ZStack {
-                if isLoading {
-                    ProgressView("記事を読み込み中...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let extracted = extractedArticle {
-                    switch viewMode {
-                    case .reader:
-                        ReaderView(article: article, extracted: extracted)
-                    case .aiSummary:
-                        AISummaryView(article: article, isAIProcessing: isAIProcessing)
-                    case .web:
-                        OriginalPageWebView(url: article.articleURL)
-                    }
-                } else {
+        ZStack {
+            if isLoading {
+                ProgressView("記事を読み込み中...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let extracted = extractedArticle {
+                switch viewMode {
+                case .reader:
+                    ReaderView(article: article, extracted: extracted)
+                case .aiSummary:
+                    AISummaryView(article: article, isAIProcessing: isAIProcessing)
+                case .web:
                     OriginalPageWebView(url: article.articleURL)
                 }
+            } else {
+                OriginalPageWebView(url: article.articleURL)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .navigationTitle(article.source?.name ?? "記事")
+        .ignoresSafeArea()
+        .navigationTitle(extractedArticle != nil ? "" : (article.source?.name ?? "記事"))
         #if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
         #endif
         .toolbar {
+            if extractedArticle != nil {
+                ToolbarItem(placement: .principal) {
+                    Picker("表示モード", selection: $viewMode) {
+                        ForEach(DetailViewMode.allCases, id: \.self) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 240)
+                }
+            }
             ToolbarItemGroup(placement: .automatic) {
                 // リーダー抽出失敗時のリトライボタン
                 if extractedArticle == nil && !isLoading {
@@ -586,3 +583,4 @@ struct FlowLayout: Layout {
         return (CGSize(width: maxWidth, height: y + rowHeight), positions)
     }
 }
+
