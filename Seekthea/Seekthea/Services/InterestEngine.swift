@@ -30,10 +30,7 @@ class InterestEngine {
         // 4. 全記事をスコアリング（既読は大幅に下げる）
         let articles = (try? context.fetch(FetchDescriptor<Article>())) ?? []
         for article in articles {
-            var score = computeScore(article: article, topics: allTopics)
-            if article.isRead {
-                score *= 0.05  // 既読は95%減
-            }
+            let score = computeScore(article: article, topics: allTopics)
             article.relevanceScore = score
         }
 

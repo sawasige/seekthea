@@ -71,11 +71,13 @@ struct CompactArticleCardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .contentShape(RoundedRectangle(cornerRadius: 8))
         .clipped()
+        .opacity(article.isRead ? 0.6 : 1.0)
         .overlay(alignment: .topTrailing) {
             if article.isRead {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.white, .gray)
+                    .font(.body)
+                    .foregroundStyle(.white, .blue)
+                    .shadow(radius: 2)
                     .padding(4)
             }
         }

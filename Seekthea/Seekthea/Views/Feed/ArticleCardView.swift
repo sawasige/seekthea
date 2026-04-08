@@ -96,11 +96,13 @@ struct ArticleCardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .clipped()
+        .opacity(article.isRead ? 0.6 : 1.0)
         .overlay(alignment: .topTrailing) {
             if article.isRead {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.white, .gray)
+                    .font(.title2)
+                    .foregroundStyle(.white, .blue)
+                    .shadow(radius: 2)
                     .padding(8)
             }
         }
