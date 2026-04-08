@@ -68,7 +68,7 @@ struct ArticleCardView: View {
                     }
 
                     if let date = article.publishedAt {
-                        Text(date, style: .relative)
+                        Text(Self.relativeString(from: date))
                             .font(metaFont)
                             .foregroundStyle(.tertiary)
                     }
@@ -116,6 +116,17 @@ struct ArticleCardView: View {
     private var placeholderImage: some View {
         Rectangle()
             .fill(Color.gray.opacity(0.15))
+    }
+
+    static func relativeString(from date: Date) -> String {
+        let interval = -date.timeIntervalSinceNow
+        if interval < 60 { return "たった今" }
+        if interval < 3600 { return "\(Int(interval / 60))分前" }
+        if interval < 86400 { return "\(Int(interval / 3600))時間前" }
+        if interval < 604800 { return "\(Int(interval / 86400))日前" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M/d"
+        return formatter.string(from: date)
     }
 }
 

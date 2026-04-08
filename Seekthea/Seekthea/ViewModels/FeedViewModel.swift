@@ -50,6 +50,16 @@ class FeedViewModel {
         statusMessage = nil
     }
 
+    /// 全記事を公開日時順で取得
+    func fetchArticles() -> [Article] {
+        let context = modelContainer.mainContext
+        var descriptor = FetchDescriptor<Article>(
+            sortBy: [SortDescriptor(\Article.publishedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 500
+        return (try? context.fetch(descriptor)) ?? []
+    }
+
     /// アクティブなソースのfeedURLセットを取得
     func activeSourceFeedURLs() -> Set<URL> {
         let context = modelContainer.mainContext

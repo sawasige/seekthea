@@ -38,7 +38,7 @@ struct CompactArticleCardView: View {
                     }
 
                     if let date = article.publishedAt {
-                        Text(date, style: .relative)
+                        Text(ArticleCardView.relativeString(from: date))
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                     }

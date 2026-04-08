@@ -172,7 +172,7 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
 
 struct FeedView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Article.publishedAt, order: .reverse) private var allArticles: [Article]
+    @State private var allArticles: [Article] = []
     @State private var navigationPath = NavigationPath()
     @State private var viewModel: FeedViewModel?
     @State private var feedMode: FeedMode = .forYou
@@ -218,6 +218,10 @@ struct FeedView: View {
     }
 
     // MARK: - データ
+
+    private func reloadArticles() {
+        allArticles = viewModel?.fetchArticles() ?? []
+    }
 
     private func updateCachedData() {
         let activeFeedURLs = viewModel?.activeSourceFeedURLs() ?? []
@@ -387,7 +391,6 @@ struct FeedView: View {
                     scrollProxy?.scrollTo("scrollTop", anchor: .top)
                     updateCachedData()
                 }
-                .onChange(of: allArticles.count) { updateCachedData() }
                 .onChange(of: isSwiping) {
                     if isSwiping, hideAmount < 0 {
                         withAnimation(.snappy(duration: 0.2)) {
@@ -439,6 +442,7 @@ struct FeedView: View {
                 .onAppear {
                     loadUserCategories()
                     if viewModel != nil {
+                        reloadArticles()
                         updateCachedData()
                     }
                 }
@@ -572,8 +576,10 @@ struct FeedView: View {
 
     private func refreshAll() async {
         await viewModel?.refresh()
+        reloadArticles()
         updateCachedData()
         viewModel?.classifyInBackground { [self] in
+            reloadArticles()
             updateCachedData()
         }
     }
