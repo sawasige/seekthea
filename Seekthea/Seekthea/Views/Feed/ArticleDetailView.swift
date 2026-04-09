@@ -127,7 +127,11 @@ struct ArticleDetailView: View {
         .safeAreaInset(edge: .bottom) {
             HStack(spacing: 8) {
                 ForEach(DetailViewMode.allCases, id: \.self) { mode in
-                    DetailModeButton(mode: mode, isSelected: viewMode == mode) {
+                    DetailModeButton(
+                        mode: mode,
+                        isSelected: viewMode == mode,
+                        isProcessing: mode == .aiSummary && isAIProcessing
+                    ) {
                         withAnimation { viewMode = mode }
                     }
                 }
@@ -172,66 +176,19 @@ struct ArticleDetailView: View {
 private struct AISummaryView: View {
     let article: Article
     var isAIProcessing: Bool
+    @State private var webViewStore = SummaryWebViewStore()
 
     var body: some View {
-        if let summary = article.summary, !summary.isEmpty {
-            SummaryWebView(html: buildSummaryHTML(summary))
-        } else if isAIProcessing {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text(article.title)
-                        .font(.title2.weight(.bold))
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Label("AI要約を生成中...", systemImage: "sparkles")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                    ShimmerView()
-                        .frame(height: 80)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                    if !article.keywords.isEmpty || !article.categories.isEmpty {
-                        Divider()
-                    }
-                    if !article.keywords.isEmpty {
-                        FlowLayout(spacing: 6) {
-                            ForEach(article.keywords, id: \.self) { keyword in
-                                Text(keyword)
-                                    .font(.caption)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(.blue.opacity(0.1))
-                                    .foregroundStyle(.blue)
-                                    .clipShape(Capsule())
-                            }
-                        }
-                    }
-                    if !article.categories.isEmpty {
-                        FlowLayout(spacing: 6) {
-                            ForEach(article.categories, id: \.self) { cat in
-                                Text(cat)
-                                    .font(.caption)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(.orange.opacity(0.1))
-                                    .foregroundStyle(.orange)
-                                    .clipShape(Capsule())
-                            }
-                        }
-                    }
+        SummaryWebView(html: buildSummaryHTML(), store: webViewStore)
+            .onChange(of: article.summary) {
+                if let summary = article.summary, !summary.isEmpty {
+                    webViewStore.updateSummary(markdownToHTML(summary))
                 }
-                .padding(20)
             }
-        } else {
-            ContentUnavailableView(
-                "AI要約なし",
-                systemImage: "sparkles",
-                description: Text("この記事のAI要約はまだ生成されていません")
-            )
-        }
     }
 
-    private func buildSummaryHTML(_ summary: String) -> String {
+    private func buildSummaryHTML() -> String {
+        let summary = article.summary ?? ""
         let title = escapeHTML(article.title)
         let sourceName = escapeHTML(article.source?.name ?? "")
         let dateStr = article.publishedAt.map {
@@ -249,7 +206,13 @@ private struct AISummaryView: View {
         }()
 
         // Markdown→HTML簡易変換
-        let summaryHTML = markdownToHTML(summary)
+        let summaryHTML = summary.isEmpty ? "" : markdownToHTML(summary)
+
+        let shimmerHTML = """
+        <div class="shimmer-block"></div>
+        <div class="shimmer-block" style="width:80%"></div>
+        <div class="shimmer-block" style="width:60%"></div>
+        """
 
         return """
         <!DOCTYPE html>
@@ -309,13 +272,29 @@ private struct AISummaryView: View {
         }
         .tag.keyword { background: rgba(50,130,246,0.1); color: #007aff; }
         .tag.category { background: rgba(255,159,10,0.1); color: #ff9500; }
+        .shimmer-block {
+            height: 16px; border-radius: 8px; margin-bottom: 12px;
+            background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        @media (prefers-color-scheme: dark) {
+            .shimmer-block {
+                background: linear-gradient(90deg, #3a3a3c 25%, #48484a 50%, #3a3a3c 75%);
+                background-size: 200% 100%;
+            }
+        }
         </style>
         </head>
         <body>
             <h1>\(title)</h1>
             <div class="meta">\(sourceName)　\(escapeHTML(dateStr))</div>
             <div class="ai-label">✦ AI要約</div>
-            <div class="summary">\(summaryHTML)</div>
+            <div id="summary" class="summary">\(summaryHTML.isEmpty ? shimmerHTML : summaryHTML)</div>
             \(keywordsHTML.isEmpty && categoriesHTML.isEmpty ? "" : "<hr>" + keywordsHTML + categoriesHTML)
         </body>
         </html>
@@ -412,12 +391,27 @@ private struct AISummaryView: View {
 
 // MARK: - Summary WebView
 
+class SummaryWebViewStore {
+    var webView: WKWebView?
+
+    func updateSummary(_ html: String) {
+        let escaped = html
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+            .replacingOccurrences(of: "\n", with: "\\n")
+        let js = "document.getElementById('summary').innerHTML = '\(escaped)';"
+        webView?.evaluateJavaScript(js)
+    }
+}
+
 #if os(macOS)
 private struct SummaryWebView: NSViewRepresentable {
     let html: String
+    var store: SummaryWebViewStore?
     func makeNSView(context: Context) -> WKWebView {
         let webView = WKWebView()
         webView.loadHTMLString(html, baseURL: nil)
+        store?.webView = webView
         return webView
     }
     func updateNSView(_ webView: WKWebView, context: Context) {}
@@ -425,9 +419,11 @@ private struct SummaryWebView: NSViewRepresentable {
 #else
 private struct SummaryWebView: UIViewRepresentable {
     let html: String
+    var store: SummaryWebViewStore?
     func makeUIView(context: Context) -> WKWebView {
         let webView = WKWebView()
         webView.loadHTMLString(html, baseURL: nil)
+        store?.webView = webView
         return webView
     }
     func updateUIView(_ webView: WKWebView, context: Context) {}
@@ -558,23 +554,25 @@ private struct DetailPagingView: UIViewControllerRepresentable {
 private struct DetailModeButton: View {
     let mode: DetailViewMode
     let isSelected: Bool
+    var isProcessing: Bool = false
     let action: () -> Void
+
+    @State private var symbolEffect = false
 
     var body: some View {
         Button(action: action) {
             VStack(spacing: 2) {
                 Image(systemName: mode.icon)
                     .font(.callout)
+                    .symbolEffect(.rotate, isActive: isProcessing)
+                    .symbolEffect(.pulse, isActive: isProcessing)
                 Text(mode.rawValue)
                     .font(.caption2)
             }
             .frame(width: 56, height: 40)
-            .foregroundStyle(isSelected ? .primary : .secondary)
         }
-        .buttonStyle(.borderless)
-        .padding(4)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .opacity(isSelected ? 1 : 0.6)
+        .buttonStyle(.glassProminent)
+        .tint(isSelected ? .accentColor : .secondary)
     }
 }
 
