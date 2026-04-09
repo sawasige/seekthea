@@ -7,19 +7,20 @@ struct InterestSettingsView: View {
     @State private var newTopic = ""
     @State private var learnedTopics: [(topic: String, weight: Double)] = []
 
-    // プリセットの興味トピック候補
-    private let suggestions = [
-        "AI", "プログラミング", "スタートアップ", "ガジェット",
-        "ゲーム", "映画", "音楽", "スポーツ",
-        "政治", "経済", "科学", "宇宙",
-        "健康", "料理", "旅行", "教育",
-        "Apple", "Google", "セキュリティ", "OSS",
-        "React", "Swift", "Python", "Rust",
+    // プリセットの興味トピック候補（日本語: 英語）
+    private let suggestions: [(ja: String, en: String)] = [
+        ("AI", "AI"), ("プログラミング", "programming"), ("スタートアップ", "startup"), ("ガジェット", "gadget"),
+        ("ゲーム", "game"), ("映画", "movie"), ("音楽", "music"), ("スポーツ", "sports"),
+        ("政治", "politics"), ("経済", "economy"), ("科学", "science"), ("宇宙", "space"),
+        ("健康", "health"), ("料理", "cooking"), ("旅行", "travel"), ("教育", "education"),
+        ("Apple", "Apple"), ("Google", "Google"), ("セキュリティ", "security"), ("OSS", "OSS"),
+        ("React", "React"), ("Swift", "Swift"), ("Python", "Python"), ("Rust", "Rust"),
+        ("バイク", "motorcycle"), ("自動車", "automobile"), ("自転車", "bicycle"),
     ]
 
-    private var unusedSuggestions: [String] {
+    private var unusedSuggestions: [(ja: String, en: String)] {
         let existing = Set(interests.map(\.topic))
-        return suggestions.filter { !existing.contains($0) }
+        return suggestions.filter { !existing.contains($0.ja) }
     }
 
     var body: some View {
@@ -62,7 +63,10 @@ struct InterestSettingsView: View {
                         .textInputAutocapitalization(.never)
                         #endif
                     Button("追加") {
-                        addTopic(newTopic.trimmingCharacters(in: .whitespaces))
+                        let trimmed = newTopic.trimmingCharacters(in: .whitespaces)
+                        // プリセットにあれば英訳を使う、なければトピックをそのまま英語として使用
+                        let en = suggestions.first(where: { $0.ja == trimmed })?.en ?? trimmed
+                        addTopic(trimmed, en: en)
                         newTopic = ""
                     }
                     .disabled(newTopic.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -71,9 +75,11 @@ struct InterestSettingsView: View {
 
             if !unusedSuggestions.isEmpty {
                 Section("おすすめトピック") {
-                    FlowLayoutView(items: unusedSuggestions) { suggestion in
+                    FlowLayoutView(items: unusedSuggestions.map(\.ja)) { suggestion in
                         Button {
-                            addTopic(suggestion)
+                            if let pair = suggestions.first(where: { $0.ja == suggestion }) {
+                                addTopic(pair.ja, en: pair.en)
+                            }
                         } label: {
                             Text(suggestion)
                                 .font(.subheadline)
@@ -122,11 +128,11 @@ struct InterestSettingsView: View {
             .map { (topic: $0.key, weight: $0.value) }
     }
 
-    private func addTopic(_ topic: String) {
+    private func addTopic(_ topic: String, en: String = "") {
         guard !topic.isEmpty else { return }
         let existing = Set(interests.map(\.topic))
         guard !existing.contains(topic) else { return }
-        let interest = UserInterest(topic: topic)
+        let interest = UserInterest(topic: topic, topicEn: en.isEmpty ? topic : en)
         modelContext.insert(interest)
         try? modelContext.save()
     }

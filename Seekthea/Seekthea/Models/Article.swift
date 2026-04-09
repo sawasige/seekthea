@@ -24,6 +24,7 @@ class Article {
     var summary: String? = nil
     var aiCategory: String? = nil
     var keywordsRaw: String = ""
+    var keywordsEnRaw: String = ""
     var isAIProcessed: Bool = false
 
     // パーソナライズ
@@ -62,6 +63,11 @@ class Article {
     var keywords: [String] {
         get { keywordsRaw.isEmpty ? [] : keywordsRaw.components(separatedBy: ",") }
         set { keywordsRaw = newValue.joined(separator: ",") }
+    }
+
+    var keywordsEn: [String] {
+        get { keywordsEnRaw.isEmpty ? [] : keywordsEnRaw.components(separatedBy: ",") }
+        set { keywordsEnRaw = newValue.joined(separator: ",") }
     }
 
     /// カテゴリ配列（カンマ区切りで複数対応）

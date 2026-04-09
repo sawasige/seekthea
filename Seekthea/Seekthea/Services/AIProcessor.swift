@@ -17,8 +17,10 @@ struct ArticleMeta {
 struct CategoryResult {
     @Guide(description: "カテゴリのアルファベット1文字")
     var category: String
-    @Guide(description: "記事の重要キーワード（最大5つ）")
+    @Guide(description: "記事の重要キーワード（日本語、最大5つ）")
     var keywords: [String]
+    @Guide(description: "keywordsの英訳（同じ順序、各1単語の英語）")
+    var keywordsEn: [String]
 }
 #endif
 
@@ -159,7 +161,8 @@ class AIProcessor {
                 記事タイトル: \(article.title)\(truncated)
 
                 - category: 最も適切なカテゴリのアルファベットを1つだけ
-                - keywords: 記事の重要キーワードを最大5つ
+                - keywords: 記事の重要キーワードを日本語で最大5つ
+                - keywordsEn: keywordsと同じ順序で各キーワードを英語1単語に翻訳
                 """
                 let response = try await session.respond(to: prompt, generating: CategoryResult.self)
                 let result = response.content
@@ -167,6 +170,7 @@ class AIProcessor {
                     article.aiCategory = name
                 }
                 article.keywords = result.keywords
+                article.keywordsEn = result.keywordsEn
                 try? context.save()
             } catch {
                 // 失敗時はスキップ（次回リトライ）
