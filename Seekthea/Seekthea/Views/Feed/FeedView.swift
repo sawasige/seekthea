@@ -579,6 +579,7 @@ struct FeedView: View {
         reloadArticles()
         updateCachedData()
         viewModel?.classifyInBackground { [self] in
+            viewModel?.updateRelevanceScores()
             reloadArticles()
             updateCachedData()
         }

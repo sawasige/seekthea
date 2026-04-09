@@ -12,11 +12,13 @@ struct ArticleMeta {
     var keywords: [String]
 }
 
-/// 単一記事のカテゴリ分類用
+/// 単一記事のカテゴリ・キーワード分類用
 @Generable
 struct CategoryResult {
     @Guide(description: "カテゴリのアルファベット1文字")
     var category: String
+    @Guide(description: "記事の重要キーワード（最大5つ）")
+    var keywords: [String]
 }
 #endif
 
@@ -149,19 +151,22 @@ class AIProcessor {
             do {
                 let session = LanguageModelSession()
                 let prompt = """
-                以下の記事に最も適切なカテゴリのアルファベットを選んでください。
+                以下の記事を分類し、キーワードを抽出してください。
 
                 カテゴリ一覧:
                 \(catList)
 
                 記事タイトル: \(article.title)\(truncated)
 
-                最も適切なカテゴリのアルファベットを1つだけ返してください。
+                - category: 最も適切なカテゴリのアルファベットを1つだけ
+                - keywords: 記事の重要キーワードを最大5つ
                 """
                 let response = try await session.respond(to: prompt, generating: CategoryResult.self)
-                if let name = categoryName(from: response.content.category) {
+                let result = response.content
+                if let name = categoryName(from: result.category) {
                     article.aiCategory = name
                 }
+                article.keywords = result.keywords
                 try? context.save()
             } catch {
                 // 失敗時はスキップ（次回リトライ）
