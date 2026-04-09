@@ -29,36 +29,7 @@ struct ArticleDetailView: View {
     @State private var viewMode: DetailViewMode = .reader
 
     var body: some View {
-        ZStack {
-            if isLoading {
-                ProgressView("記事を読み込み中...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let extracted = extractedArticle {
-                switch viewMode {
-                case .reader:
-                    ReaderView(article: article, extracted: extracted)
-                case .aiSummary:
-                    AISummaryView(article: article, isAIProcessing: isAIProcessing)
-                case .web:
-                    OriginalPageWebView(url: article.articleURL)
-                }
-            } else {
-                OriginalPageWebView(url: article.articleURL)
-            }
-        }
-        .ignoresSafeArea()
-        .safeAreaInset(edge: .bottom) {
-            if extractedArticle != nil {
-                HStack(spacing: 8) {
-                    ForEach(DetailViewMode.allCases, id: \.self) { mode in
-                        DetailModeButton(mode: mode, isSelected: viewMode == mode) {
-                            withAnimation { viewMode = mode }
-                        }
-                    }
-                }
-                .padding(.vertical, 8)
-            }
-        }
+        contentView
         .navigationTitle(article.source?.name ?? "記事")
         #if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -102,6 +73,69 @@ struct ArticleDetailView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private var contentView: some View {
+        if isLoading {
+            ProgressView("記事を読み込み中...")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let extracted = extractedArticle {
+            #if os(macOS)
+            macContent(extracted: extracted)
+            #else
+            iosContent(extracted: extracted)
+            #endif
+        } else {
+            OriginalPageWebView(url: article.articleURL)
+                .ignoresSafeArea()
+        }
+    }
+
+    #if os(macOS)
+    private func macContent(extracted: ReadabilityExtractor.Article) -> some View {
+        ZStack {
+            switch viewMode {
+            case .reader:
+                ReaderView(article: article, extracted: extracted)
+            case .aiSummary:
+                AISummaryView(article: article, isAIProcessing: isAIProcessing)
+            case .web:
+                OriginalPageWebView(url: article.articleURL)
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("表示モード", selection: $viewMode) {
+                    ForEach(DetailViewMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 240)
+            }
+        }
+    }
+    #else
+    private func iosContent(extracted: ReadabilityExtractor.Article) -> some View {
+        DetailPagingView(
+            article: article,
+            extracted: extracted,
+            isAIProcessing: isAIProcessing,
+            selection: $viewMode
+        )
+        .ignoresSafeArea()
+        .safeAreaInset(edge: .bottom) {
+            HStack(spacing: 8) {
+                ForEach(DetailViewMode.allCases, id: \.self) { mode in
+                    DetailModeButton(mode: mode, isSelected: viewMode == mode) {
+                        withAnimation { viewMode = mode }
+                    }
+                }
+            }
+            .padding(.vertical, 8)
+        }
+    }
+    #endif
 
     private func retryReader() async {
         isLoading = true
@@ -419,7 +453,107 @@ private struct ShimmerView: View {
     }
 }
 
-// MARK: - Reader View (抽出成功時の表示)
+// MARK: - UIPageViewController Paging (iOS)
+
+#if !os(macOS)
+private struct DetailPagingView: UIViewControllerRepresentable {
+    let article: Article
+    let extracted: ReadabilityExtractor.Article
+    let isAIProcessing: Bool
+    @Binding var selection: DetailViewMode
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeUIViewController(context: Context) -> UIPageViewController {
+        let pvc = UIPageViewController(transitionStyle: .scroll, navigationOrientation: .horizontal)
+        pvc.dataSource = context.coordinator
+        pvc.delegate = context.coordinator
+        let initial = context.coordinator.viewController(for: .reader)
+        pvc.setViewControllers([initial], direction: .forward, animated: false)
+        return pvc
+    }
+
+    func updateUIViewController(_ pvc: UIPageViewController, context: Context) {
+        let current = context.coordinator.currentMode
+        if selection != current {
+            let direction: UIPageViewController.NavigationDirection =
+                DetailViewMode.allCases.firstIndex(of: selection)! > DetailViewMode.allCases.firstIndex(of: current)!
+                ? .forward : .reverse
+            let vc = context.coordinator.viewController(for: selection)
+            pvc.setViewControllers([vc], direction: direction, animated: true)
+            context.coordinator.currentMode = selection
+        }
+    }
+
+    class Coordinator: NSObject, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
+        let parent: DetailPagingView
+        var currentMode: DetailViewMode = .reader
+        private var controllers: [DetailViewMode: UIViewController] = [:]
+
+        init(_ parent: DetailPagingView) {
+            self.parent = parent
+        }
+
+        func viewController(for mode: DetailViewMode) -> UIViewController {
+            if let existing = controllers[mode] { return existing }
+            let vc: UIViewController
+            switch mode {
+            case .reader:
+                let hc = UIHostingController(rootView: ReaderView(article: parent.article, extracted: parent.extracted))
+                hc.safeAreaRegions = []
+                vc = hc
+            case .aiSummary:
+                let hc = UIHostingController(rootView: AISummaryView(article: parent.article, isAIProcessing: parent.isAIProcessing))
+                hc.safeAreaRegions = []
+                vc = hc
+            case .web:
+                let webVC = UIViewController()
+                let webView = WKWebView()
+                webView.load(URLRequest(url: parent.article.articleURL))
+                webVC.view = webView
+                vc = webVC
+            }
+            controllers[mode] = vc
+            return vc
+        }
+
+        private func mode(for viewController: UIViewController) -> DetailViewMode? {
+            controllers.first { $0.value === viewController }?.key
+        }
+
+        // MARK: DataSource
+
+        func pageViewController(_ pvc: UIPageViewController, viewControllerBefore viewController: UIViewController) -> UIViewController? {
+            guard let mode = mode(for: viewController),
+                  let index = DetailViewMode.allCases.firstIndex(of: mode),
+                  index > 0 else { return nil }
+            return self.viewController(for: DetailViewMode.allCases[index - 1])
+        }
+
+        func pageViewController(_ pvc: UIPageViewController, viewControllerAfter viewController: UIViewController) -> UIViewController? {
+            guard let mode = mode(for: viewController),
+                  let index = DetailViewMode.allCases.firstIndex(of: mode),
+                  index < DetailViewMode.allCases.count - 1 else { return nil }
+            return self.viewController(for: DetailViewMode.allCases[index + 1])
+        }
+
+        // MARK: Delegate
+
+        func pageViewController(_ pvc: UIPageViewController, didFinishAnimating finished: Bool, previousViewControllers: [UIViewController], transitionCompleted completed: Bool) {
+            guard completed, let visible = pvc.viewControllers?.first,
+                  let mode = mode(for: visible) else { return }
+            currentMode = mode
+            DispatchQueue.main.async {
+                self.parent.selection = mode
+            }
+        }
+    }
+}
+#endif
+
+// MARK: - Detail Mode Button
 
 private struct DetailModeButton: View {
     let mode: DetailViewMode
