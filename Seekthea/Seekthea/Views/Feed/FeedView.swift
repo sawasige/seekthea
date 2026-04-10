@@ -209,6 +209,7 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
 struct FeedView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \UserCategory.order) private var userCategoryModels: [UserCategory]
+    @Query private var allSources: [Source]
     @State private var allArticles: [Article] = []
     @State private var navigationPath = NavigationPath()
     @State private var viewModel: FeedViewModel?
@@ -234,6 +235,25 @@ struct FeedView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+
+    private var emptyFeedTitle: String {
+        allSources.isEmpty ? "ソースがありません" : "記事がありません"
+    }
+
+    private var emptyFeedIcon: String {
+        allSources.isEmpty ? "tray" : "newspaper"
+    }
+
+    private var emptyFeedHint: String {
+        if allSources.isEmpty {
+            return "設定からソースを追加してください"
+        }
+        #if os(macOS)
+        return "更新ボタンを押してください"
+        #else
+        return "下に引いて更新"
+        #endif
+    }
 
     private var columns: [GridItem] {
         #if os(macOS)
@@ -406,9 +426,9 @@ struct FeedView: View {
                             ProgressView("読み込み中...")
                         } else {
                             ContentUnavailableView(
-                                "記事がありません",
-                                systemImage: "newspaper",
-                                description: Text("更新ボタンを押してください")
+                                emptyFeedTitle,
+                                systemImage: emptyFeedIcon,
+                                description: Text(emptyFeedHint)
                             )
                         }
                     }
@@ -475,6 +495,9 @@ struct FeedView: View {
                         reloadArticles()
                         updateCachedData()
                     }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .onboardingCompleted)) { _ in
+                    Task { await refreshAll() }
                 }
                 .navigationDestination(for: Article.self) { article in
                     ArticleDetailView(article: article)

@@ -5,6 +5,7 @@ struct PresetSource: Decodable, Hashable, Identifiable {
     let feedURL: URL
     let siteURL: URL
     let category: String
+    let popular: Bool
 
     var id: URL { feedURL }
 }
@@ -29,7 +30,16 @@ struct PresetCatalog {
 
     /// カテゴリ順のキー配列（表示順を固定）
     static let categoryOrder = [
-        "ニュース", "テクノロジー", "ビジネス", "エンタメ",
+        "ニュース", "テクノロジー", "開発", "ビジネス", "エンタメ",
         "サイエンス", "ゲーム", "スポーツ", "ライフスタイル"
     ]
+
+    /// オンボーディング用のおすすめプリセット（各カテゴリから popular=true のみ）
+    static var popularByCategory: [(String, [PresetSource])] {
+        categoryOrder.compactMap { cat in
+            guard let presets = shared[cat] else { return nil }
+            let popular = presets.filter(\.popular)
+            return popular.isEmpty ? nil : (cat, popular)
+        }
+    }
 }

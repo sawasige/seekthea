@@ -21,6 +21,33 @@ class SourcesViewModel {
         self.modelContainer = modelContainer
     }
 
+    /// 指定カテゴリの popular プリセットをまとめて追加（オンボーディング用）
+    @discardableResult
+    func addPopularSources(forCategories categories: [String]) -> Int {
+        let context = modelContainer.mainContext
+        let existing = (try? context.fetch(FetchDescriptor<Source>())) ?? []
+        let existingURLs = Set(existing.map(\.feedURL))
+
+        var added = 0
+        for cat in categories {
+            guard let presets = PresetCatalog.shared[cat] else { continue }
+            for preset in presets where preset.popular && !existingURLs.contains(preset.feedURL) {
+                let source = Source(
+                    name: preset.name,
+                    feedURL: preset.feedURL,
+                    siteURL: preset.siteURL,
+                    sourceType: .news,
+                    category: preset.category,
+                    isPreset: true
+                )
+                context.insert(source)
+                added += 1
+            }
+        }
+        try? context.save()
+        return added
+    }
+
     /// プリセットからソースを追加
     func addPresetSource(_ preset: PresetSource) {
         // 重複チェック
