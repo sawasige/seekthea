@@ -95,6 +95,8 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
         var canSwipeRight = true
         weak var addedTo: UIScrollView?
         private var isHorizontalPan = false
+        private var isPastThreshold = false
+        private var lastDirection: CGFloat = 0
         private let threshold: CGFloat = 50
 
         init(onSwipeLeft: @escaping () -> Void, onSwipeRight: @escaping () -> Void) {
@@ -125,6 +127,23 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
                     let progress = min(1, abs(translation.x) / threshold)
                     let direction: CGFloat = translation.x < 0 ? -1 : 1
                     setSwipeProgress?(progress, direction)
+
+                    // 方向が変わったらリセット
+                    if direction != lastDirection {
+                        isPastThreshold = false
+                        lastDirection = direction
+                    }
+
+                    let past = abs(translation.x) > threshold
+                    if past && !isPastThreshold {
+                        // 閾値を越えた
+                        isPastThreshold = true
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } else if !past && isPastThreshold {
+                        // 閾値を下回った（キャンセル方向）
+                        isPastThreshold = false
+                        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                    }
                 }
             case .ended:
                 if isHorizontalPan && abs(translation.x) > threshold {
@@ -138,6 +157,8 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
                     addedTo?.isScrollEnabled = true
                 }
                 isHorizontalPan = false
+                isPastThreshold = false
+                lastDirection = 0
                 setIsSwiping?(false)
                 setSwipeProgress?(0, 0)
             case .cancelled:
@@ -145,6 +166,8 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
                     addedTo?.isScrollEnabled = true
                 }
                 isHorizontalPan = false
+                isPastThreshold = false
+                lastDirection = 0
                 setIsSwiping?(false)
                 setSwipeProgress?(0, 0)
             default:
