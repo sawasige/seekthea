@@ -130,7 +130,7 @@ class AIProcessor {
     /// 未分類記事を1件ずつカテゴリ分類
     private var isClassifying = false
 
-    func classifyBatch(onProgress: ((String) -> Void)? = nil) async {
+    func classifyBatch(onProgress: ((String) -> Void)? = nil, onArticleClassified: (() -> Void)? = nil) async {
         guard !isClassifying else { return }
         isClassifying = true
         defer { isClassifying = false }
@@ -172,6 +172,7 @@ class AIProcessor {
                 article.keywords = result.keywords
                 article.keywordsEn = result.keywordsEn
                 try? context.save()
+                onArticleClassified?()
             } catch {
                 // 失敗時はスキップ（次回リトライ）
             }

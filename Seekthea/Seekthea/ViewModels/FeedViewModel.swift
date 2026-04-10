@@ -32,11 +32,19 @@ class FeedViewModel {
     }
 
     /// 分類をバックグラウンドで実行
-    func classifyInBackground(onComplete: (@MainActor () -> Void)? = nil) {
+    func classifyInBackground(
+        onArticleClassified: (@MainActor () -> Void)? = nil,
+        onComplete: (@MainActor () -> Void)? = nil
+    ) {
         Task {
-            await aiProcessor.classifyBatch { [weak self] message in
-                self?.statusMessage = message
-            }
+            await aiProcessor.classifyBatch(
+                onProgress: { [weak self] message in
+                    self?.statusMessage = message
+                },
+                onArticleClassified: {
+                    Task { @MainActor in onArticleClassified?() }
+                }
+            )
             statusMessage = nil
             onComplete?()
         }

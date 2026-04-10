@@ -578,10 +578,18 @@ struct FeedView: View {
         await viewModel?.refresh()
         reloadArticles()
         updateCachedData()
-        viewModel?.classifyInBackground { [self] in
-            viewModel?.updateRelevanceScores()
-            reloadArticles()
-            updateCachedData()
-        }
+        viewModel?.classifyInBackground(
+            onArticleClassified: { [self] in
+                reloadArticles()
+                updateCachedData()
+            },
+            onComplete: { [self] in
+                viewModel?.statusMessage = "スコアを計算中..."
+                viewModel?.updateRelevanceScores()
+                viewModel?.statusMessage = nil
+                reloadArticles()
+                updateCachedData()
+            }
+        )
     }
 }
