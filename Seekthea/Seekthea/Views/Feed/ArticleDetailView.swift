@@ -422,6 +422,9 @@ private struct SummaryWebView: UIViewRepresentable {
     var store: SummaryWebViewStore?
     func makeUIView(context: Context) -> WKWebView {
         let webView = WKWebView()
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.scrollView.backgroundColor = .clear
         webView.loadHTMLString(html, baseURL: nil)
         store?.webView = webView
         return webView
@@ -699,6 +702,9 @@ struct ReaderWebView: UIViewRepresentable {
     let html: String
     func makeUIView(context: Context) -> WKWebView {
         let webView = WKWebView()
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.scrollView.backgroundColor = .clear
         webView.loadHTMLString(html, baseURL: nil)
         return webView
     }
@@ -709,6 +715,9 @@ struct OriginalPageWebView: UIViewRepresentable {
     let url: URL
     func makeUIView(context: Context) -> WKWebView {
         let webView = WKWebView()
+        webView.isOpaque = false
+        webView.backgroundColor = .systemBackground
+        webView.scrollView.backgroundColor = .systemBackground
         webView.load(URLRequest(url: url))
         return webView
     }
