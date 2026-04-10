@@ -1,5 +1,4 @@
 import Foundation
-import SwiftData
 
 struct PresetSource: Decodable, Hashable, Identifiable {
     let name: String
@@ -33,25 +32,4 @@ struct PresetCatalog {
         "ニュース", "テクノロジー", "ビジネス", "エンタメ",
         "サイエンス", "ゲーム", "スポーツ", "ライフスタイル"
     ]
-}
-
-/// 初回起動時の旧プリセットソースのマイグレーション
-struct PresetMigration {
-    static let migrationKey = "presetMigrationV2Completed"
-
-    static func runIfNeeded(context: ModelContext) {
-        let defaults = UserDefaults.standard
-        guard !defaults.bool(forKey: migrationKey) else { return }
-
-        // 旧 isPreset=true のソースを全削除
-        let descriptor = FetchDescriptor<Source>(predicate: #Predicate { $0.isPreset })
-        if let presetSources = try? context.fetch(descriptor) {
-            for source in presetSources {
-                context.delete(source)
-            }
-            try? context.save()
-        }
-
-        defaults.set(true, forKey: migrationKey)
-    }
 }

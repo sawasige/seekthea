@@ -176,18 +176,47 @@ class SourcesViewModel {
     }
 }
 
-/// プリセット用のOG画像キャッシュ（UserDefaults）
+/// プリセット用のOG画像URLキャッシュ（Caches ディレクトリの JSON ファイル）
 enum PresetOGImageCache {
-    static func get(for siteURL: URL) -> URL? {
-        let key = "preset-og-image-\(siteURL.absoluteString)"
-        if let urlString = UserDefaults.standard.string(forKey: key) {
-            return URL(string: urlString)
+    private static let fileName = "preset-og-images.json"
+    private static let queue = DispatchQueue(label: "PresetOGImageCache", attributes: .concurrent)
+    private static var memoryCache: [String: String] = loadFromDisk()
+
+    private static var fileURL: URL? {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
+            .first?.appendingPathComponent(fileName)
+    }
+
+    private static func loadFromDisk() -> [String: String] {
+        guard let url = fileURL,
+              let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode([String: String].self, from: data) else {
+            return [:]
         }
-        return nil
+        return decoded
+    }
+
+    static func get(for siteURL: URL) -> URL? {
+        queue.sync {
+            memoryCache[siteURL.absoluteString].flatMap(URL.init(string:))
+        }
     }
 
     static func set(_ imageURL: URL, for siteURL: URL) {
-        let key = "preset-og-image-\(siteURL.absoluteString)"
-        UserDefaults.standard.set(imageURL.absoluteString, forKey: key)
+        queue.async(flags: .barrier) {
+            memoryCache[siteURL.absoluteString] = imageURL.absoluteString
+            guard let url = fileURL,
+                  let data = try? JSONEncoder().encode(memoryCache) else { return }
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+
+    static func clear() {
+        queue.async(flags: .barrier) {
+            memoryCache.removeAll()
+            if let url = fileURL {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
     }
 }
