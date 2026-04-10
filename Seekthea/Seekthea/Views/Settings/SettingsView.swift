@@ -105,7 +105,7 @@ struct SettingsView: View {
             }
             Button("キャンセル", role: .cancel) {}
         } message: {
-            Text("ソース・記事・カテゴリ・興味トピック・発見ドメインをすべて削除します。CloudKit同期経由で他のデバイスからも削除されます。")
+            Text("ソース・記事・カテゴリ・興味トピックなどをすべて削除し、初期状態に戻します。iCloudで同期している他のデバイスからも削除されます。")
         }
     }
 
@@ -167,9 +167,6 @@ struct SettingsView: View {
 
         PresetOGImageCache.clear()
         PendingSourcesStore.clear()
-
-        // カテゴリはデフォルトを再投入
-        UserCategory.seedIfNeeded(context: modelContext)
     }
 
     private func deleteAllArticles() {
