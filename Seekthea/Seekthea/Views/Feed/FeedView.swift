@@ -236,17 +236,28 @@ struct FeedView: View {
 
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
+    private var hasActiveSource: Bool {
+        allSources.contains(where: { $0.isActive })
+    }
+
     private var emptyFeedTitle: String {
-        allSources.isEmpty ? "ソースがありません" : "記事がありません"
+        if allSources.isEmpty { return "ソースがありません" }
+        if !hasActiveSource { return "有効なソースがありません" }
+        return "記事がありません"
     }
 
     private var emptyFeedIcon: String {
-        allSources.isEmpty ? "tray" : "newspaper"
+        if allSources.isEmpty { return "tray" }
+        if !hasActiveSource { return "pause.circle" }
+        return "newspaper"
     }
 
     private var emptyFeedHint: String {
         if allSources.isEmpty {
             return "設定からソースを追加してください"
+        }
+        if !hasActiveSource {
+            return "ソース管理でソースをオンにしてください"
         }
         #if os(macOS)
         return "更新ボタンを押してください"
@@ -421,7 +432,7 @@ struct FeedView: View {
         NavigationStack(path: $navigationPath) {
             mainContent
                 .overlay {
-                    if allArticles.isEmpty {
+                    if cachedDisplayArticles.isEmpty {
                         if viewModel == nil {
                             ProgressView("読み込み中...")
                         } else {
@@ -498,6 +509,11 @@ struct FeedView: View {
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .onboardingCompleted)) { _ in
                     Task { await refreshAll() }
+                }
+                .onChange(of: hasActiveSource) { _, newValue in
+                    if !newValue {
+                        viewModel?.cancelClassification()
+                    }
                 }
                 .navigationDestination(for: Article.self) { article in
                     ArticleDetailView(article: article)
@@ -628,6 +644,12 @@ struct FeedView: View {
     }
 
     private func refreshAll() async {
+        if !hasActiveSource {
+            viewModel?.cancelClassification()
+            reloadArticles()
+            updateCachedData()
+            return
+        }
         await viewModel?.refresh()
         reloadArticles()
         updateCachedData()

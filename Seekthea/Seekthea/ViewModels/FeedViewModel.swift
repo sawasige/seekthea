@@ -11,6 +11,7 @@ class FeedViewModel {
     private var feedFetcher: FeedFetcher
     private var aiProcessor: AIProcessor
     private var interestEngine: InterestEngine
+    private var classifyTask: Task<Void, Never>?
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
@@ -36,7 +37,8 @@ class FeedViewModel {
         onArticleClassified: (@MainActor () -> Void)? = nil,
         onComplete: (@MainActor () -> Void)? = nil
     ) {
-        Task {
+        classifyTask?.cancel()
+        classifyTask = Task {
             await aiProcessor.classifyBatch(
                 onProgress: { [weak self] message in
                     self?.statusMessage = message
@@ -45,9 +47,17 @@ class FeedViewModel {
                     Task { @MainActor in onArticleClassified?() }
                 }
             )
+            if Task.isCancelled { return }
             statusMessage = nil
             onComplete?()
         }
+    }
+
+    /// 実行中のカテゴリ分類を停止
+    func cancelClassification() {
+        classifyTask?.cancel()
+        classifyTask = nil
+        statusMessage = nil
     }
 
     /// 未分類記事をカテゴリ分類

@@ -146,6 +146,7 @@ class AIProcessor {
 
         let catList = labeledCategoryList
         for (index, article) in articles.enumerated() {
+            if Task.isCancelled { break }
             onProgress?("カテゴリ分類中... (\(index + 1)/\(articles.count))")
 
             let desc = article.leadText ?? article.ogDescription ?? ""
