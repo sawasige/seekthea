@@ -21,6 +21,7 @@ class Source {
     var addedAt: Date = Date()
     var lastFetchedAt: Date? = nil
     var articleCount: Int = 0
+    var ogImageURL: URL? = nil
 
     @Relationship(deleteRule: .cascade, inverse: \Article.source)
     var articles: [Article]? = nil

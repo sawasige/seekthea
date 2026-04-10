@@ -1,49 +1,57 @@
 import Foundation
 import SwiftData
 
-struct PresetSource: Decodable {
+struct PresetSource: Decodable, Hashable, Identifiable {
     let name: String
     let feedURL: URL
     let siteURL: URL
-    let sourceType: String
     let category: String
+
+    var id: URL { feedURL }
 }
 
-struct PresetData: Decodable {
-    let news: [PresetSource]
-    let social: [PresetSource]
-    let tech: [PresetSource]
+/// プリセットRSSカタログ（JSONから読み込み）
+struct PresetCatalog {
+    static let shared: [String: [PresetSource]] = load()
 
-    var all: [PresetSource] {
-        news + social + tech
-    }
-}
-
-struct PresetLoader {
-    static func loadIfNeeded(context: ModelContext) throws {
+    static func load() -> [String: [PresetSource]] {
         guard let url = Bundle.main.url(forResource: "preset_sources", withExtension: "json"),
-              let data = try? Data(contentsOf: url) else {
-            return
+              let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode([String: [PresetSource]].self, from: data) else {
+            return [:]
+        }
+        return decoded
+    }
+
+    /// 全プリセットをフラットに取得
+    static var all: [PresetSource] {
+        shared.values.flatMap { $0 }
+    }
+
+    /// カテゴリ順のキー配列（表示順を固定）
+    static let categoryOrder = [
+        "ニュース", "テクノロジー", "ビジネス", "エンタメ",
+        "サイエンス", "ゲーム", "スポーツ", "ライフスタイル"
+    ]
+}
+
+/// 初回起動時の旧プリセットソースのマイグレーション
+struct PresetMigration {
+    static let migrationKey = "presetMigrationV2Completed"
+
+    static func runIfNeeded(context: ModelContext) {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: migrationKey) else { return }
+
+        // 旧 isPreset=true のソースを全削除
+        let descriptor = FetchDescriptor<Source>(predicate: #Predicate { $0.isPreset })
+        if let presetSources = try? context.fetch(descriptor) {
+            for source in presetSources {
+                context.delete(source)
+            }
+            try? context.save()
         }
 
-        let presets = try JSONDecoder().decode(PresetData.self, from: data)
-
-        // 既存ソースのfeedURLを取得して重複チェック
-        let existingSources = (try? context.fetch(FetchDescriptor<Source>())) ?? []
-        let existingFeedURLs = Set(existingSources.map(\.feedURL))
-
-        for preset in presets.all {
-            guard !existingFeedURLs.contains(preset.feedURL) else { continue }
-            let sourceType = SourceType(rawValue: preset.sourceType) ?? .news
-            let source = Source(
-                name: preset.name,
-                feedURL: preset.feedURL,
-                siteURL: preset.siteURL,
-                sourceType: sourceType,
-                category: preset.category,
-                isPreset: true
-            )
-            context.insert(source)
-        }
+        defaults.set(true, forKey: migrationKey)
     }
 }

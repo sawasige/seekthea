@@ -1,78 +1,426 @@
 {
-  "news": [
+  "ニュース": [
     {
-      "name": "NHK News Web",
-      "feedURL": "https://www.nhk.or.jp/rss/news/cat0.xml",
-      "siteURL": "https://www3.nhk.or.jp/news/",
-      "sourceType": "ニュース",
-      "category": "総合"
+      "name": "HuffPost Japan",
+      "feedURL": "https://www.huffingtonpost.jp/feeds/index.xml",
+      "siteURL": "https://www.huffingtonpost.jp/",
+      "category": "ニュース"
     },
     {
-      "name": "GIGAZINE",
-      "feedURL": "https://gigazine.net/news/rss_2.0/",
-      "siteURL": "https://gigazine.net/",
-      "sourceType": "ニュース",
+      "name": "ライブドアニュース - 主要",
+      "feedURL": "https://news.livedoor.com/topics/rss/top.xml",
+      "siteURL": "https://news.livedoor.com/",
+      "category": "ニュース"
+    },
+    {
+      "name": "ライブドアニュース - 国内",
+      "feedURL": "https://news.livedoor.com/topics/rss/dom.xml",
+      "siteURL": "https://news.livedoor.com/category/dom/",
+      "category": "ニュース"
+    },
+    {
+      "name": "ライブドアニュース - 海外",
+      "feedURL": "https://news.livedoor.com/topics/rss/int.xml",
+      "siteURL": "https://news.livedoor.com/category/int/",
+      "category": "ニュース"
+    },
+    {
+      "name": "ライブドアニュース - 経済",
+      "feedURL": "https://news.livedoor.com/topics/rss/eco.xml",
+      "siteURL": "https://news.livedoor.com/category/eco/",
+      "category": "ニュース"
+    },
+    {
+      "name": "ライブドアニュース - エンタメ",
+      "feedURL": "https://news.livedoor.com/topics/rss/ent.xml",
+      "siteURL": "https://news.livedoor.com/category/ent/",
+      "category": "ニュース"
+    },
+    {
+      "name": "ライブドアニュース - 最新まとめ",
+      "feedURL": "https://news.livedoor.com/rss/summary/52.xml",
+      "siteURL": "https://news.livedoor.com/",
+      "category": "ニュース"
+    },
+    {
+      "name": "ロケットニュース24",
+      "feedURL": "https://rocketnews24.com/feed/",
+      "siteURL": "https://rocketnews24.com/",
+      "category": "ニュース"
+    },
+    {
+      "name": "grape",
+      "feedURL": "https://grapee.jp/feed",
+      "siteURL": "https://grapee.jp/",
+      "category": "ニュース"
+    },
+    {
+      "name": "BUZZAP!",
+      "feedURL": "https://buzzap.jp/rss",
+      "siteURL": "https://buzzap.jp/",
+      "category": "ニュース"
+    },
+    {
+      "name": "しらべぇ (fumumu)",
+      "feedURL": "https://fumumu.net/feed/",
+      "siteURL": "https://fumumu.net/",
+      "category": "ニュース"
+    },
+    {
+      "name": "現代ビジネス",
+      "feedURL": "https://gendai.media/list/feed/rss",
+      "siteURL": "https://gendai.media/",
+      "category": "ニュース"
+    }
+  ],
+  "テクノロジー": [
+    {
+      "name": "ASCII.jp",
+      "feedURL": "https://ascii.jp/rss.xml",
+      "siteURL": "https://ascii.jp/",
       "category": "テクノロジー"
     },
     {
-      "name": "ITmedia NEWS",
-      "feedURL": "https://rss.itmedia.co.jp/rss/2.0/news_bursts.xml",
-      "siteURL": "https://www.itmedia.co.jp/news/",
-      "sourceType": "ニュース",
+      "name": "ギズモード・ジャパン",
+      "feedURL": "https://www.gizmodo.jp/index.xml",
+      "siteURL": "https://www.gizmodo.jp/",
+      "category": "テクノロジー"
+    },
+    {
+      "name": "ライフハッカー・ジャパン",
+      "feedURL": "https://www.lifehacker.jp/feed/index.xml",
+      "siteURL": "https://www.lifehacker.jp/",
+      "category": "テクノロジー"
+    },
+    {
+      "name": "WIRED.jp",
+      "feedURL": "https://wired.jp/rssfeeder/",
+      "siteURL": "https://wired.jp/",
+      "category": "テクノロジー"
+    },
+    {
+      "name": "iPhone Mania",
+      "feedURL": "https://iphone-mania.jp/feed",
+      "siteURL": "https://iphone-mania.jp/",
+      "category": "テクノロジー"
+    },
+    {
+      "name": "すまほん!!",
+      "feedURL": "https://smhn.info/feed",
+      "siteURL": "https://smhn.info/",
+      "category": "テクノロジー"
+    },
+    {
+      "name": "AINOW",
+      "feedURL": "https://ainow.ai/feed/",
+      "siteURL": "https://ainow.ai/",
+      "category": "テクノロジー"
+    },
+    {
+      "name": "TechWave",
+      "feedURL": "https://techwave.jp/feed",
+      "siteURL": "https://techwave.jp/",
+      "category": "テクノロジー"
+    },
+    {
+      "name": "THE BRIDGE",
+      "feedURL": "https://thebridge.jp/feed",
+      "siteURL": "https://thebridge.jp/",
+      "category": "テクノロジー"
+    },
+    {
+      "name": "Coral Capital",
+      "feedURL": "https://coralcap.co/feed/",
+      "siteURL": "https://coralcap.co/",
+      "category": "テクノロジー"
+    },
+    {
+      "name": "Engadget (English)",
+      "feedURL": "https://www.engadget.com/rss.xml",
+      "siteURL": "https://www.engadget.com/",
       "category": "テクノロジー"
     }
   ],
-  "social": [
+  "ビジネス": [
     {
-      "name": "はてなブックマーク - 人気",
-      "feedURL": "https://b.hatena.ne.jp/hotentry.rss",
-      "siteURL": "https://b.hatena.ne.jp/",
-      "sourceType": "ソーシャル",
-      "category": "トレンド"
+      "name": "東洋経済オンライン",
+      "feedURL": "https://toyokeizai.net/list/feed/rss",
+      "siteURL": "https://toyokeizai.net/",
+      "category": "ビジネス"
     },
     {
-      "name": "Reddit - r/technology",
-      "feedURL": "https://www.reddit.com/r/technology/.rss",
-      "siteURL": "https://www.reddit.com/r/technology/",
-      "sourceType": "ソーシャル",
-      "category": "テクノロジー"
+      "name": "ダイヤモンド・オンライン",
+      "feedURL": "https://diamond.jp/list/feed/rss/dol",
+      "siteURL": "https://diamond.jp/",
+      "category": "ビジネス"
     },
     {
-      "name": "Reddit - r/japan",
-      "feedURL": "https://www.reddit.com/r/japan/.rss",
-      "siteURL": "https://www.reddit.com/r/japan/",
-      "sourceType": "ソーシャル",
-      "category": "総合"
+      "name": "Business Insider Japan",
+      "feedURL": "https://www.businessinsider.jp/feed/index.xml",
+      "siteURL": "https://www.businessinsider.jp/",
+      "category": "ビジネス"
+    },
+    {
+      "name": "Wedge ONLINE",
+      "feedURL": "https://wedge.ismedia.jp/list/feed/rss",
+      "siteURL": "https://wedge.ismedia.jp/",
+      "category": "ビジネス"
+    },
+    {
+      "name": "ZUU online",
+      "feedURL": "https://zuuonline.com/feed",
+      "siteURL": "https://zuuonline.com/",
+      "category": "ビジネス"
+    },
+    {
+      "name": "リクナビNEXTジャーナル",
+      "feedURL": "https://next.rikunabi.com/journal/feed/",
+      "siteURL": "https://next.rikunabi.com/journal/",
+      "category": "ビジネス"
+    },
+    {
+      "name": "AMP (amp media)",
+      "feedURL": "https://ampmedia.jp/feed/",
+      "siteURL": "https://ampmedia.jp/",
+      "category": "ビジネス"
+    },
+    {
+      "name": "IDEAS FOR GOOD",
+      "feedURL": "https://ideasforgood.jp/feed/",
+      "siteURL": "https://ideasforgood.jp/",
+      "category": "ビジネス"
+    },
+    {
+      "name": "現代ビジネス",
+      "feedURL": "https://gendai.media/list/feed/rss",
+      "siteURL": "https://gendai.media/",
+      "category": "ビジネス"
     }
   ],
-  "tech": [
+  "エンタメ": [
     {
-      "name": "Hacker News - Best",
-      "feedURL": "https://hnrss.org/best",
-      "siteURL": "https://news.ycombinator.com/",
-      "sourceType": "テック",
-      "category": "テクノロジー"
+      "name": "otocoto (映画・音楽)",
+      "feedURL": "https://otocoto.jp/feed/",
+      "siteURL": "https://otocoto.jp/",
+      "category": "エンタメ"
     },
     {
-      "name": "Zenn - トレンド",
-      "feedURL": "https://zenn.dev/feed",
-      "siteURL": "https://zenn.dev/",
-      "sourceType": "テック",
-      "category": "開発"
+      "name": "アニメ!アニメ!",
+      "feedURL": "https://www.animeanime.jp/rss20/index.rdf",
+      "siteURL": "https://www.animeanime.jp/",
+      "category": "エンタメ"
     },
     {
-      "name": "Qiita - トレンド",
-      "feedURL": "https://qiita.com/popular-items/feed",
-      "siteURL": "https://qiita.com/",
-      "sourceType": "テック",
-      "category": "開発"
+      "name": "ライブドアニュース - エンタメ",
+      "feedURL": "https://news.livedoor.com/topics/rss/ent.xml",
+      "siteURL": "https://news.livedoor.com/category/ent/",
+      "category": "エンタメ"
     },
     {
-      "name": "Product Hunt",
-      "feedURL": "https://www.producthunt.com/feed",
-      "siteURL": "https://www.producthunt.com/",
-      "sourceType": "テック",
-      "category": "プロダクト"
+      "name": "anan web",
+      "feedURL": "https://ananweb.jp/feed",
+      "siteURL": "https://ananweb.jp/",
+      "category": "エンタメ"
+    },
+    {
+      "name": "Lmaga.jp",
+      "feedURL": "https://www.lmaga.jp/feed/",
+      "siteURL": "https://www.lmaga.jp/",
+      "category": "エンタメ"
+    },
+    {
+      "name": "CINRA",
+      "feedURL": "https://www.cinra.net/article/rss",
+      "siteURL": "https://www.cinra.net/",
+      "category": "エンタメ"
+    },
+    {
+      "name": "OTOTOY",
+      "feedURL": "https://ototoy.jp/news/feed",
+      "siteURL": "https://ototoy.jp/",
+      "category": "エンタメ"
+    },
+    {
+      "name": "OK Music",
+      "feedURL": "https://okmusic.jp/rss",
+      "siteURL": "https://okmusic.jp/",
+      "category": "エンタメ"
+    }
+  ],
+  "スポーツ": [
+    {
+      "name": "フットボールチャンネル",
+      "feedURL": "https://www.footballchannel.jp/feed/",
+      "siteURL": "https://www.footballchannel.jp/",
+      "category": "スポーツ"
+    },
+    {
+      "name": "Full-Count (野球)",
+      "feedURL": "https://full-count.jp/feed/",
+      "siteURL": "https://full-count.jp/",
+      "category": "スポーツ"
+    },
+    {
+      "name": "THE ANSWER",
+      "feedURL": "https://the-ans.jp/feed/",
+      "siteURL": "https://the-ans.jp/",
+      "category": "スポーツ"
+    },
+    {
+      "name": "ベースボールゲート",
+      "feedURL": "https://baseballgate.jp/feed",
+      "siteURL": "https://baseballgate.jp/",
+      "category": "スポーツ"
+    },
+    {
+      "name": "Autosport (F1)",
+      "feedURL": "https://www.autosport.com/rss/feed/all",
+      "siteURL": "https://www.autosport.com/",
+      "category": "スポーツ"
+    }
+  ],
+  "サイエンス": [
+    {
+      "name": "sorae 宇宙へのポータルサイト",
+      "feedURL": "https://sorae.info/feed",
+      "siteURL": "https://sorae.info/",
+      "category": "サイエンス"
+    },
+    {
+      "name": "ナゾロジー",
+      "feedURL": "https://nazology.kusuguru.co.jp/feed",
+      "siteURL": "https://nazology.kusuguru.co.jp/",
+      "category": "サイエンス"
+    },
+    {
+      "name": "カラパイア",
+      "feedURL": "https://karapaia.com/feed",
+      "siteURL": "https://karapaia.com/",
+      "category": "サイエンス"
+    },
+    {
+      "name": "Science Portal (JST)",
+      "feedURL": "https://scienceportal.jst.go.jp/feed/",
+      "siteURL": "https://scienceportal.jst.go.jp/",
+      "category": "サイエンス"
+    },
+    {
+      "name": "WIRED.jp",
+      "feedURL": "https://wired.jp/rssfeeder/",
+      "siteURL": "https://wired.jp/",
+      "category": "サイエンス"
+    }
+  ],
+  "ライフスタイル": [
+    {
+      "name": "ROOMIE",
+      "feedURL": "https://www.roomie.jp/feed/",
+      "siteURL": "https://www.roomie.jp/",
+      "category": "ライフスタイル"
+    },
+    {
+      "name": "TABI LABO",
+      "feedURL": "https://tabi-labo.com/feed",
+      "siteURL": "https://tabi-labo.com/",
+      "category": "ライフスタイル"
+    },
+    {
+      "name": "ELLE Japan",
+      "feedURL": "https://www.elle.com/jp/rss/all.xml/",
+      "siteURL": "https://www.elle.com/jp/",
+      "category": "ライフスタイル"
+    },
+    {
+      "name": "GQ JAPAN",
+      "feedURL": "https://www.gqjapan.jp/feed",
+      "siteURL": "https://www.gqjapan.jp/",
+      "category": "ライフスタイル"
+    },
+    {
+      "name": "美的.com",
+      "feedURL": "https://www.biteki.com/rss",
+      "siteURL": "https://www.biteki.com/",
+      "category": "ライフスタイル"
+    },
+    {
+      "name": "Locari",
+      "feedURL": "https://locari.jp/rss",
+      "siteURL": "https://locari.jp/",
+      "category": "ライフスタイル"
+    },
+    {
+      "name": "家庭画報.com",
+      "feedURL": "https://www.kateigaho.com/feed",
+      "siteURL": "https://www.kateigaho.com/",
+      "category": "ライフスタイル"
+    },
+    {
+      "name": "和樂web",
+      "feedURL": "https://intojapanwaraku.com/feed",
+      "siteURL": "https://intojapanwaraku.com/",
+      "category": "ライフスタイル"
+    },
+    {
+      "name": "WWD JAPAN",
+      "feedURL": "https://www.wwdjapan.com/feed",
+      "siteURL": "https://www.wwdjapan.com/",
+      "category": "ライフスタイル"
+    },
+    {
+      "name": "CLASSY. ONLINE",
+      "feedURL": "https://classy-online.jp/feed",
+      "siteURL": "https://classy-online.jp/",
+      "category": "ライフスタイル"
+    },
+    {
+      "name": "AXIS Web Magazine",
+      "feedURL": "https://www.axismag.jp/feed",
+      "siteURL": "https://www.axismag.jp/",
+      "category": "ライフスタイル"
+    }
+  ],
+  "ゲーム": [
+    {
+      "name": "AUTOMATON",
+      "feedURL": "https://automaton-media.com/feed/",
+      "siteURL": "https://automaton-media.com/",
+      "category": "ゲーム"
+    },
+    {
+      "name": "電ファミニコゲーマー",
+      "feedURL": "https://news.denfaminicogamer.jp/feed",
+      "siteURL": "https://news.denfaminicogamer.jp/",
+      "category": "ゲーム"
+    },
+    {
+      "name": "Game*Spark",
+      "feedURL": "https://www.gamespark.jp/rss20/index.rdf",
+      "siteURL": "https://www.gamespark.jp/",
+      "category": "ゲーム"
+    },
+    {
+      "name": "インサイド",
+      "feedURL": "https://www.inside-games.jp/rss20/index.rdf",
+      "siteURL": "https://www.inside-games.jp/",
+      "category": "ゲーム"
+    },
+    {
+      "name": "IGN Japan",
+      "feedURL": "https://jp.ign.com/feed.xml",
+      "siteURL": "https://jp.ign.com/",
+      "category": "ゲーム"
+    },
+    {
+      "name": "GameBusiness.jp",
+      "feedURL": "https://www.gamebusiness.jp/rss20/index.rdf",
+      "siteURL": "https://www.gamebusiness.jp/",
+      "category": "ゲーム"
+    },
+    {
+      "name": "Eurogamer",
+      "feedURL": "https://www.eurogamer.net/?format=rss",
+      "siteURL": "https://www.eurogamer.net/",
+      "category": "ゲーム"
     }
   ]
 }

@@ -16,13 +16,7 @@ struct ContentView: View {
         FeedView(modelContainer: modelContainer)
             .task {
                 deduplicateSources()
-
-                do {
-                    try PresetLoader.loadIfNeeded(context: modelContext)
-                } catch {
-                    print("Failed to load presets: \(error)")
-                }
-
+                PresetMigration.runIfNeeded(context: modelContext)
                 checkPendingSources()
                 await checkRemotePresets()
             }
