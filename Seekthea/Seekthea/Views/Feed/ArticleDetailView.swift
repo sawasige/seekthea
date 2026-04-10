@@ -570,9 +570,10 @@ private struct DetailModeButton: View {
                     .font(.caption2)
             }
             .frame(width: 56, height: 40)
+            .foregroundStyle(isSelected ? Color.white : Color.primary)
         }
         .buttonStyle(.glassProminent)
-        .tint(isSelected ? .accentColor : .secondary)
+        .tint(isSelected ? .accentColor : .clear)
     }
 }
 
