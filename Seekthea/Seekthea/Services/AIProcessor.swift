@@ -29,14 +29,15 @@ struct CategoryResult {
 class AIProcessor {
     private let modelContainer: ModelContainer
 
-    /// ユーザー定義カテゴリリスト
+    /// ユーザー定義カテゴリリスト（SwiftData から order 順で取得）
     private var userCategories: [String] {
-        guard let data = UserDefaults.standard.string(forKey: "userCategories")?.data(using: .utf8),
-              let categories = try? JSONDecoder().decode([String].self, from: data),
-              !categories.isEmpty else {
-            return CategorySettingsView.defaultCategories
+        let context = modelContainer.mainContext
+        let descriptor = FetchDescriptor<UserCategory>(sortBy: [SortDescriptor(\.order)])
+        let fetched = (try? context.fetch(descriptor)) ?? []
+        if fetched.isEmpty {
+            return UserCategory.defaults
         }
-        return categories
+        return fetched.map(\.name)
     }
 
     private static let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ")

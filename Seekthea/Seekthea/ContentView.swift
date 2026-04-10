@@ -14,6 +14,7 @@ struct ContentView: View {
         FeedView(modelContainer: modelContainer)
             .task {
                 deduplicateSources()
+                UserCategory.seedIfNeeded(context: modelContext)
                 checkPendingSources()
             }
             .alert("新しいソースが共有されました", isPresented: $pendingSourceAlert) {

@@ -9,6 +9,7 @@ struct SeektheaApp: App {
             Article.self,
             DiscoveredDomain.self,
             UserInterest.self,
+            UserCategory.self,
         ])
 
         // CloudKit同期を試みる → 失敗したらローカルのみで動作

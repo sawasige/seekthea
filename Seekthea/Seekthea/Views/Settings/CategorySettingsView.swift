@@ -1,27 +1,22 @@
 import SwiftUI
+import SwiftData
 
 struct CategorySettingsView: View {
-    @AppStorage("userCategories") private var categoriesJSON: String = CategorySettingsView.defaultCategoriesJSON
-
-    @State private var categories: [String] = []
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \UserCategory.order) private var categories: [UserCategory]
     @State private var newCategory: String = ""
 
-    static let defaultCategories = ["政治", "経済", "社会", "国際", "テクノロジー", "科学", "スポーツ", "エンタメ", "ライフ", "開発"]
-
-    static let defaultCategoriesJSON: String = {
-        let data = try! JSONEncoder().encode(defaultCategories)
-        return String(data: data, encoding: .utf8)!
-    }()
+    static let defaultCategories = UserCategory.defaults
 
     var body: some View {
         List {
             Section {
-                ForEach(categories.indices, id: \.self) { index in
+                ForEach(categories) { category in
                     TextField("カテゴリ名", text: Binding(
-                        get: { categories[index] },
+                        get: { category.name },
                         set: { newValue in
-                            categories[index] = newValue
-                            save()
+                            category.name = newValue
+                            try? modelContext.save()
                         }
                     ))
                 }
@@ -46,8 +41,7 @@ struct CategorySettingsView: View {
 
             Section {
                 Button("デフォルトに戻す") {
-                    categories = Self.defaultCategories
-                    save()
+                    resetToDefaults()
                 }
             }
         }
@@ -60,40 +54,40 @@ struct CategorySettingsView: View {
         #if !os(macOS)
         .toolbar { EditButton() }
         #endif
-        .onAppear { load() }
-    }
-
-    private func load() {
-        if let data = categoriesJSON.data(using: .utf8),
-           let decoded = try? JSONDecoder().decode([String].self, from: data) {
-            categories = decoded
-        } else {
-            categories = Self.defaultCategories
-        }
-    }
-
-    private func save() {
-        if let data = try? JSONEncoder().encode(categories),
-           let json = String(data: data, encoding: .utf8) {
-            categoriesJSON = json
-        }
     }
 
     private func addCategory() {
         let trimmed = newCategory.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty, !categories.contains(trimmed) else { return }
-        categories.append(trimmed)
+        guard !trimmed.isEmpty, !categories.contains(where: { $0.name == trimmed }) else { return }
+        let maxOrder = categories.map(\.order).max() ?? -1
+        modelContext.insert(UserCategory(name: trimmed, order: maxOrder + 1))
+        try? modelContext.save()
         newCategory = ""
-        save()
     }
 
     private func delete(at offsets: IndexSet) {
-        categories.remove(atOffsets: offsets)
-        save()
+        for index in offsets {
+            modelContext.delete(categories[index])
+        }
+        try? modelContext.save()
     }
 
     private func move(from source: IndexSet, to destination: Int) {
-        categories.move(fromOffsets: source, toOffset: destination)
-        save()
+        var reordered = categories
+        reordered.move(fromOffsets: source, toOffset: destination)
+        for (idx, category) in reordered.enumerated() {
+            category.order = idx
+        }
+        try? modelContext.save()
+    }
+
+    private func resetToDefaults() {
+        for category in categories {
+            modelContext.delete(category)
+        }
+        for (idx, name) in UserCategory.defaults.enumerated() {
+            modelContext.insert(UserCategory(name: name, order: idx))
+        }
+        try? modelContext.save()
     }
 }

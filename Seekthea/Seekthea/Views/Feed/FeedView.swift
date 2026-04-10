@@ -208,6 +208,7 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
 
 struct FeedView: View {
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: \UserCategory.order) private var userCategoryModels: [UserCategory]
     @State private var allArticles: [Article] = []
     @State private var navigationPath = NavigationPath()
     @State private var viewModel: FeedViewModel?
@@ -323,14 +324,9 @@ struct FeedView: View {
         }
     }
 
-    @State private var cachedUserCategories: [String] = CategorySettingsView.defaultCategories
-
-    private func loadUserCategories() {
-        if let data = UserDefaults.standard.string(forKey: "userCategories")?.data(using: .utf8),
-           let categories = try? JSONDecoder().decode([String].self, from: data),
-           !categories.isEmpty {
-            cachedUserCategories = categories
-        }
+    private var cachedUserCategories: [String] {
+        let names = userCategoryModels.map(\.name)
+        return names.isEmpty ? UserCategory.defaults : names
     }
 
     private var allCategoryOptions: [String?] {
@@ -469,14 +465,12 @@ struct FeedView: View {
                     }
                 }
                 .task {
-                    loadUserCategories()
                     if viewModel == nil {
                         viewModel = FeedViewModel(modelContainer: modelContainer)
                     }
                     await refreshAll()
                 }
                 .onAppear {
-                    loadUserCategories()
                     if viewModel != nil {
                         reloadArticles()
                         updateCachedData()
