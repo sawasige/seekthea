@@ -7,6 +7,7 @@ struct SettingsView: View {
     @AppStorage("discoveryEnabled") private var discoveryEnabled = true
     @Environment(\.modelContext) private var modelContext
     @State private var toastMessage: String?
+    @State private var showResetConfirm = false
 
     private var modelContainer: ModelContainer {
         modelContext.container
@@ -68,6 +69,9 @@ struct SettingsView: View {
                     deleteAllArticles()
                     showToast("全記事を削除しました")
                 }
+                Button("すべて初期化", role: .destructive) {
+                    showResetConfirm = true
+                }
             }
 
             Section("情報") {
@@ -94,6 +98,15 @@ struct SettingsView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: toastMessage)
+        .alert("すべてのデータを削除", isPresented: $showResetConfirm) {
+            Button("削除", role: .destructive) {
+                resetAllData()
+                showToast("すべて初期化しました")
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("ソース・記事・カテゴリ・興味トピック・発見ドメインをすべて削除します。CloudKit同期経由で他のデバイスからも削除されます。")
+        }
     }
 
     private func showToast(_ message: String) {
@@ -138,6 +151,25 @@ struct SettingsView: View {
         } catch {
             print("Failed to delete old articles: \(error)")
         }
+    }
+
+    private func resetAllData() {
+        do {
+            try modelContext.delete(model: Article.self)
+            try modelContext.delete(model: Source.self)
+            try modelContext.delete(model: DiscoveredDomain.self)
+            try modelContext.delete(model: UserCategory.self)
+            try modelContext.delete(model: UserInterest.self)
+            try modelContext.save()
+        } catch {
+            print("Failed to reset data: \(error)")
+        }
+
+        PresetOGImageCache.clear()
+        PendingSourcesStore.clear()
+
+        // カテゴリはデフォルトを再投入
+        UserCategory.seedIfNeeded(context: modelContext)
     }
 
     private func deleteAllArticles() {
