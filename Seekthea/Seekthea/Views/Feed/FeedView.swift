@@ -97,6 +97,7 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
         private var isHorizontalPan = false
         private var isPastThreshold = false
         private var lastDirection: CGFloat = 0
+        private var edgeHapticFired = false
         private let threshold: CGFloat = 50
 
         init(onSwipeLeft: @escaping () -> Void, onSwipeRight: @escaping () -> Void) {
@@ -114,43 +115,53 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
                     if let sv = addedTo, sv.isDragging || sv.isDecelerating {
                         break
                     }
-                    let goingLeft = translation.x < 0
-                    // 端にいる場合はスワイプを開始しない
-                    if (goingLeft && !canSwipeLeft) || (!goingLeft && !canSwipeRight) {
-                        break
-                    }
                     isHorizontalPan = true
                     setIsSwiping?(true)
                     addedTo?.isScrollEnabled = false
                 }
                 if isHorizontalPan {
-                    let progress = min(1, abs(translation.x) / threshold)
                     let direction: CGFloat = translation.x < 0 ? -1 : 1
-                    setSwipeProgress?(progress, direction)
+                    let goingLeft = direction < 0
+                    let currentlyBlocked = (goingLeft && !canSwipeLeft) || (!goingLeft && !canSwipeRight)
 
-                    // 方向が変わったらリセット
+                    // 方向が変わったら各状態をリセット
                     if direction != lastDirection {
                         isPastThreshold = false
+                        edgeHapticFired = false
                         lastDirection = direction
                     }
 
-                    let past = abs(translation.x) > threshold
-                    if past && !isPastThreshold {
-                        // 閾値を越えた
-                        isPastThreshold = true
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    } else if !past && isPastThreshold {
-                        // 閾値を下回った（キャンセル方向）
-                        isPastThreshold = false
-                        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                    if currentlyBlocked {
+                        let rubberBand = min(0.3, abs(translation.x) / threshold * 0.3)
+                        setSwipeProgress?(rubberBand, direction)
+                        if !edgeHapticFired && abs(translation.x) > threshold {
+                            edgeHapticFired = true
+                            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                        }
+                    } else {
+                        let progress = min(1, abs(translation.x) / threshold)
+                        setSwipeProgress?(progress, direction)
+
+                        let past = abs(translation.x) > threshold
+                        if past && !isPastThreshold {
+                            isPastThreshold = true
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } else if !past && isPastThreshold {
+                            isPastThreshold = false
+                            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                        }
                     }
                 }
             case .ended:
                 if isHorizontalPan && abs(translation.x) > threshold {
-                    if translation.x < 0 {
-                        onSwipeLeft()
-                    } else {
-                        onSwipeRight()
+                    let goingLeft = translation.x < 0
+                    let blocked = (goingLeft && !canSwipeLeft) || (!goingLeft && !canSwipeRight)
+                    if !blocked {
+                        if goingLeft {
+                            onSwipeLeft()
+                        } else {
+                            onSwipeRight()
+                        }
                     }
                 }
                 if isHorizontalPan {
@@ -158,6 +169,7 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
                 }
                 isHorizontalPan = false
                 isPastThreshold = false
+                edgeHapticFired = false
                 lastDirection = 0
                 setIsSwiping?(false)
                 setSwipeProgress?(0, 0)
@@ -167,6 +179,7 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
                 }
                 isHorizontalPan = false
                 isPastThreshold = false
+                edgeHapticFired = false
                 lastDirection = 0
                 setIsSwiping?(false)
                 setSwipeProgress?(0, 0)
