@@ -36,7 +36,7 @@ struct SourceSuggestionCard: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.blue)
+                .tint(Color.accentColor)
 
                 Button(action: onReject) {
                     Label("スキップ", systemImage: "xmark.circle")

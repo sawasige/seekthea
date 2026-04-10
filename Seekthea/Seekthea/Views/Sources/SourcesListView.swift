@@ -197,7 +197,7 @@ struct SourcesListView: View {
                     viewModel?.addPresetSource(preset)
                 } label: {
                     Image(systemName: "plus.circle")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.accentColor)
                         .font(.title3)
                 }
                 .buttonStyle(.plain)

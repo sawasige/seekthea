@@ -85,8 +85,8 @@ struct InterestSettingsView: View {
                                 .font(.subheadline)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
-                                .background(Color.blue.opacity(0.1))
-                                .foregroundStyle(.blue)
+                                .background(Color.accentColor.opacity(0.15))
+                                .foregroundStyle(Color.accentColor)
                                 .clipShape(Capsule())
                         }
                         .buttonStyle(.plain)

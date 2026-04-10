@@ -82,8 +82,8 @@ struct ArticleCardView: View {
                                 .font(badgeFont)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 3)
-                                .background(.blue.opacity(0.1))
-                                .foregroundStyle(.blue)
+                                .background(.tint.opacity(0.15))
+                                .foregroundStyle(Color.accentColor)
                                 .clipShape(Capsule())
                         }
                     }
@@ -101,7 +101,7 @@ struct ArticleCardView: View {
             if article.isRead {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.title2)
-                    .foregroundStyle(.white, .blue)
+                    .foregroundStyle(.white, Color.accentColor)
                     .shadow(radius: 2)
                     .padding(8)
             }

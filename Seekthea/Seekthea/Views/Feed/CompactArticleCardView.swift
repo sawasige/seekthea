@@ -52,8 +52,8 @@ struct CompactArticleCardView: View {
                                 .font(.caption2)
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 2)
-                                .background(.blue.opacity(0.1))
-                                .foregroundStyle(.blue)
+                                .background(.tint.opacity(0.15))
+                                .foregroundStyle(Color.accentColor)
                                 .clipShape(Capsule())
                         }
                         if article.categories.count > 2 {
@@ -76,7 +76,7 @@ struct CompactArticleCardView: View {
             if article.isRead {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.body)
-                    .foregroundStyle(.white, .blue)
+                    .foregroundStyle(.white, Color.accentColor)
                     .shadow(radius: 2)
                     .padding(4)
             }
