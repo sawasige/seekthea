@@ -433,7 +433,7 @@ struct FeedView: View {
             mainContent
                 .overlay {
                     if cachedDisplayArticles.isEmpty {
-                        if viewModel == nil {
+                        if viewModel == nil || viewModel?.isLoading == true {
                             ProgressView("読み込み中...")
                         } else {
                             ContentUnavailableView(
