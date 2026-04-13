@@ -125,7 +125,7 @@ struct OnboardingCategoryPickerView: View {
     }
 
     private func toggleSelection(_ category: String) {
-        #if !os(macOS)
+        #if os(iOS)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         #endif
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {

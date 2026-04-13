@@ -10,7 +10,7 @@ enum FeedMode: String, CaseIterable {
 
 // MARK: - UIKit横スワイプ検知
 
-#if !os(macOS)
+#if os(iOS)
 
 private class SwipeInstallerView: UIView {
     var install: ((UIView) -> Void)?
@@ -548,7 +548,7 @@ struct FeedView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 0) {
-                    #if !os(macOS)
+                    #if os(iOS)
                     ScrollViewSwipeHelper(
                         onSwipeLeft: { switchCategory(direction: 1) },
                         onSwipeRight: { switchCategory(direction: -1) },

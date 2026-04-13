@@ -575,7 +575,11 @@ private struct DetailModeButton: View {
             .frame(width: 56, height: 40)
             .foregroundStyle(isSelected ? Color.white : Color.primary)
         }
+        #if os(visionOS)
+        .buttonStyle(.bordered)
+        #else
         .buttonStyle(.glassProminent)
+        #endif
         .tint(isSelected ? .accentColor : .clear)
     }
 }
