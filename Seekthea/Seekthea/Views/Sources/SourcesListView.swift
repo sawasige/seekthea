@@ -84,21 +84,32 @@ struct SourcesListView: View {
         } else {
             List {
                 ForEach(registeredSourcesByCategory, id: \.0) { category, sourcesInCategory in
-                    Section(category) {
-                        ForEach(sourcesInCategory, id: \.id) { source in
-                            Button {
-                                previewItem = PreviewItem(mode: .registered(source))
-                            } label: {
-                                registeredRow(source)
+                    DisclosureGroup(
+                        content: {
+                            ForEach(sourcesInCategory, id: \.id) { source in
+                                Button {
+                                    previewItem = PreviewItem(mode: .registered(source))
+                                } label: {
+                                    registeredRow(source)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
-                        }
-                        .onDelete { offsets in
-                            for index in offsets {
-                                viewModel?.deleteSource(sourcesInCategory[index])
+                            .onDelete { offsets in
+                                for index in offsets {
+                                    viewModel?.deleteSource(sourcesInCategory[index])
+                                }
+                            }
+                        },
+                        label: {
+                            HStack {
+                                Text(category).font(.headline)
+                                Spacer()
+                                Text("\(sourcesInCategory.count)")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
                             }
                         }
-                    }
+                    )
                 }
             }
             #if os(iOS)
@@ -156,16 +167,27 @@ struct SourcesListView: View {
     private var addView: some View {
         List {
             ForEach(filteredPresets, id: \.0) { category, presets in
-                Section(category) {
-                    ForEach(presets) { preset in
-                        Button {
-                            previewItem = PreviewItem(mode: .preset(preset))
-                        } label: {
-                            presetRow(preset)
+                DisclosureGroup(
+                    content: {
+                        ForEach(presets) { preset in
+                            Button {
+                                previewItem = PreviewItem(mode: .preset(preset))
+                            } label: {
+                                presetRow(preset)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
+                    },
+                    label: {
+                        HStack {
+                            Text(category).font(.headline)
+                            Spacer()
+                            Text("\(presets.count)")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                }
+                )
             }
         }
         .searchable(text: $searchText, prompt: "ソースを検索")
