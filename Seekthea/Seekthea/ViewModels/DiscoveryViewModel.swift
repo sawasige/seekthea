@@ -28,9 +28,7 @@ class DiscoveryViewModel {
         let source = Source(
             name: domain.domain,
             feedURL: feedURL,
-            siteURL: siteURL,
-            sourceType: .news,
-            category: ""
+            siteURL: siteURL
         )
         context.insert(source)
         domain.isRejected = true

@@ -36,7 +36,6 @@ class SourcesViewModel {
                     name: preset.name,
                     feedURL: preset.feedURL,
                     siteURL: preset.siteURL,
-                    sourceType: .news,
                     category: preset.category,
                     isPreset: true
                 )
@@ -59,7 +58,6 @@ class SourcesViewModel {
             name: preset.name,
             feedURL: preset.feedURL,
             siteURL: preset.siteURL,
-            sourceType: .news,
             category: preset.category,
             isPreset: true
         )
@@ -77,7 +75,6 @@ class SourcesViewModel {
                 name: url.host() ?? url.absoluteString,
                 feedURL: url,
                 siteURL: url,
-                sourceType: .news,
                 category: "その他"
             )
             context.insert(source)
@@ -95,7 +92,6 @@ class SourcesViewModel {
             name: url.host() ?? url.absoluteString,
             feedURL: feedURL,
             siteURL: url,
-            sourceType: .news,
             category: "その他"
         )
         context.insert(source)

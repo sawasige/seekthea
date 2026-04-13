@@ -62,8 +62,7 @@ struct ContentView: View {
                 let source = Source(
                     name: pending.title ?? pending.url.host() ?? "Unknown",
                     feedURL: feedURL,
-                    siteURL: pending.url,
-                    sourceType: .news
+                    siteURL: pending.url
                 )
                 modelContext.insert(source)
             }
