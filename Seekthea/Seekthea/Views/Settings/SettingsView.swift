@@ -76,6 +76,12 @@ struct SettingsView: View {
 
             Section("情報") {
                 LabeledContent("バージョン", value: "1.0")
+                NavigationLink("ライセンス") {
+                    LicensesView()
+                }
+                Link("利用規約", destination: URL(string: "https://sawasige.github.io/seekthea/terms.html")!)
+                Link("プライバシーポリシー", destination: URL(string: "https://sawasige.github.io/seekthea/privacy.html")!)
+                Link("サポート", destination: URL(string: "https://sawasige.github.io/seekthea/support.html")!)
             }
         }
         #if os(macOS)
