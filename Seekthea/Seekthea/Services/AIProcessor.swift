@@ -3,15 +3,6 @@ import SwiftData
 #if canImport(FoundationModels)
 import FoundationModels
 
-/// カテゴリ・キーワード（Guided Generation用）
-@Generable
-struct ArticleMeta {
-    @Guide(description: "カテゴリ名")
-    var category: String
-    @Guide(description: "キーワード")
-    var keywords: [String]
-}
-
 /// 単一記事のカテゴリ・キーワード分類用
 @Generable
 struct CategoryResult {

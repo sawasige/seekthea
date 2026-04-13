@@ -115,11 +115,6 @@ struct ArticleCardView: View {
         }
     }
 
-    private var placeholderImage: some View {
-        Rectangle()
-            .fill(Color.gray.opacity(0.15))
-    }
-
     static func relativeString(from date: Date) -> String {
         let interval = -date.timeIntervalSinceNow
         if interval < 60 { return "たった今" }
