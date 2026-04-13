@@ -167,6 +167,11 @@ struct SettingsView: View {
 
         PresetOGImageCache.clear()
         PendingSourcesStore.clear()
+
+        // AppStorage の削除
+        for key in ["refreshInterval", "aiProcessingEnabled", "discoveryEnabled", "useCompactLayout"] {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
     }
 
     private func deleteAllArticles() {
