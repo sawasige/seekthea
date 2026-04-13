@@ -180,10 +180,10 @@ private struct CategoryTile: View {
                         HStack(spacing: 8) {
                             SourceThumbnailView(siteURL: source.siteURL, size: 20)
                             Text(source.name)
-                                .font(.caption2)
+                                .font(.caption)
                                 .foregroundStyle(isSelected ? Color.white.opacity(0.95) : .primary.opacity(0.85))
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.7)
+                                .minimumScaleFactor(0.8)
                             Spacer(minLength: 0)
                         }
                     }
