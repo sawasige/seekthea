@@ -1,0 +1,3 @@
+app_identifier "com.himatsubu.Seekthea"
+
+# 認証はAPI Key経由（fastlane/api_key.json または環境変数）

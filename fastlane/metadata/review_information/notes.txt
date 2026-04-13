@@ -1,0 +1,1 @@
+AI要約機能はApple Intelligence対応デバイス（iPhone 15 Pro以降）で動作します。非対応デバイスではAI要約なしでRSSフィードを閲覧できます。
