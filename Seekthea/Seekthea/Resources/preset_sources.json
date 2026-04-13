@@ -261,13 +261,6 @@
       "popular": true
     },
     {
-      "name": "アニメ!アニメ!",
-      "feedURL": "https://www.animeanime.jp/rss20/index.rdf",
-      "siteURL": "https://www.animeanime.jp/",
-      "category": "エンタメ",
-      "popular": false
-    },
-    {
       "name": "CINRA",
       "feedURL": "https://www.cinra.net/article/rss",
       "siteURL": "https://www.cinra.net/",
@@ -286,6 +279,57 @@
       "feedURL": "https://ananweb.jp/feed",
       "siteURL": "https://ananweb.jp/",
       "category": "エンタメ",
+      "popular": false
+    }
+  ],
+  "アニメ・漫画": [
+    {
+      "name": "アニメ!アニメ!",
+      "feedURL": "https://www.animeanime.jp/rss20/index.rdf",
+      "siteURL": "https://www.animeanime.jp/",
+      "category": "アニメ・漫画",
+      "popular": true
+    },
+    {
+      "name": "おたくま経済新聞",
+      "feedURL": "https://otakei.otakuma.net/feed",
+      "siteURL": "https://otakei.otakuma.net/",
+      "category": "アニメ・漫画",
+      "popular": true
+    },
+    {
+      "name": "このマンガがすごい!WEB",
+      "feedURL": "https://konomanga.jp/feed",
+      "siteURL": "https://konomanga.jp/",
+      "category": "アニメ・漫画",
+      "popular": true
+    },
+    {
+      "name": "声優グランプリ",
+      "feedURL": "https://seigura.com/feed",
+      "siteURL": "https://seigura.com/",
+      "category": "アニメ・漫画",
+      "popular": false
+    },
+    {
+      "name": "マグコミ",
+      "feedURL": "https://magcomi.com/rss",
+      "siteURL": "https://magcomi.com/",
+      "category": "アニメ・漫画",
+      "popular": false
+    },
+    {
+      "name": "まんがタイムきらら",
+      "feedURL": "https://www.dokidokivisual.com/feed/",
+      "siteURL": "https://www.dokidokivisual.com/",
+      "category": "アニメ・漫画",
+      "popular": false
+    },
+    {
+      "name": "コロコロオンライン",
+      "feedURL": "https://corocoro.jp/feed",
+      "siteURL": "https://corocoro.jp/",
+      "category": "アニメ・漫画",
       "popular": false
     }
   ],
@@ -421,6 +465,159 @@
       "popular": false
     }
   ],
+  "クルマ・バイク": [
+    {
+      "name": "Car Watch",
+      "feedURL": "https://car.watch.impress.co.jp/data/rss/1.0/car/feed.rdf",
+      "siteURL": "https://car.watch.impress.co.jp/",
+      "category": "クルマ・バイク",
+      "popular": true
+    },
+    {
+      "name": "くるまのニュース",
+      "feedURL": "https://kuruma-news.jp/feed",
+      "siteURL": "https://kuruma-news.jp/",
+      "category": "クルマ・バイク",
+      "popular": true
+    },
+    {
+      "name": "バイクのニュース",
+      "feedURL": "https://bike-news.jp/feed",
+      "siteURL": "https://bike-news.jp/",
+      "category": "クルマ・バイク",
+      "popular": true
+    },
+    {
+      "name": "レスポンス",
+      "feedURL": "https://response.jp/rss/index.rdf",
+      "siteURL": "https://response.jp/",
+      "category": "クルマ・バイク",
+      "popular": false
+    },
+    {
+      "name": "AUTOCAR JAPAN",
+      "feedURL": "https://www.autocar.jp/feed/",
+      "siteURL": "https://www.autocar.jp/",
+      "category": "クルマ・バイク",
+      "popular": false
+    },
+    {
+      "name": "ベストカーWeb",
+      "feedURL": "https://bestcarweb.jp/feed",
+      "siteURL": "https://bestcarweb.jp/",
+      "category": "クルマ・バイク",
+      "popular": false
+    },
+    {
+      "name": "clicccar",
+      "feedURL": "https://clicccar.com/feed/",
+      "siteURL": "https://clicccar.com/",
+      "category": "クルマ・バイク",
+      "popular": false
+    },
+    {
+      "name": "Motor-Fan",
+      "feedURL": "https://motor-fan.jp/feed",
+      "siteURL": "https://motor-fan.jp/",
+      "category": "クルマ・バイク",
+      "popular": false
+    },
+    {
+      "name": "モーサイ",
+      "feedURL": "https://mc-web.jp/feed/",
+      "siteURL": "https://mc-web.jp/",
+      "category": "クルマ・バイク",
+      "popular": false
+    },
+    {
+      "name": "Motorz",
+      "feedURL": "https://motorz.jp/feed",
+      "siteURL": "https://motorz.jp/",
+      "category": "クルマ・バイク",
+      "popular": false
+    },
+    {
+      "name": "BikeJIN",
+      "feedURL": "https://www.bikejin.jp/feed",
+      "siteURL": "https://www.bikejin.jp/",
+      "category": "クルマ・バイク",
+      "popular": false
+    }
+  ],
+  "話題": [
+    {
+      "name": "Togetter",
+      "feedURL": "https://togetter.com/rss/hot",
+      "siteURL": "https://togetter.com/",
+      "category": "話題",
+      "popular": true
+    },
+    {
+      "name": "ねとらぼ",
+      "feedURL": "https://rss.itmedia.co.jp/rss/2.0/netlab.xml",
+      "siteURL": "https://nlab.itmedia.co.jp/",
+      "category": "話題",
+      "popular": true
+    },
+    {
+      "name": "はてなブックマーク - 人気",
+      "feedURL": "https://b.hatena.ne.jp/hotentry.rss",
+      "siteURL": "https://b.hatena.ne.jp/",
+      "category": "話題",
+      "popular": true
+    },
+    {
+      "name": "BuzzFeed Japan",
+      "feedURL": "https://www.buzzfeed.com/jp.xml",
+      "siteURL": "https://www.buzzfeed.com/jp",
+      "category": "話題",
+      "popular": false
+    },
+    {
+      "name": "Sirabee",
+      "feedURL": "https://sirabee.com/feed/",
+      "siteURL": "https://sirabee.com/",
+      "category": "話題",
+      "popular": false
+    },
+    {
+      "name": "grape",
+      "feedURL": "https://grapee.jp/feed",
+      "siteURL": "https://grapee.jp/",
+      "category": "話題",
+      "popular": false
+    },
+    {
+      "name": "ロケットニュース24",
+      "feedURL": "https://rocketnews24.com/feed",
+      "siteURL": "https://rocketnews24.com/",
+      "category": "話題",
+      "popular": false
+    }
+  ],
+  "コラム": [
+    {
+      "name": "文春オンライン",
+      "feedURL": "https://bunshun.jp/list/feed/rss",
+      "siteURL": "https://bunshun.jp/",
+      "category": "コラム",
+      "popular": true
+    },
+    {
+      "name": "オモコロ",
+      "feedURL": "https://omocoro.jp/feed",
+      "siteURL": "https://omocoro.jp/",
+      "category": "コラム",
+      "popular": true
+    },
+    {
+      "name": "web河出",
+      "feedURL": "https://web.kawade.co.jp/feed/",
+      "siteURL": "https://web.kawade.co.jp/",
+      "category": "コラム",
+      "popular": true
+    }
+  ],
   "ライフスタイル": [
     {
       "name": "クックパッドニュース",
@@ -476,6 +673,71 @@
       "feedURL": "https://casabrutus.com/feed",
       "siteURL": "https://casabrutus.com/",
       "category": "ライフスタイル",
+      "popular": false
+    },
+    {
+      "name": "Rettyグルメニュース",
+      "feedURL": "https://retty.news/feed",
+      "siteURL": "https://retty.news/",
+      "category": "ライフスタイル",
+      "popular": false
+    },
+    {
+      "name": "ペットスマイルニュース（犬）",
+      "feedURL": "https://psnews.jp/dog/feed/",
+      "siteURL": "https://psnews.jp/dog/",
+      "category": "ライフスタイル",
+      "popular": false
+    },
+    {
+      "name": "ペットスマイルニュース（猫）",
+      "feedURL": "https://psnews.jp/cat/feed/",
+      "siteURL": "https://psnews.jp/cat/",
+      "category": "ライフスタイル",
+      "popular": false
+    }
+  ],
+  "掲示板まとめ": [
+    {
+      "name": "痛いニュース",
+      "feedURL": "http://blog.livedoor.jp/dqnplus/index.rdf",
+      "siteURL": "http://blog.livedoor.jp/dqnplus/",
+      "category": "掲示板まとめ",
+      "popular": true
+    },
+    {
+      "name": "ハムスター速報",
+      "feedURL": "https://hamusoku.com/index.rdf",
+      "siteURL": "https://hamusoku.com/",
+      "category": "掲示板まとめ",
+      "popular": true
+    },
+    {
+      "name": "暇人速報",
+      "feedURL": "http://himasoku.com/index.rdf",
+      "siteURL": "http://himasoku.com/",
+      "category": "掲示板まとめ",
+      "popular": true
+    },
+    {
+      "name": "哲学ニュースnwk",
+      "feedURL": "http://blog.livedoor.jp/nwknews/index.rdf",
+      "siteURL": "http://blog.livedoor.jp/nwknews/",
+      "category": "掲示板まとめ",
+      "popular": false
+    },
+    {
+      "name": "キニ速",
+      "feedURL": "http://blog.livedoor.jp/kinisoku/index.rdf",
+      "siteURL": "http://blog.livedoor.jp/kinisoku/",
+      "category": "掲示板まとめ",
+      "popular": false
+    },
+    {
+      "name": "VIPPERな俺",
+      "feedURL": "http://blog.livedoor.jp/news23vip/index.rdf",
+      "siteURL": "http://blog.livedoor.jp/news23vip/",
+      "category": "掲示板まとめ",
       "popular": false
     }
   ]
