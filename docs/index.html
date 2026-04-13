@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seekthea — パーソナルトレンドアグリゲーター</title>
+    <meta name="description" content="ニュース・テック・ソーシャルのトレンドをRSSで収集し、Apple Intelligenceでオンデバイス要約。サーバー不要、月額コストゼロ。">
+    <meta property="og:title" content="Seekthea — パーソナルトレンドアグリゲーター">
+    <meta property="og:description" content="ウェブ全体のトレンドを見通して、探し出すアプリ。">
+    <meta property="og:image" content="assets/screenshot1.png">
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --accent: #F26522;
+            --accent-light: #FFF4ED;
+            --bg: #FAFAFA;
+            --text: #1a1a1a;
+            --text-muted: #666;
+            --card-bg: #fff;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+        }
+
+        /* Hero */
+        .hero {
+            text-align: center;
+            padding: 80px 20px 60px;
+            background: linear-gradient(180deg, #fff 0%, var(--bg) 100%);
+        }
+
+        .logo {
+            width: 128px;
+            height: 128px;
+            border-radius: 28px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin: 24px 0 12px;
+            letter-spacing: -0.02em;
+        }
+
+        .hero .subtitle {
+            font-size: 1.4rem;
+            color: var(--accent);
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .hero .tagline {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            margin-bottom: 32px;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .app-store-badge {
+            height: 54px;
+            transition: transform 0.2s;
+        }
+
+        .app-store-badge:hover {
+            transform: scale(1.05);
+        }
+
+        /* Screenshots */
+        .screenshots {
+            display: flex;
+            gap: 20px;
+            padding: 40px 20px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scroll-snap-type: x mandatory;
+        }
+
+        .screenshots img {
+            height: 480px;
+            border-radius: 12px;
+            flex-shrink: 0;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+            scroll-snap-align: center;
+            cursor: zoom-in;
+        }
+
+        /* Intro */
+        .intro {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 60px 20px;
+            text-align: center;
+        }
+
+        .intro h2 {
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+        }
+
+        .intro p {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+        }
+
+        .intro .highlight {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* Features */
+        .features {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+
+        .features h2 {
+            text-align: center;
+            font-size: 1.8rem;
+            margin-bottom: 48px;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 24px;
+        }
+
+        .feature {
+            background: var(--card-bg);
+            padding: 28px;
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+        }
+
+        .feature-icon {
+            font-size: 2.2rem;
+            margin-bottom: 16px;
+        }
+
+        .feature h3 {
+            font-size: 1.15rem;
+            margin-bottom: 8px;
+        }
+
+        .feature p {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+        }
+
+        /* Highlights */
+        .highlights {
+            background: var(--card-bg);
+            padding: 60px 20px;
+        }
+
+        .highlights-inner {
+            max-width: 700px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .highlights h2 {
+            font-size: 1.5rem;
+            margin-bottom: 24px;
+        }
+
+        .pill-list {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .pill-list span {
+            background: var(--bg);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        /* Target */
+        .target {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+
+        .target h2 {
+            text-align: center;
+            font-size: 1.5rem;
+            margin-bottom: 32px;
+        }
+
+        .target-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .target-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: var(--card-bg);
+            padding: 20px 24px;
+            border-radius: 12px;
+        }
+
+        .target-item .icon {
+            font-size: 1.5rem;
+        }
+
+        .target-item p {
+            font-size: 1rem;
+        }
+
+        /* CTA */
+        .cta {
+            text-align: center;
+            padding: 80px 20px;
+            background: linear-gradient(180deg, var(--bg) 0%, var(--accent-light) 100%);
+        }
+
+        .cta h2 {
+            font-size: 1.8rem;
+            margin-bottom: 12px;
+        }
+
+        .cta p {
+            color: var(--text-muted);
+            margin-bottom: 28px;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            background: var(--card-bg);
+        }
+
+        footer a {
+            color: var(--text-muted);
+            text-decoration: none;
+            margin: 0 12px;
+            transition: color 0.2s;
+        }
+
+        footer a:hover {
+            color: var(--accent);
+        }
+
+        .footer-links {
+            margin-bottom: 16px;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .hero {
+                padding: 60px 20px 40px;
+            }
+
+            .hero h1 {
+                font-size: 2.2rem;
+            }
+
+            .hero .subtitle {
+                font-size: 1.2rem;
+            }
+
+            .screenshots img {
+                height: 380px;
+            }
+
+            .intro h2, .features h2 {
+                font-size: 1.5rem;
+            }
+
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Lightbox */
+        .lightbox {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            cursor: zoom-out;
+        }
+
+        .lightbox.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .lightbox img {
+            max-width: 90%;
+            max-height: 90%;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <section class="hero">
+        <img src="assets/logo.png" alt="Seekthea" class="logo">
+        <h1>Seekthea</h1>
+        <p class="subtitle">ウェブ全体のトレンドを、あなたの手に。</p>
+        <p class="tagline">ニュース・テック・ソーシャルのトレンドをRSSで収集し、Apple Intelligenceがオンデバイスで要約。サーバー不要、月額コストゼロ。</p>
+        <!-- App Store公開後にリンクを差し替え -->
+        <!--
+        <a href="https://apps.apple.com/app/idXXXXXXXXXX">
+            <img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/ja-jp?size=250x83" alt="App Storeからダウンロード" class="app-store-badge">
+        </a>
+        -->
+        <p style="color: var(--text-muted); font-size: 0.9rem;">Coming Soon</p>
+    </section>
+
+    <section class="screenshots">
+        <!-- スクリーンショットを差し替え -->
+        <img src="assets/screenshot1.png" alt="フィード">
+        <img src="assets/screenshot2.png" alt="AI要約">
+        <img src="assets/screenshot3.png" alt="カテゴリ">
+        <img src="assets/screenshot4.png" alt="ソース管理">
+    </section>
+
+    <section class="intro">
+        <h2>自分だけのトレンドフィードを作ろう</h2>
+        <p>100以上のプリセットから好きなソースを選ぶだけ。<span class="highlight">AI要約で記事のポイントが一瞬でわかる。</span><br>RSSだから、アカウント登録もアルゴリズムの偏りもなし。あなたが選んだソースの、ありのままのトレンドを。</p>
+    </section>
+
+    <section class="features">
+        <h2>主な機能</h2>
+        <div class="feature-grid">
+            <div class="feature">
+                <div class="feature-icon">&#x1F4F0;</div>
+                <h3>幅広いソース</h3>
+                <p>ニュース・テクノロジー・エンタメ・ゲーム・スポーツなど、14カテゴリ100以上のプリセットから選べます。</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">&#x1F9E0;</div>
+                <h3>AI要約・分類</h3>
+                <p>Apple Intelligenceが記事をオンデバイスで要約・カテゴリ分類。通信もAPIキーも不要です。</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">&#x1F50D;</div>
+                <h3>ソース自動発見</h3>
+                <p>Google News RSSから新しいソースを自動的に発見して提案。トレンドを逃しません。</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">&#x2601;&#xFE0F;</div>
+                <h3>iCloud同期</h3>
+                <p>お気に入り・既読状態・ソース設定がiPhone・iPad・Macで自動同期されます。</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">&#x1F512;</div>
+                <h3>プライバシー重視</h3>
+                <p>データはデバイスとiCloudのみ。第三者サーバーへの送信は一切ありません。</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">&#x1F4B0;</div>
+                <h3>完全無料</h3>
+                <p>サーバー不要の設計だから、月額コストゼロ。広告もサブスクリプションもありません。</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="highlights">
+        <div class="highlights-inner">
+            <h2>プリセットカテゴリ</h2>
+            <div class="pill-list">
+                <span>ニュース</span>
+                <span>テクノロジー</span>
+                <span>開発</span>
+                <span>ビジネス</span>
+                <span>エンタメ</span>
+                <span>アニメ・漫画</span>
+                <span>ゲーム</span>
+                <span>サイエンス</span>
+                <span>スポーツ</span>
+                <span>クルマ・バイク</span>
+                <span>話題</span>
+                <span>コラム</span>
+                <span>ライフスタイル</span>
+                <span>掲示板まとめ</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="target">
+        <h2>こんな人におすすめ</h2>
+        <div class="target-list">
+            <div class="target-item">
+                <span class="icon">&#x1F4F1;</span>
+                <p>複数のニュースアプリを行き来するのが面倒な方</p>
+            </div>
+            <div class="target-item">
+                <span class="icon">&#x1F50E;</span>
+                <p>アルゴリズムに左右されず、自分でソースを選びたい方</p>
+            </div>
+            <div class="target-item">
+                <span class="icon">&#x1F916;</span>
+                <p>AIで記事を効率的にチェックしたい方</p>
+            </div>
+            <div class="target-item">
+                <span class="icon">&#x1F6E1;&#xFE0F;</span>
+                <p>プライバシーを大切にしたい方</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta">
+        <h2>トレンドを、見通そう。</h2>
+        <p>Seek（探し求める）+ Thea（視覚の女神テイア）。ウェブ全体のトレンドを見通して、探し出すアプリ。</p>
+        <!-- App Store公開後にリンクを差し替え -->
+        <!--
+        <a href="https://apps.apple.com/app/idXXXXXXXXXX">
+            <img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/ja-jp?size=250x83" alt="App Storeからダウンロード" class="app-store-badge">
+        </a>
+        -->
+        <p style="color: var(--text-muted); font-size: 0.9rem;">Coming Soon</p>
+    </section>
+
+    <footer>
+        <div class="footer-links">
+            <a href="privacy.html">プライバシーポリシー</a>
+            <a href="terms.html">利用規約</a>
+            <a href="support.html">サポート</a>
+        </div>
+        <p>&copy; 2026 himatsubu</p>
+    </footer>
+
+    <div class="lightbox" id="lightbox">
+        <img src="" alt="">
+    </div>
+
+    <script>
+        var lightbox = document.getElementById('lightbox');
+        var lightboxImg = lightbox.querySelector('img');
+
+        document.querySelectorAll('.screenshots img').forEach(function(img) {
+            img.addEventListener('click', function() {
+                lightboxImg.src = this.src;
+                lightboxImg.alt = this.alt;
+                lightbox.classList.add('active');
+            });
+        });
+
+        lightbox.addEventListener('click', function() {
+            lightbox.classList.remove('active');
+        });
+    </script>
+</body>
+</html>
