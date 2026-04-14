@@ -8,7 +8,7 @@ private enum SharedConstants {
     static let pendingSourcesKey = "pendingSources"
 }
 
-private struct PendingSourceData: Codable {
+private struct PendingSource: Codable {
     let url: URL
     let detectedFeedURL: URL?
     let title: String?
@@ -50,7 +50,7 @@ class ShareViewController: UIViewController {
     private func processURL(_ url: URL) async {
         let feedURL = await detectFeed(from: url)
 
-        let pending = PendingSourceData(
+        let pending = PendingSource(
             url: url,
             detectedFeedURL: feedURL,
             title: url.host(),
@@ -59,9 +59,9 @@ class ShareViewController: UIViewController {
 
         // App Group共有コンテナに保存
         if let defaults = UserDefaults(suiteName: SharedConstants.suiteName) {
-            var sources: [PendingSourceData] = []
+            var sources: [PendingSource] = []
             if let data = defaults.data(forKey: SharedConstants.pendingSourcesKey),
-               let existing = try? JSONDecoder().decode([PendingSourceData].self, from: data) {
+               let existing = try? JSONDecoder().decode([PendingSource].self, from: data) {
                 sources = existing
             }
             sources.append(pending)

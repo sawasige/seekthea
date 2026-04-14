@@ -46,6 +46,37 @@ platform :ios do
   end
 end
 
+platform :mac do
+  desc "macOSメタデータをアップロード"
+  lane :upload_metadata_only do
+    setup_api_key
+    deliver(
+      skip_binary_upload: true,
+      skip_app_version_update: true,
+      skip_screenshots: true,
+      force: true,
+      platform: "osx",
+      run_precheck_before_submit: false,
+      precheck_include_in_app_purchases: false
+    )
+  end
+
+  desc "macOSスクリーンショットをアップロード"
+  lane :upload_screenshots do
+    setup_api_key
+    deliver(
+      skip_binary_upload: true,
+      skip_metadata: true,
+      screenshots_path: "./fastlane/screenshots-mac",
+      overwrite_screenshots: true,
+      force: true,
+      platform: "osx",
+      run_precheck_before_submit: false,
+      precheck_include_in_app_purchases: false
+    )
+  end
+end
+
 def setup_api_key
   if ENV["APP_STORE_CONNECT_API_KEY_KEY_ID"]
     app_store_connect_api_key(
