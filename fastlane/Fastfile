@@ -78,6 +78,20 @@ platform :mac do
 end
 
 platform :visionos do
+  desc "visionOSメタデータをアップロード"
+  lane :upload_metadata_only do
+    setup_api_key
+    deliver(
+      skip_binary_upload: true,
+      skip_app_version_update: true,
+      skip_screenshots: true,
+      force: true,
+      platform: "xros",
+      run_precheck_before_submit: false,
+      precheck_include_in_app_purchases: false
+    )
+  end
+
   desc "visionOSスクリーンショットをアップロード"
   lane :upload_screenshots do
     setup_api_key
