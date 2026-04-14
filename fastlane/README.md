@@ -73,6 +73,14 @@ macOSスクリーンショットをアップロード
 
 ## visionos
 
+### visionos upload_metadata_only
+
+```sh
+[bundle exec] fastlane visionos upload_metadata_only
+```
+
+visionOSメタデータをアップロード
+
 ### visionos upload_screenshots
 
 ```sh
