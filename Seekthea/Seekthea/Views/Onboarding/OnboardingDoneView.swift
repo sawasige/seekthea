@@ -40,7 +40,7 @@ struct OnboardingDoneView: View {
 
                 VStack(spacing: 10) {
                     Text("準備完了")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .font(.system(.title, design: .rounded, weight: .bold))
                     Text("\(addedCount)個のソースを追加しました\n記事を取得しています…")
                         .font(.body)
                         .foregroundStyle(.secondary)

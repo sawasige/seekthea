@@ -80,7 +80,7 @@ struct OnboardingCategoryPickerView: View {
                 Spacer()
             }
             Text("興味のあるトピックは？")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .font(.system(.title, design: .rounded, weight: .bold))
                 .padding(.horizontal, 20)
             Text("あとから自由に追加・変更できます")
                 .font(.subheadline)
@@ -159,13 +159,13 @@ private struct CategoryTile: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            VStack(spacing: 14) {
+            VStack(spacing: 10) {
                 ZStack {
                     Circle()
                         .fill(isSelected ? Color.white.opacity(0.22) : Color.accentColor.opacity(0.12))
-                        .frame(width: 64, height: 64)
+                        .frame(width: 48, height: 48)
                     Image(systemName: CategoryIcon.symbol(for: category))
-                        .font(.system(size: 30, weight: .semibold))
+                        .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(isSelected ? Color.white : Color.accentColor)
                 }
 
@@ -175,12 +175,12 @@ private struct CategoryTile: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 5) {
                     ForEach(popular) { source in
-                        HStack(spacing: 8) {
-                            SourceThumbnailView(siteURL: source.siteURL, size: 20)
+                        HStack(spacing: 6) {
+                            SourceThumbnailView(siteURL: source.siteURL, size: 18)
                             Text(source.name)
-                                .font(.caption)
+                                .font(.subheadline)
                                 .foregroundStyle(isSelected ? Color.white.opacity(0.95) : .primary.opacity(0.85))
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.8)
@@ -190,8 +190,8 @@ private struct CategoryTile: View {
                 }
                 .padding(.horizontal, 4)
             }
-            .padding(.vertical, 22)
-            .padding(.horizontal, 14)
+            .padding(.vertical, 16)
+            .padding(.horizontal, 12)
             .frame(maxWidth: .infinity)
             .background {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)

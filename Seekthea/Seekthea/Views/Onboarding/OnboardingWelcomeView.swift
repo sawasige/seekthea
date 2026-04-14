@@ -45,7 +45,7 @@ struct OnboardingWelcomeView: View {
 
                 VStack(spacing: 12) {
                     Text("Seekthea")
-                        .font(.system(size: 44, weight: .bold, design: .rounded))
+                        .font(.system(.largeTitle, design: .rounded, weight: .bold))
                         .foregroundStyle(.primary)
                         .opacity(titleVisible ? 1 : 0)
                         .offset(y: titleVisible ? 0 : 20)
