@@ -34,8 +34,6 @@ class InterestEngine {
         // 5. 興味の英語キーワードを収集
         let interestEnKeywords = buildEnglishInterestKeywords(context: context)
 
-        print("[Interest] topics=\(allTopics.count) wordEmb=\(wordEmbedding != nil) enKeywords=\(interestEnKeywords.count) catRates=\(categoryReadRateCache?.count ?? 0)")
-
         // 5. 全記事をスコアリング
         let articles = (try? context.fetch(FetchDescriptor<Article>())) ?? []
         for article in articles {
@@ -46,10 +44,6 @@ class InterestEngine {
             // 各スコアを重み付き合算
             var score = keywordScore * 0.3 + semanticScore * 0.4 + categoryScore * 0.3
 
-            // デバッグ
-            if score > 0.10 {
-                print("[Score] \(article.title.prefix(30))... kw=\(String(format: "%.2f", keywordScore)) sem=\(String(format: "%.2f", semanticScore)) cat=\(String(format: "%.2f", categoryScore)) total=\(String(format: "%.2f", score))")
-            }
 
             // 新しい記事にボーナス（24時間以内）
             if let pub = article.publishedAt, pub > Date().addingTimeInterval(-86400) {
