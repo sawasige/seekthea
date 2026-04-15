@@ -161,6 +161,75 @@
             color: var(--text-muted);
         }
 
+        /* Feature Detail */
+        .feature-detail {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 80px 20px;
+        }
+
+        .feature-detail:nth-child(even) {
+            background: var(--card-bg);
+        }
+
+        .feature-detail-inner {
+            display: flex;
+            align-items: center;
+            gap: 48px;
+        }
+
+        .feature-detail:nth-child(even) .feature-detail-inner {
+            flex-direction: row-reverse;
+        }
+
+        .feature-detail-text {
+            flex: 1;
+        }
+
+        .feature-detail-text h2 {
+            font-size: 1.6rem;
+            margin-bottom: 16px;
+        }
+
+        .feature-detail-text p {
+            font-size: 1.05rem;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            line-height: 1.8;
+        }
+
+        .feature-detail-text .accent {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .feature-detail-image {
+            flex: 0 0 280px;
+        }
+
+        .feature-detail-image img {
+            width: 100%;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+        }
+
+        @media (max-width: 600px) {
+            .feature-detail-inner,
+            .feature-detail:nth-child(even) .feature-detail-inner {
+                flex-direction: column;
+            }
+
+            .feature-detail-image {
+                flex: none;
+                width: 100%;
+                max-width: 300px;
+            }
+
+            .feature-detail {
+                padding: 48px 20px;
+            }
+        }
+
         /* Highlights */
         .highlights {
             background: var(--card-bg);
@@ -355,34 +424,74 @@
         <h2>主な機能</h2>
         <div class="feature-grid">
             <div class="feature">
-                <div class="feature-icon">&#x1F4F0;</div>
-                <h3>幅広いソース</h3>
-                <p>ニュース・テクノロジー・エンタメ・ゲーム・スポーツなど、14カテゴリ100以上のプリセットから選べます。</p>
+                <div class="feature-icon">&#x1F680;</div>
+                <h3>すぐに始められる</h3>
+                <p>14カテゴリ100以上のプリセットから興味のあるものを選ぶだけ。RSSの知識は不要です。</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">&#x1F4D6;</div>
+                <h3>3つの読み方</h3>
+                <p>リーダー表示で広告を除去、AI要約で要点を即把握、Webで原文確認。記事ごとに切り替えられます。</p>
             </div>
             <div class="feature">
                 <div class="feature-icon">&#x1F9E0;</div>
-                <h3>AI要約・分類</h3>
-                <p>Apple Intelligenceが記事を要約・カテゴリ分類。すべてデバイス上で処理されるので、データが外部に送られることはありません。</p>
+                <h3>使うほど賢くなる</h3>
+                <p>読んだ記事やお気に入りから興味を学習。おすすめの精度が上がり、興味度スコアで記事の関連度が一目でわかります。</p>
             </div>
             <div class="feature">
                 <div class="feature-icon">&#x1F50D;</div>
                 <h3>ソース自動発見</h3>
-                <p>Google News RSSから新しいソースを自動的に発見して提案。トレンドを逃しません。</p>
+                <p>Google Newsのトレンドから新しいソースを自動的に発見して提案。自分では見つけられなかったソースが増えていきます。</p>
             </div>
             <div class="feature">
                 <div class="feature-icon">&#x2601;&#xFE0F;</div>
                 <h3>iCloud同期</h3>
-                <p>お気に入り・既読状態・ソース設定がiPhone・iPad・Macで自動同期されます。</p>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">&#x1F512;</div>
-                <h3>プライバシー重視</h3>
-                <p>データはデバイスとiCloudのみ。第三者サーバーへの送信は一切ありません。</p>
+                <p>お気に入り・既読状態・ソース設定がiPhone・iPad・Mac・Vision Proで自動同期されます。</p>
             </div>
             <div class="feature">
                 <div class="feature-icon">&#x1F4B0;</div>
-                <h3>完全無料</h3>
-                <p>アカウント登録も広告もサブスクリプションもなし。ずっと無料で使えます。</p>
+                <h3>広告なし・完全無料</h3>
+                <p>アカウント登録も広告もサブスクリプションもなし。データはデバイスとiCloudのみで外部に送られません。</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="feature-detail">
+        <div class="feature-detail-inner" style="max-width:900px;margin:0 auto;">
+            <div class="feature-detail-text">
+                <h2>選ぶだけで、すぐ始まる</h2>
+                <p>RSSリーダーはフィードURLを登録するのがハードル。Seektheaでは<span class="accent">14カテゴリのプリセットから興味のあるものを選ぶだけ</span>で、100以上のソースからニュースが届き始めます。</p>
+                <p>さらに、Google Newsのトレンドを監視して新しいソースを自動発見。自分では見つけられなかったサイトが勝手に増えていきます。</p>
+            </div>
+            <div class="feature-detail-image">
+                <img src="assets/screenshot5.png" alt="オンボーディング">
+            </div>
+        </div>
+    </section>
+
+    <section class="feature-detail" style="background:var(--card-bg);">
+        <div class="feature-detail-inner" style="max-width:900px;margin:0 auto;flex-direction:row-reverse;">
+            <div class="feature-detail-text">
+                <h2>3つの読み方で、記事に集中</h2>
+                <p><span class="accent">リーダー</span> — 広告やナビゲーションを除外して本文だけを表示。記事の内容に集中できます。</p>
+                <p><span class="accent">AI要約</span> — Apple Intelligenceが記事を要約。長い記事でも要点がすぐわかります。英語の記事も日本語で要約されることがあります。</p>
+                <p><span class="accent">Web</span> — 元のサイトをそのまま表示。原文を確認したいときに。</p>
+            </div>
+            <div class="feature-detail-image">
+                <img src="assets/screenshot2.png" alt="AI要約">
+            </div>
+        </div>
+    </section>
+
+    <section class="feature-detail">
+        <div class="feature-detail-inner" style="max-width:900px;margin:0 auto;">
+            <div class="feature-detail-text">
+                <h2>使うほど、あなた好みに</h2>
+                <p>読んだ記事やお気に入りから興味を自動で学習。「おすすめ」モードでは<span class="accent">記事ごとに0〜100%の興味度スコア</span>が表示され、関連度が一目でわかります。</p>
+                <p>設定画面では、アプリが学習した興味傾向をランキングで確認できます。自分がどんなトピックをよく読んでいるか、意外な発見があるかもしれません。</p>
+            </div>
+            <div class="feature-detail-image">
+                <img src="assets/screenshot3.png" alt="興味トピック">
             </div>
         </div>
     </section>
