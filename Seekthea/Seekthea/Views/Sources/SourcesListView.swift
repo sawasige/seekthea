@@ -5,153 +5,26 @@ struct SourcesListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Source.addedAt) private var sources: [Source]
     @State private var viewModel: SourcesViewModel?
-    @State private var selectedTab: Tab = .registered
     @State private var previewItem: PreviewItem?
     @State private var showManualAdd = false
+    @State private var searchText = ""
+    @State private var deleteTarget: Source?
 
     let modelContainer: ModelContainer
 
-    enum Tab: String, CaseIterable {
-        case registered = "登録済み"
-        case add = "追加"
+    // initialTab is kept for API compatibility but no longer used
+    init(modelContainer: ModelContainer, initialTab: Tab = .add) {
+        self.modelContainer = modelContainer
     }
 
-    var body: some View {
-        VStack(spacing: 0) {
-            Picker("", selection: $selectedTab) {
-                ForEach(Tab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding()
+    enum Tab { case registered, add }
 
-            if selectedTab == .registered {
-                registeredView
-            } else {
-                addView
-            }
-        }
-        #if os(macOS)
-        .frame(maxWidth: 700)
-        .frame(maxWidth: .infinity)
-        #endif
-        .navigationTitle("ソース管理")
-        .toolbar {
-            if selectedTab == .registered {
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        showManualAdd = true
-                    } label: {
-                        Image(systemName: "link.badge.plus")
-                    }
-                }
-            }
-        }
-        .sheet(item: $previewItem) { item in
-            SourcePreviewView(mode: item.mode, modelContainer: modelContainer)
-        }
-        .sheet(isPresented: $showManualAdd) {
-            AddSourceView(modelContainer: modelContainer)
-        }
-        .task {
-            if viewModel == nil {
-                viewModel = SourcesViewModel(modelContainer: modelContainer)
-            }
-        }
+    /// 手動追加（プリセット外）ソース
+    private var manualSources: [Source] {
+        sources.filter { !$0.isPreset }
     }
 
-    // MARK: - 登録済みタブ
-
-    private var registeredSourcesByCategory: [(String, [Source])] {
-        let grouped = Dictionary(grouping: sources, by: { $0.category.isEmpty ? "その他" : $0.category })
-        return PresetCatalog.categoryOrder.compactMap { cat in
-            grouped[cat].map { (cat, $0) }
-        } + grouped
-            .filter { !PresetCatalog.categoryOrder.contains($0.key) }
-            .sorted { $0.key < $1.key }
-            .map { ($0.key, $0.value) }
-    }
-
-    @ViewBuilder
-    private var registeredView: some View {
-        if sources.isEmpty {
-            ContentUnavailableView(
-                "ソースがありません",
-                systemImage: "list.bullet.rectangle",
-                description: Text("「追加」タブからソースを追加してください")
-            )
-        } else {
-            List {
-                ForEach(registeredSourcesByCategory, id: \.0) { category, sourcesInCategory in
-                    DisclosureGroup(
-                        content: {
-                            ForEach(sourcesInCategory, id: \.id) { source in
-                                Button {
-                                    previewItem = PreviewItem(mode: .registered(source))
-                                } label: {
-                                    registeredRow(source)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .onDelete { offsets in
-                                for index in offsets {
-                                    viewModel?.deleteSource(sourcesInCategory[index])
-                                }
-                            }
-                        },
-                        label: {
-                            HStack {
-                                Text(category).font(.headline)
-                                Spacer()
-                                Text("\(sourcesInCategory.count)")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    )
-                }
-            }
-            #if os(iOS)
-            .listStyle(.insetGrouped)
-            #endif
-        }
-    }
-
-    private func registeredRow(_ source: Source) -> some View {
-        HStack(spacing: 12) {
-            SourceThumbnailView(siteURL: source.siteURL, ogImageURL: source.ogImageURL, size: 44)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(source.name)
-                    .font(.subheadline.weight(.medium))
-                    .lineLimit(1)
-                HStack(spacing: 6) {
-                    if source.articleCount > 0 {
-                        Text("\(source.articleCount)記事")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let lastFetched = source.lastFetchedAt {
-                        Text(lastFetched, style: .relative)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-            }
-            Spacer()
-            Toggle("", isOn: Binding(
-                get: { source.isActive },
-                set: { _ in viewModel?.toggleSource(source) }
-            ))
-            .labelsHidden()
-        }
-    }
-
-    // MARK: - 追加タブ
-
-    @State private var searchText = ""
-
+    /// カテゴリ別プリセット一覧（検索フィルタ済み）
     private var filteredPresets: [(String, [PresetSource])] {
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
         return PresetCatalog.categoryOrder.compactMap { cat in
@@ -164,8 +37,28 @@ struct SourcesListView: View {
         }
     }
 
-    private var addView: some View {
+    /// カテゴリ内の登録済み数
+    private func registeredCount(in presets: [PresetSource]) -> Int {
+        presets.filter { viewModel?.isAdded($0) ?? false }.count
+    }
+
+    var body: some View {
         List {
+            // 手動追加ソースセクション
+            if !manualSources.isEmpty {
+                Section("手動追加") {
+                    ForEach(manualSources, id: \.id) { source in
+                        Button {
+                            previewItem = PreviewItem(mode: .registered(source))
+                        } label: {
+                            manualSourceRow(source)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            // プリセットカタログ
             ForEach(filteredPresets, id: \.0) { category, presets in
                 DisclosureGroup(
                     content: {
@@ -182,7 +75,8 @@ struct SourcesListView: View {
                         HStack {
                             Text(category).font(.headline)
                             Spacer()
-                            Text("\(presets.count)")
+                            let registered = registeredCount(in: presets)
+                            Text("\(registered)/\(presets.count)")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
@@ -194,7 +88,84 @@ struct SourcesListView: View {
         #if os(iOS)
         .listStyle(.insetGrouped)
         #endif
+        #if os(macOS)
+        .frame(maxWidth: 700)
+        .frame(maxWidth: .infinity)
+        #endif
+        .navigationTitle("ソース管理")
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    showManualAdd = true
+                } label: {
+                    Image(systemName: "link.badge.plus")
+                }
+            }
+        }
+        .sheet(item: $previewItem) { item in
+            SourcePreviewView(mode: item.mode, modelContainer: modelContainer)
+        }
+        .sheet(isPresented: $showManualAdd) {
+            AddSourceView(modelContainer: modelContainer)
+        }
+        .alert("ソースを削除", isPresented: Binding(
+            get: { deleteTarget != nil },
+            set: { if !$0 { deleteTarget = nil } }
+        )) {
+            Button("削除", role: .destructive) {
+                if let source = deleteTarget {
+                    viewModel?.deleteSource(source)
+                    deleteTarget = nil
+                }
+            }
+            Button("キャンセル", role: .cancel) {
+                deleteTarget = nil
+            }
+        } message: {
+            if let source = deleteTarget {
+                Text("\(source.name) を削除しますか？手動追加したソースは再登録にURLの入力が必要です。")
+            }
+        }
+        .task {
+            if viewModel == nil {
+                viewModel = SourcesViewModel(modelContainer: modelContainer)
+            }
+        }
     }
+
+    // MARK: - 手動追加ソース行
+
+    private func manualSourceRow(_ source: Source) -> some View {
+        HStack(spacing: 12) {
+            SourceThumbnailView(siteURL: source.siteURL, ogImageURL: source.ogImageURL, size: 44)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(source.name)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+                Text(source.siteURL.host() ?? "")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            Toggle("", isOn: Binding(
+                get: { source.isActive },
+                set: { _ in viewModel?.toggleSource(source) }
+            ))
+            .labelsHidden()
+            Button {
+                deleteTarget = source
+            } label: {
+                Image(systemName: "minus.circle.fill")
+                    .foregroundStyle(.red)
+                    .font(.title3)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - プリセット行
 
     private func presetRow(_ preset: PresetSource) -> some View {
         let isAdded = viewModel?.isAdded(preset) ?? false
