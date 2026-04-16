@@ -522,6 +522,9 @@ struct FeedView: View {
                         updateCachedData()
                     }
                 }
+                .onChange(of: allSources.count) {
+                    Task { await refreshAll() }
+                }
                 .onChange(of: hasActiveSource) { _, newValue in
                     if !newValue {
                         viewModel?.cancelClassification()
@@ -662,9 +665,11 @@ struct FeedView: View {
             updateCachedData()
             return
         }
+        guard viewModel?.isLoading != true else { return }
         await viewModel?.refresh()
         reloadArticles()
         updateCachedData()
+        if viewModel?.isClassifying == true { return }
         viewModel?.classifyInBackground(
             onArticleClassified: { [self] in
                 reloadArticles()
