@@ -85,7 +85,10 @@ struct DiscoveryView: View {
                 sourcesViewModel = SourcesViewModel(modelContainer: modelContainer)
             }
             DiscoveryManager.shared.markAsChecked()
-            DiscoveryManager.shared.runIfNeeded()
+            DiscoveryManager.shared.runIfDue(interval: 10800) // 3時間
+        }
+        .onDisappear {
+            DiscoveryManager.shared.markAsChecked()
         }
     }
 

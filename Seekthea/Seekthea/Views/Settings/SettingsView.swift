@@ -175,7 +175,7 @@ struct SettingsView: View {
         PendingSourcesStore.clear()
 
         // AppStorage の削除
-        for key in ["refreshInterval", "aiProcessingEnabled", "discoveryEnabled", "useCompactLayout"] {
+        for key in ["refreshInterval", "aiProcessingEnabled", "discoveryEnabled", "useCompactLayout", "lastDiscoveryRunAt", "lastDiscoveryCheckedAt"] {
             UserDefaults.standard.removeObject(forKey: key)
         }
     }

@@ -38,10 +38,10 @@ class DiscoveryManager {
         }
     }
 
-    /// 前回から24時間以上経っていれば自動実行
-    func runIfDue() {
+    /// 前回から指定間隔以上経っていれば自動実行
+    func runIfDue(interval: TimeInterval = 82800) {
         let elapsed = Date().timeIntervalSince1970 - lastRunTimestamp
-        guard elapsed >= Self.runInterval else { return }
+        guard elapsed >= interval else { return }
         runIfNeeded()
     }
 

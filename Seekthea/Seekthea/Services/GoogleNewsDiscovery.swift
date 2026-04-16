@@ -64,7 +64,9 @@ actor GoogleNewsDiscovery {
             let predicate = #Predicate<DiscoveredDomain> { $0.domain == domain }
             if let existing = try? context.fetch(FetchDescriptor(predicate: predicate)).first {
                 if !existing.isRejected {
-                    existing.lastSeenAt = Date()
+                    if !existing.isSuggested {
+                        existing.lastSeenAt = Date()
+                    }
                     existing.mentionCount += count
                 }
             } else {
