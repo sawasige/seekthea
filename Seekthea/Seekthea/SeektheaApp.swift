@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import CoreData
 
 @main
 struct SeektheaApp: App {

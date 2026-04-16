@@ -9,8 +9,20 @@ struct RSSDetector {
             return feedURL
         }
 
-        // 2. よくあるパスを試す
+        // 2. よくあるパスを並行で試す
         return await detectFromCommonPaths(siteURL)
+    }
+
+    /// フィードURLからタイトルを取得（RSSでなければnil）
+    static func feedTitle(from url: URL) async -> String? {
+        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+        let parser = FeedKit.FeedParser(data: data)
+        guard case .success(let feed) = parser.parse() else { return nil }
+        switch feed {
+        case .rss(let rss): return rss.title
+        case .atom(let atom): return atom.title
+        case .json(let json): return json.title
+        }
     }
 
     // MARK: - Private
@@ -49,25 +61,25 @@ struct RSSDetector {
             "/news/feed", "/news/rss", "/?feed=rss2",
         ]
 
-        for path in commonPaths {
-            guard let testURL = URL(string: path, relativeTo: url)?.absoluteURL else { continue }
-            if await isValidFeed(testURL) {
-                return testURL
+        return await withTaskGroup(of: URL?.self) { group in
+            for path in commonPaths {
+                guard let testURL = URL(string: path, relativeTo: url)?.absoluteURL else { continue }
+                group.addTask {
+                    await isValidFeed(testURL) ? testURL : nil
+                }
             }
+            for await result in group {
+                if let url = result {
+                    group.cancelAll()
+                    return url
+                }
+            }
+            return nil
         }
-        return nil
     }
 
     /// FeedKitで実際にパースして有効なフィードか確認
     private static func isValidFeed(_ url: URL) async -> Bool {
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 10
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else { return false }
-
-        let parser = FeedKit.FeedParser(data: data)
-        if case .success = parser.parse() { return true }
-        return false
+        await feedTitle(from: url) != nil
     }
 }

@@ -12,13 +12,6 @@ struct SourcesListView: View {
 
     let modelContainer: ModelContainer
 
-    // initialTab is kept for API compatibility but no longer used
-    init(modelContainer: ModelContainer, initialTab: Tab = .add) {
-        self.modelContainer = modelContainer
-    }
-
-    enum Tab { case registered, add }
-
     /// 手動追加（プリセット外）ソース
     private var manualSources: [Source] {
         sources.filter { !$0.isPreset }
