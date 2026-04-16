@@ -47,20 +47,18 @@ class DiscoveryManager {
 
     /// 実行中でなければ発見を開始
     func runIfNeeded() {
-        guard !isRunning else { return }
+        guard !isRunning, let discovery else { return }
         isRunning = true
-        Task.detached { [weak self] in
-            await self?.discovery?.discoverNewSources { message in
+        Task {
+            await discovery.discoverNewSources { message in
                 Task { @MainActor in
-                    self?.statusMessage = message
+                    DiscoveryManager.shared.statusMessage = message
                 }
             }
-            Task { @MainActor in
-                self?.isRunning = false
-                self?.statusMessage = nil
-                self?.lastRunTimestamp = Date().timeIntervalSince1970
-                NotificationCenter.default.post(name: .discoveryCompleted, object: nil)
-            }
+            DiscoveryManager.shared.isRunning = false
+            DiscoveryManager.shared.statusMessage = nil
+            DiscoveryManager.shared.lastRunTimestamp = Date().timeIntervalSince1970
+            NotificationCenter.default.post(name: .discoveryCompleted, object: nil)
         }
     }
 }

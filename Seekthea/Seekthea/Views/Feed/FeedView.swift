@@ -564,26 +564,23 @@ struct FeedView: View {
                     ArticleDetailView(article: article)
                 }
                 .overlay(alignment: .bottom) {
-                    if let status = viewModel?.statusMessage ?? DiscoveryManager.shared.statusMessage {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                #if !os(macOS)
-                                .controlSize(.small)
-                                #endif
-                            Text(status)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                    let feedStatus = viewModel?.statusMessage
+                    let discoveryStatus = DiscoveryManager.shared.statusMessage
+                    if feedStatus != nil || discoveryStatus != nil {
+                        VStack(spacing: 4) {
+                            if let status = feedStatus {
+                                statusCapsule(status)
+                            }
+                            if let status = discoveryStatus {
+                                statusCapsule(status)
+                            }
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Capsule())
-                        .shadow(radius: 4)
                         .padding(.bottom, 20)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
                 .animation(.easeInOut(duration: 0.3), value: viewModel?.statusMessage)
+                .animation(.easeInOut(duration: 0.3), value: DiscoveryManager.shared.statusMessage)
         }
     }
 
@@ -686,6 +683,23 @@ struct FeedView: View {
         }
         .offset(y: headerOffset)
         .opacity(headerHeight > 0 ? max(0, 1 + hideAmount / headerHeight) : 1)
+    }
+
+    private func statusCapsule(_ text: String) -> some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                #if !os(macOS)
+                .controlSize(.small)
+                #endif
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
+        .shadow(radius: 4)
     }
 
     private func refreshAll() async {
