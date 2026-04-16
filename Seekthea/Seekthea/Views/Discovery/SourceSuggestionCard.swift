@@ -9,8 +9,11 @@ struct SourceSuggestionCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(domain.domain)
+                    Text(domain.feedTitle ?? domain.domain)
                         .font(.headline)
+                    Text(domain.feedTitle != nil ? domain.domain : "")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     Text("\(domain.mentionCount)回検出")
                         .font(.caption)
                         .foregroundStyle(.secondary)
