@@ -230,6 +230,8 @@ struct FeedView: View {
     @State private var currentScrollY: CGFloat = 0
     @State private var lastScrollY: CGFloat = 0
     @AppStorage("useCompactLayout") private var useCompactLayout = false
+    @AppStorage("discoveryEnabled") private var discoveryEnabled = true
+    @State private var hasNewSuggestions = false
 
     let modelContainer: ModelContainer
 
@@ -496,12 +498,29 @@ struct FeedView: View {
                                 Label("ソース管理", systemImage: "plus.rectangle.on.rectangle")
                             }
                             NavigationLink {
+                                DiscoveryView(modelContainer: modelContainer)
+                            } label: {
+                                if hasNewSuggestions {
+                                    Label("発見（新着あり）", systemImage: "sparkle.magnifyingglass")
+                                } else {
+                                    Label("発見", systemImage: "sparkle.magnifyingglass")
+                                }
+                            }
+                            NavigationLink {
                                 SettingsView()
                             } label: {
                                 Label("設定", systemImage: "gear")
                             }
                         } label: {
                             Image(systemName: "ellipsis")
+                                .overlay(alignment: .topTrailing) {
+                                    if hasNewSuggestions {
+                                        Circle()
+                                            .fill(.red)
+                                            .frame(width: 8, height: 8)
+                                            .offset(x: 4, y: -4)
+                                    }
+                                }
                         }
                     }
                 }
@@ -516,9 +535,13 @@ struct FeedView: View {
                         reloadArticles()
                         updateCachedData()
                     }
+                    hasNewSuggestions = DiscoveryManager.shared.hasUncheckedSuggestions(in: modelContext)
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .onboardingCompleted)) { _ in
                     Task { await refreshAll() }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .discoveryCompleted)) { _ in
+                    hasNewSuggestions = DiscoveryManager.shared.hasUncheckedSuggestions(in: modelContext)
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange).receive(on: DispatchQueue.main)) { _ in
                     reloadArticles()
@@ -541,7 +564,7 @@ struct FeedView: View {
                     ArticleDetailView(article: article)
                 }
                 .overlay(alignment: .bottom) {
-                    if let status = viewModel?.statusMessage {
+                    if let status = viewModel?.statusMessage ?? DiscoveryManager.shared.statusMessage {
                         HStack(spacing: 8) {
                             ProgressView()
                                 #if !os(macOS)
@@ -688,6 +711,10 @@ struct FeedView: View {
                 viewModel?.statusMessage = nil
                 reloadArticles()
                 updateCachedData()
+                if discoveryEnabled {
+                    DiscoveryManager.shared.runIfNeeded()
+                }
+                hasNewSuggestions = DiscoveryManager.shared.hasUncheckedSuggestions(in: modelContext)
             }
         )
     }

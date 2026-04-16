@@ -114,7 +114,6 @@ actor GoogleNewsDiscovery {
                 candidate.isSuggested = true
                 found += 1
             }
-            candidate.isRSSChecked = true
             try? context.save()
         }
     }

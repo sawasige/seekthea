@@ -9,7 +9,6 @@ struct DiscoveryView: View {
         order: .reverse
     ) private var suggestions: [DiscoveredDomain]
 
-    @State private var viewModel: DiscoveryViewModel?
     @State private var sourcesViewModel: SourcesViewModel?
     @State private var previewDomain: DiscoveredDomain?
 
@@ -27,13 +26,14 @@ struct DiscoveryView: View {
                     .buttonStyle(.plain)
                     .swipeActions(edge: .trailing) {
                         Button("スキップ", role: .destructive) {
-                            viewModel?.rejectSource(domain)
+                            domain.isRejected = true
+                            try? modelContext.save()
                         }
                     }
                 }
             }
 
-            if suggestions.isEmpty && viewModel?.isChecking != true {
+            if suggestions.isEmpty {
                 ContentUnavailableView(
                     "新しいソースはまだありません",
                     systemImage: "sparkle.magnifyingglass",
@@ -41,8 +41,26 @@ struct DiscoveryView: View {
                 )
             }
         }
+        #if os(iOS)
+        .listStyle(.insetGrouped)
+        #endif
+        #if os(macOS)
+        .frame(maxWidth: 600)
+        .frame(maxWidth: .infinity)
+        #endif
+        .navigationTitle("発見")
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    DiscoveryManager.shared.runIfNeeded()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(DiscoveryManager.shared.isRunning)
+            }
+        }
         .overlay(alignment: .bottom) {
-            if let status = viewModel?.statusMessage {
+            if let status = DiscoveryManager.shared.statusMessage {
                 HStack(spacing: 8) {
                     ProgressView()
                         #if !os(macOS)
@@ -59,35 +77,15 @@ struct DiscoveryView: View {
                 .padding(.bottom, 8)
             }
         }
-        #if os(iOS)
-        .listStyle(.insetGrouped)
-        #endif
-        #if os(macOS)
-        .frame(maxWidth: 600)
-        .frame(maxWidth: .infinity)
-        #endif
-        .navigationTitle("発見")
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    Task {
-                        await viewModel?.checkForNewSources()
-                    }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .disabled(viewModel?.isChecking ?? false)
-            }
-        }
         .sheet(item: $previewDomain) { domain in
             SourcePreviewView(mode: .discovered(domain), modelContainer: modelContainer)
         }
         .task {
-            if viewModel == nil {
-                viewModel = DiscoveryViewModel(modelContainer: modelContainer)
+            if sourcesViewModel == nil {
                 sourcesViewModel = SourcesViewModel(modelContainer: modelContainer)
-                await viewModel?.checkForNewSources()
             }
+            DiscoveryManager.shared.markAsChecked()
+            DiscoveryManager.shared.runIfNeeded()
         }
     }
 
