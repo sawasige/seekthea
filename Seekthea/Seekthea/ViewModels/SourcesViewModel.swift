@@ -197,6 +197,16 @@ class SourcesViewModel {
         let existing = (try? context.fetch(FetchDescriptor<Source>())) ?? []
         return existing.contains { $0.feedURL == preset.feedURL }
     }
+
+    /// プリセットに対応するソースを削除
+    func removePresetSource(_ preset: PresetSource) {
+        let context = modelContainer.mainContext
+        let existing = (try? context.fetch(FetchDescriptor<Source>())) ?? []
+        if let source = existing.first(where: { $0.feedURL == preset.feedURL }) {
+            context.delete(source)
+            try? context.save()
+        }
+    }
 }
 
 /// プリセット用のOG画像URLキャッシュ（Caches ディレクトリの JSON ファイル）

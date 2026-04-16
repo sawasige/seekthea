@@ -212,8 +212,14 @@ struct SourcesListView: View {
             }
             Spacer()
             if isAdded {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                Button {
+                    viewModel?.removePresetSource(preset)
+                } label: {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .font(.title3)
+                }
+                .buttonStyle(.plain)
             } else {
                 Button {
                     viewModel?.addPresetSource(preset)
