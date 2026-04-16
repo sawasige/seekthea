@@ -194,6 +194,27 @@ class SourcesViewModel {
         return existing.contains { $0.feedURL == preset.feedURL }
     }
 
+    /// 発見されたドメインをソースとして追加
+    func acceptDiscoveredSource(_ domain: DiscoveredDomain) async {
+        guard let feedURL = domain.detectedFeedURL else { return }
+        let siteURL = URL(string: "https://\(domain.domain)")!
+        var name = domain.domain
+        if let title = domain.feedTitle {
+            name = title
+        } else if let title = await parseFeedTitle(url: feedURL) {
+            name = title
+        }
+        let context = modelContainer.mainContext
+        let source = Source(
+            name: name,
+            feedURL: feedURL,
+            siteURL: siteURL
+        )
+        context.insert(source)
+        domain.isRejected = true
+        try? context.save()
+    }
+
     /// プリセットに対応するソースを削除
     func removePresetSource(_ preset: PresetSource) {
         let context = modelContainer.mainContext
