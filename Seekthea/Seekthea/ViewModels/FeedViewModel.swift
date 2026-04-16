@@ -12,6 +12,7 @@ class FeedViewModel {
     private var aiProcessor: AIProcessor
     private var interestEngine: InterestEngine
     private var classifyTask: Task<Void, Never>?
+    var isClassifying: Bool { classifyTask != nil }
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
@@ -50,6 +51,7 @@ class FeedViewModel {
             if Task.isCancelled { return }
             statusMessage = nil
             onComplete?()
+            classifyTask = nil
         }
     }
 

@@ -129,16 +129,22 @@ class AIProcessor {
 
         #if canImport(FoundationModels)
         let context = modelContainer.mainContext
-        let descriptor = FetchDescriptor<Article>(
-            predicate: #Predicate { $0.aiCategory == nil },
-            sortBy: [SortDescriptor(\Article.publishedAt, order: .reverse)]
-        )
-        guard let articles = try? context.fetch(descriptor), !articles.isEmpty else { return }
-
         let catList = labeledCategoryList
-        for (index, article) in articles.enumerated() {
-            if Task.isCancelled { break }
-            onProgress?("カテゴリ分類中... (\(index + 1)/\(articles.count))")
+        var processed = 0
+
+        while !Task.isCancelled {
+            var descriptor = FetchDescriptor<Article>(
+                predicate: #Predicate { $0.aiCategory == nil },
+                sortBy: [SortDescriptor(\Article.publishedAt, order: .reverse)]
+            )
+            descriptor.fetchLimit = 1
+            guard let article = (try? context.fetch(descriptor))?.first else { break }
+
+            let remaining = (try? context.fetchCount(FetchDescriptor<Article>(
+                predicate: #Predicate { $0.aiCategory == nil }
+            ))) ?? 0
+            processed += 1
+            onProgress?("カテゴリ分類中... (\(processed)/\(processed + remaining - 1))")
 
             let desc = article.leadText ?? article.ogDescription ?? ""
             let truncated = desc.isEmpty ? "" : "\n内容: \(String(desc.prefix(200)))"
@@ -167,7 +173,9 @@ class AIProcessor {
                 try? context.save()
                 onArticleClassified?()
             } catch {
-                // 失敗時はスキップ（次回リトライ）
+                // 失敗時はスキップ（aiCategoryをマーク して無限ループ防止）
+                article.aiCategory = article.source?.category ?? ""
+                try? context.save()
             }
         }
         #endif
