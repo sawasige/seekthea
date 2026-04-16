@@ -65,13 +65,15 @@ struct SourcePreviewView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(sourceName)
                                 .font(.title3.weight(.semibold))
-                            Text(sourceCategory)
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(.tint.opacity(0.15))
-                                .foregroundStyle(Color.accentColor)
-                                .clipShape(Capsule())
+                            if !sourceCategory.isEmpty {
+                                Text(sourceCategory)
+                                    .font(.caption)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(.tint.opacity(0.15))
+                                    .foregroundStyle(Color.accentColor)
+                                    .clipShape(Capsule())
+                            }
                             Link(siteURL.host() ?? "", destination: siteURL)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)

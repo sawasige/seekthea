@@ -75,7 +75,7 @@ class SourcesViewModel {
                 name: feedTitle,
                 feedURL: url,
                 siteURL: url,
-                category: "その他"
+                category: ""
             )
             context.insert(source)
             try context.save()
