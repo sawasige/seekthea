@@ -69,31 +69,24 @@ class SourcesViewModel {
     func addSource(url: URL) async throws {
         addingError = nil
 
-        if let feedTitle = await parseFeedTitle(url: url) {
-            let context = modelContainer.mainContext
-            let source = Source(
-                name: feedTitle,
-                feedURL: url,
-                siteURL: url,
-                category: ""
-            )
-            context.insert(source)
-            try context.save()
-            return
-        }
-
-        guard let feedURL = await RSSDetector.detectFeed(from: url) else {
+        // 入力URLが直接RSSフィードか、サイトURLからRSSを検出
+        let feedURL: URL
+        if await parseFeedTitle(url: url) != nil {
+            feedURL = url
+        } else if let detected = await RSSDetector.detectFeed(from: url) {
+            feedURL = detected
+        } else {
             addingError = "RSSフィードが見つかりませんでした"
             return
         }
 
-        let feedTitle = await parseFeedTitle(url: feedURL)
+        let name = await parseFeedTitle(url: feedURL) ?? url.host() ?? url.absoluteString
         let context = modelContainer.mainContext
         let source = Source(
-            name: feedTitle ?? url.host() ?? url.absoluteString,
+            name: name,
             feedURL: feedURL,
             siteURL: url,
-            category: "その他"
+            category: ""
         )
         context.insert(source)
         try context.save()
