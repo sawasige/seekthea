@@ -5,6 +5,7 @@ struct SourcePreviewView: View {
     enum Mode {
         case preset(PresetSource)
         case registered(Source)
+        case discovered(DiscoveredDomain)
     }
 
     let mode: Mode
@@ -18,6 +19,7 @@ struct SourcePreviewView: View {
         switch mode {
         case .preset(let p): return p.name
         case .registered(let s): return s.name
+        case .discovered(let d): return d.feedTitle ?? d.domain
         }
     }
 
@@ -25,6 +27,7 @@ struct SourcePreviewView: View {
         switch mode {
         case .preset(let p): return p.category
         case .registered(let s): return s.category
+        case .discovered: return ""
         }
     }
 
@@ -32,6 +35,7 @@ struct SourcePreviewView: View {
         switch mode {
         case .preset(let p): return p.feedURL
         case .registered(let s): return s.feedURL
+        case .discovered(let d): return d.detectedFeedURL!
         }
     }
 
@@ -39,6 +43,7 @@ struct SourcePreviewView: View {
         switch mode {
         case .preset(let p): return p.siteURL
         case .registered(let s): return s.siteURL
+        case .discovered(let d): return URL(string: "https://\(d.domain)")!
         }
     }
 
@@ -137,6 +142,13 @@ struct SourcePreviewView: View {
             Button("削除", role: .destructive) {
                 viewModel?.deleteSource(source)
                 dismiss()
+            }
+        case .discovered(let domain):
+            Button("追加") {
+                Task {
+                    await viewModel?.acceptDiscoveredSource(domain)
+                    dismiss()
+                }
             }
         }
     }
