@@ -142,8 +142,17 @@ struct SourcePreviewView: View {
     }
 
     private func previewRow(_ article: PreviewArticle) -> some View {
+        PreviewArticleRow(article: article)
+    }
+}
+
+private struct PreviewArticleRow: View {
+    let article: PreviewArticle
+    @State private var resolvedImageURL: URL?
+
+    var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            if let imageURL = article.imageURL {
+            if let imageURL = resolvedImageURL {
                 AsyncImage(url: imageURL) { phase in
                     switch phase {
                     case .success(let image):
@@ -170,6 +179,13 @@ struct SourcePreviewView: View {
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
+            }
+        }
+        .task {
+            if let imageURL = article.imageURL {
+                resolvedImageURL = imageURL
+            } else {
+                resolvedImageURL = await FeedFetcher.fetchOGImage(from: article.link)
             }
         }
     }
