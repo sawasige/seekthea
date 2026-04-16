@@ -130,7 +130,6 @@ class AIProcessor {
         #if canImport(FoundationModels)
         let context = modelContainer.mainContext
         let catList = labeledCategoryList
-        var processed = 0
 
         while !Task.isCancelled {
             var descriptor = FetchDescriptor<Article>(
@@ -143,8 +142,7 @@ class AIProcessor {
             let remaining = (try? context.fetchCount(FetchDescriptor<Article>(
                 predicate: #Predicate { $0.aiCategory == nil }
             ))) ?? 0
-            processed += 1
-            onProgress?("カテゴリ分類中... (\(processed)/\(processed + remaining - 1))")
+            onProgress?("カテゴリ分類中... 残り\(remaining)件")
 
             let desc = article.leadText ?? article.ogDescription ?? ""
             let truncated = desc.isEmpty ? "" : "\n内容: \(String(desc.prefix(200)))"
