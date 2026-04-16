@@ -711,9 +711,6 @@ struct FeedView: View {
                 viewModel?.statusMessage = nil
                 reloadArticles()
                 updateCachedData()
-                if discoveryEnabled {
-                    DiscoveryManager.shared.runIfNeeded()
-                }
                 hasNewSuggestions = DiscoveryManager.shared.hasUncheckedSuggestions(in: modelContext)
             }
         )
