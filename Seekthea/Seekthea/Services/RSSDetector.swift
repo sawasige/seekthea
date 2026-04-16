@@ -1,4 +1,5 @@
 import Foundation
+import FeedKit
 
 struct RSSDetector {
     /// サイトURLからRSSフィードを自動検出
@@ -21,8 +22,10 @@ struct RSSDetector {
         let patterns = [
             "<link[^>]+type=\"application/rss\\+xml\"[^>]+href=\"([^\"]*)\"",
             "<link[^>]+type=\"application/atom\\+xml\"[^>]+href=\"([^\"]*)\"",
+            "<link[^>]+type=\"application/feed\\+json\"[^>]+href=\"([^\"]*)\"",
             "<link[^>]+href=\"([^\"]*)\"[^>]+type=\"application/rss\\+xml\"",
             "<link[^>]+href=\"([^\"]*)\"[^>]+type=\"application/atom\\+xml\"",
+            "<link[^>]+href=\"([^\"]*)\"[^>]+type=\"application/feed\\+json\"",
         ]
 
         for pattern in patterns {
@@ -30,7 +33,8 @@ struct RSSDetector {
                let match = regex.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
                let range = Range(match.range(at: 1), in: html) {
                 let href = String(html[range])
-                if let feedURL = URL(string: href, relativeTo: url)?.absoluteURL {
+                if let feedURL = URL(string: href, relativeTo: url)?.absoluteURL,
+                   await isValidFeed(feedURL) {
                     return feedURL
                 }
             }
@@ -39,18 +43,31 @@ struct RSSDetector {
     }
 
     private static func detectFromCommonPaths(_ url: URL) async -> URL? {
-        let commonPaths = ["/feed", "/rss", "/rss.xml", "/feed/rss2", "/atom.xml", "/index.xml"]
+        let commonPaths = [
+            "/feed", "/rss", "/rss.xml", "/feed.xml", "/feed/rss2",
+            "/atom.xml", "/index.xml", "/blog/feed", "/blog/rss",
+            "/news/feed", "/news/rss", "/?feed=rss2",
+        ]
 
         for path in commonPaths {
             guard let testURL = URL(string: path, relativeTo: url)?.absoluteURL else { continue }
-            if let (_, response) = try? await URLSession.shared.data(from: testURL),
-               let httpResponse = response as? HTTPURLResponse,
-               httpResponse.statusCode == 200,
-               let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type"),
-               contentType.contains("xml") || contentType.contains("rss") || contentType.contains("atom") {
+            if await isValidFeed(testURL) {
                 return testURL
             }
         }
         return nil
+    }
+
+    /// FeedKitで実際にパースして有効なフィードか確認
+    private static func isValidFeed(_ url: URL) async -> Bool {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else { return false }
+
+        let parser = FeedKit.FeedParser(data: data)
+        if case .success = parser.parse() { return true }
+        return false
     }
 }

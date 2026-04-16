@@ -8,6 +8,7 @@ class DiscoveredDomain {
     var lastSeenAt: Date = Date()
     var mentionCount: Int = 0
     var detectedFeedURL: URL? = nil
+    var feedTitle: String? = nil
     var isRejected: Bool = false
     var isSuggested: Bool = false
 

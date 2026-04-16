@@ -21,7 +21,7 @@ struct DiscoveryView: View {
                         ForEach(suggestions, id: \.domain) { domain in
                             SourceSuggestionCard(
                                 domain: domain,
-                                onAccept: { viewModel?.acceptSource(domain) },
+                                onAccept: { Task { await viewModel?.acceptSource(domain) } },
                                 onReject: { viewModel?.rejectSource(domain) }
                             )
                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))

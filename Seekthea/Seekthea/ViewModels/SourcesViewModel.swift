@@ -69,10 +69,10 @@ class SourcesViewModel {
     func addSource(url: URL) async throws {
         addingError = nil
 
-        if await isRSSFeed(url: url) {
+        if let feedTitle = await parseFeedTitle(url: url) {
             let context = modelContainer.mainContext
             let source = Source(
-                name: url.host() ?? url.absoluteString,
+                name: feedTitle,
                 feedURL: url,
                 siteURL: url,
                 category: "その他"
@@ -87,9 +87,10 @@ class SourcesViewModel {
             return
         }
 
+        let feedTitle = await parseFeedTitle(url: feedURL)
         let context = modelContainer.mainContext
         let source = Source(
-            name: url.host() ?? url.absoluteString,
+            name: feedTitle ?? url.host() ?? url.absoluteString,
             feedURL: feedURL,
             siteURL: url,
             category: "その他"
@@ -98,21 +99,16 @@ class SourcesViewModel {
         try context.save()
     }
 
-    /// URLがRSSフィードかどうか判定
-    private func isRSSFeed(url: URL) async -> Bool {
-        guard let (data, response) = try? await URLSession.shared.data(from: url) else { return false }
-
-        if let mime = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type")?.lowercased() {
-            if mime.contains("rss") || mime.contains("atom") || mime.contains("xml") || mime.contains("json") {
-                let parser = FeedKit.FeedParser(data: data)
-                if case .success = parser.parse() { return true }
-            }
-        }
-
+    /// フィードURLからタイトルを取得（RSSでなければnil）
+    private func parseFeedTitle(url: URL) async -> String? {
+        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
         let parser = FeedKit.FeedParser(data: data)
-        if case .success = parser.parse() { return true }
-
-        return false
+        guard case .success(let feed) = parser.parse() else { return nil }
+        switch feed {
+        case .rss(let rss): return rss.title
+        case .atom(let atom): return atom.title
+        case .json(let json): return json.title
+        }
     }
 
     /// プレビュー用にフィードを取得
