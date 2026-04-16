@@ -11,7 +11,10 @@ class DiscoveryManager {
     var statusMessage: String?
     @ObservationIgnored
     @AppStorage("lastDiscoveryCheckedAt") private var lastCheckedTimestamp: Double = 0
+    @ObservationIgnored
+    @AppStorage("lastDiscoveryRunAt") private var lastRunTimestamp: Double = 0
     private var discovery: GoogleNewsDiscovery?
+    private static let runInterval: TimeInterval = 82800 // 23時間
 
     private init() {}
 
@@ -35,6 +38,13 @@ class DiscoveryManager {
         }
     }
 
+    /// 前回から24時間以上経っていれば自動実行
+    func runIfDue() {
+        let elapsed = Date().timeIntervalSince1970 - lastRunTimestamp
+        guard elapsed >= Self.runInterval else { return }
+        runIfNeeded()
+    }
+
     /// 実行中でなければ発見を開始
     func runIfNeeded() {
         guard !isRunning else { return }
@@ -48,6 +58,7 @@ class DiscoveryManager {
             Task { @MainActor in
                 self?.isRunning = false
                 self?.statusMessage = nil
+                self?.lastRunTimestamp = Date().timeIntervalSince1970
                 NotificationCenter.default.post(name: .discoveryCompleted, object: nil)
             }
         }
