@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CategoryFilterView: View {
     @Binding var selectedCategory: String?
+    var totalCount: Int = 0
     var categoryCounts: [String: Int] = [:]
     var categoryOrder: [String] = []
 
@@ -16,7 +17,6 @@ struct CategoryFilterView: View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    let totalCount = categoryCounts.values.reduce(0, +)
                     FilterChip(title: "全て", count: totalCount, isSelected: selectedCategory == nil) {
                         selectedCategory = nil
                     }

@@ -638,7 +638,7 @@ struct FeedView: View {
             .padding(.horizontal)
             .padding(.top, 4)
 
-            CategoryFilterView(selectedCategory: $selectedCategory, categoryCounts: cachedCategoryCounts, categoryOrder: sortedCategories)
+            CategoryFilterView(selectedCategory: $selectedCategory, totalCount: cachedModeArticles.count, categoryCounts: cachedCategoryCounts, categoryOrder: sortedCategories)
                 .padding(.vertical, 6)
         }
         .frame(height: headerHeight)
