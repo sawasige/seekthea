@@ -1,8 +1,11 @@
 import SwiftUI
 import SwiftData
+import CoreData
 
 @main
 struct SeektheaApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Source.self,
@@ -57,5 +60,12 @@ struct SeektheaApp: App {
             ContentView()
         }
         .modelContainer(sharedModelContainer)
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                // フォアグラウンド復帰時にCloudKit同期を促す
+                let context = sharedModelContainer.mainContext
+                try? context.save()
+            }
+        }
     }
 }

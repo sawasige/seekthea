@@ -1,5 +1,7 @@
 import SwiftUI
 import SwiftData
+import CoreData
+import Combine
 
 enum FeedMode: String, CaseIterable {
     case forYou = "おすすめ"
@@ -208,6 +210,7 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
 
 struct FeedView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \UserCategory.order) private var userCategoryModels: [UserCategory]
     @Query private var allSources: [Source]
     @State private var allArticles: [Article] = []
@@ -509,6 +512,15 @@ struct FeedView: View {
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .onboardingCompleted)) { _ in
                     Task { await refreshAll() }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange).receive(on: DispatchQueue.main)) { _ in
+                    reloadArticles()
+                }
+                .onChange(of: scenePhase) { _, newPhase in
+                    if newPhase == .active {
+                        reloadArticles()
+                        updateCachedData()
+                    }
                 }
                 .onChange(of: hasActiveSource) { _, newValue in
                     if !newValue {
