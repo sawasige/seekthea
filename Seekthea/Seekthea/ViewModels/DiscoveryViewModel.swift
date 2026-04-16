@@ -7,6 +7,7 @@ class DiscoveryViewModel {
     let modelContainer: ModelContainer
     private var discovery: GoogleNewsDiscovery
     private(set) var isChecking = false
+    var statusMessage: String?
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
@@ -15,8 +16,15 @@ class DiscoveryViewModel {
 
     func checkForNewSources() async {
         isChecking = true
-        defer { isChecking = false }
-        await discovery.discoverNewSources()
+        defer {
+            isChecking = false
+            statusMessage = nil
+        }
+        await discovery.discoverNewSources { [weak self] message in
+            Task { @MainActor in
+                self?.statusMessage = message
+            }
+        }
     }
 
     func rejectSource(_ domain: DiscoveredDomain) {
