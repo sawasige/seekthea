@@ -479,22 +479,29 @@ struct FeedView: View {
                         .disabled(viewModel?.isLoading ?? false)
                     }
                     #endif
-                    #if !os(macOS)
                     ToolbarItem(placement: .automatic) {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                useCompactLayout.toggle()
+                        Menu {
+                            #if !os(macOS)
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    useCompactLayout.toggle()
+                                }
+                            } label: {
+                                Label(useCompactLayout ? "大きいカード" : "コンパクト", systemImage: useCompactLayout ? "rectangle.grid.1x2" : "rectangle.grid.2x2")
+                            }
+                            #endif
+                            NavigationLink {
+                                SourcesListView(modelContainer: modelContainer)
+                            } label: {
+                                Label("ソース管理", systemImage: "plus.rectangle.on.rectangle")
+                            }
+                            NavigationLink {
+                                SettingsView()
+                            } label: {
+                                Label("設定", systemImage: "gear")
                             }
                         } label: {
-                            Image(systemName: useCompactLayout ? "rectangle.grid.1x2" : "rectangle.grid.2x2")
-                        }
-                    }
-                    #endif
-                    ToolbarItem(placement: .automatic) {
-                        NavigationLink {
-                            SettingsView()
-                        } label: {
-                            Image(systemName: "gear")
+                            Image(systemName: "ellipsis")
                         }
                     }
                 }
