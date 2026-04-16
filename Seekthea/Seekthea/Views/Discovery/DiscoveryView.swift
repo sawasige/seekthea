@@ -10,6 +10,7 @@ struct DiscoveryView: View {
     ) private var suggestions: [DiscoveredDomain]
 
     @State private var viewModel: DiscoveryViewModel?
+    @State private var sourcesViewModel: SourcesViewModel?
     @State private var previewDomain: DiscoveredDomain?
 
     let modelContainer: ModelContainer
@@ -66,6 +67,7 @@ struct DiscoveryView: View {
         .task {
             if viewModel == nil {
                 viewModel = DiscoveryViewModel(modelContainer: modelContainer)
+                sourcesViewModel = SourcesViewModel(modelContainer: modelContainer)
                 await viewModel?.checkForNewSources()
             }
         }
@@ -91,7 +93,7 @@ struct DiscoveryView: View {
             }
             Spacer()
             Button {
-                Task { await viewModel?.acceptSource(domain) }
+                Task { await sourcesViewModel?.acceptDiscoveredSource(domain) }
             } label: {
                 Image(systemName: "plus.circle")
                     .foregroundStyle(Color.accentColor)

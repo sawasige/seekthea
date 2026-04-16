@@ -16,9 +16,17 @@ struct PreviewArticle: Identifiable {
 class SourcesViewModel {
     let modelContainer: ModelContainer
     var addingError: String? = nil
+    private var registeredFeedURLs: Set<URL> = []
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
+        refreshRegisteredURLs()
+    }
+
+    private func refreshRegisteredURLs() {
+        let context = modelContainer.mainContext
+        let sources = (try? context.fetch(FetchDescriptor<Source>())) ?? []
+        registeredFeedURLs = Set(sources.map(\.feedURL))
     }
 
     /// 指定カテゴリの popular プリセットをまとめて追加（オンボーディング用）
@@ -49,11 +57,9 @@ class SourcesViewModel {
 
     /// プリセットからソースを追加
     func addPresetSource(_ preset: PresetSource) {
-        // 重複チェック
-        let context = modelContainer.mainContext
-        let existing = (try? context.fetch(FetchDescriptor<Source>())) ?? []
-        guard !existing.contains(where: { $0.feedURL == preset.feedURL }) else { return }
+        guard !registeredFeedURLs.contains(preset.feedURL) else { return }
 
+        let context = modelContainer.mainContext
         let source = Source(
             name: preset.name,
             feedURL: preset.feedURL,
@@ -63,6 +69,7 @@ class SourcesViewModel {
         )
         context.insert(source)
         try? context.save()
+        refreshRegisteredURLs()
     }
 
     /// URLからRSSを自動検出してソースを追加（RSS URLの直接入力にも対応）
@@ -71,16 +78,19 @@ class SourcesViewModel {
 
         // 入力URLが直接RSSフィードか、サイトURLからRSSを検出
         let feedURL: URL
-        if await parseFeedTitle(url: url) != nil {
+        let feedTitle: String?
+        if let title = await RSSDetector.feedTitle(from: url) {
             feedURL = url
+            feedTitle = title
         } else if let detected = await RSSDetector.detectFeed(from: url) {
             feedURL = detected
+            feedTitle = await RSSDetector.feedTitle(from: detected)
         } else {
             addingError = "RSSフィードが見つかりませんでした"
             return
         }
 
-        let name = await parseFeedTitle(url: feedURL) ?? url.host() ?? url.absoluteString
+        let name = feedTitle ?? url.host() ?? url.absoluteString
         let context = modelContainer.mainContext
         let source = Source(
             name: name,
@@ -90,18 +100,7 @@ class SourcesViewModel {
         )
         context.insert(source)
         try context.save()
-    }
-
-    /// フィードURLからタイトルを取得（RSSでなければnil）
-    private func parseFeedTitle(url: URL) async -> String? {
-        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
-        let parser = FeedKit.FeedParser(data: data)
-        guard case .success(let feed) = parser.parse() else { return nil }
-        switch feed {
-        case .rss(let rss): return rss.title
-        case .atom(let atom): return atom.title
-        case .json(let json): return json.title
-        }
+        refreshRegisteredURLs()
     }
 
     /// プレビュー用にフィードを取得
@@ -178,13 +177,12 @@ class SourcesViewModel {
     func deleteSource(_ source: Source) {
         modelContainer.mainContext.delete(source)
         try? modelContainer.mainContext.save()
+        refreshRegisteredURLs()
     }
 
     /// プリセットがすでに登録済みか
     func isAdded(_ preset: PresetSource) -> Bool {
-        let context = modelContainer.mainContext
-        let existing = (try? context.fetch(FetchDescriptor<Source>())) ?? []
-        return existing.contains { $0.feedURL == preset.feedURL }
+        registeredFeedURLs.contains(preset.feedURL)
     }
 
     /// 発見されたドメインをソースとして追加
@@ -194,7 +192,7 @@ class SourcesViewModel {
         var name = domain.domain
         if let title = domain.feedTitle {
             name = title
-        } else if let title = await parseFeedTitle(url: feedURL) {
+        } else if let title = await RSSDetector.feedTitle(from: feedURL) {
             name = title
         }
         let context = modelContainer.mainContext
@@ -206,15 +204,18 @@ class SourcesViewModel {
         context.insert(source)
         domain.isRejected = true
         try? context.save()
+        refreshRegisteredURLs()
     }
 
     /// プリセットに対応するソースを削除
     func removePresetSource(_ preset: PresetSource) {
         let context = modelContainer.mainContext
-        let existing = (try? context.fetch(FetchDescriptor<Source>())) ?? []
-        if let source = existing.first(where: { $0.feedURL == preset.feedURL }) {
+        let targetURL = preset.feedURL
+        let predicate = #Predicate<Source> { $0.feedURL == targetURL }
+        if let source = (try? context.fetch(FetchDescriptor(predicate: predicate)))?.first {
             context.delete(source)
             try? context.save()
+            refreshRegisteredURLs()
         }
     }
 }

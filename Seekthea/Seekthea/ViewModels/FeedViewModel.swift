@@ -62,14 +62,6 @@ class FeedViewModel {
         statusMessage = nil
     }
 
-    /// 未分類記事をカテゴリ分類
-    func classifyAll() async {
-        await aiProcessor.classifyBatch { [weak self] message in
-            self?.statusMessage = message
-        }
-        statusMessage = nil
-    }
-
     /// 全記事を公開日時順で取得
     func fetchArticles() -> [Article] {
         let context = modelContainer.mainContext

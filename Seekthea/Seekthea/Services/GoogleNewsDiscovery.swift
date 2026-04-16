@@ -109,22 +109,11 @@ actor GoogleNewsDiscovery {
             guard let siteURL = URL(string: "https://\(candidate.domain)") else { continue }
             if let feedURL = await RSSDetector.detectFeed(from: siteURL) {
                 candidate.detectedFeedURL = feedURL
-                candidate.feedTitle = await parseFeedTitle(url: feedURL)
+                candidate.feedTitle = await RSSDetector.feedTitle(from: feedURL)
                 candidate.isSuggested = true
             }
         }
         try? context.save()
-    }
-
-    private func parseFeedTitle(url: URL) async -> String? {
-        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
-        let parser = FeedParser(data: data)
-        guard case .success(let feed) = parser.parse() else { return nil }
-        switch feed {
-        case .rss(let rss): return rss.title
-        case .atom(let atom): return atom.title
-        case .json(let json): return json.title
-        }
     }
 
     /// Google Newsのリダイレクトを追跡して実際のURLを取得
