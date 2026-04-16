@@ -19,20 +19,20 @@ actor GoogleNewsDiscovery {
         self.modelContainer = modelContainer
     }
 
-    func discoverNewSources() async {
+    func discoverNewSources(onProgress: (@Sendable (String) -> Void)? = nil) async {
         let context = ModelContext(modelContainer)
         let allSources = (try? context.fetch(FetchDescriptor<Source>())) ?? []
         let knownDomains = Set(allSources.compactMap { extractDomain(from: $0.siteURL) })
 
         var discoveredDomains: [String: Int] = [:]
 
-        for feed in Self.discoveryFeeds {
+        for (index, feed) in Self.discoveryFeeds.enumerated() {
+            onProgress?("\(feed.name)のトレンドを確認中... (\(index + 1)/\(Self.discoveryFeeds.count))")
             guard let (data, _) = try? await URLSession.shared.data(from: feed.url) else { continue }
             let parser = FeedParser(data: data)
             guard case .success(.rss(let rssFeed)) = parser.parse() else { continue }
 
             for item in rssFeed.items ?? [] {
-                // 方法1: RSSの<source>タグからドメイン取得（最も確実）
                 if let sourceURL = item.source?.attributes?.url,
                    let url = URL(string: sourceURL),
                    let domain = extractDomain(from: url) {
@@ -42,7 +42,6 @@ actor GoogleNewsDiscovery {
                     continue
                 }
 
-                // 方法2: リンクURLからドメイン取得（リダイレクト追跡）
                 if let link = item.link, let url = URL(string: link) {
                     if let domain = extractDomain(from: url), !domain.contains("google.") {
                         if !knownDomains.contains(domain) {
@@ -51,7 +50,6 @@ actor GoogleNewsDiscovery {
                         continue
                     }
 
-                    // Google NewsのURLならリダイレクト先を取得
                     if let resolved = await resolveGoogleNewsURL(url),
                        let domain = extractDomain(from: resolved),
                        !knownDomains.contains(domain) {
@@ -77,9 +75,10 @@ actor GoogleNewsDiscovery {
         }
 
         try? context.save()
+        onProgress?("\(discoveredDomains.count)件のドメインからRSSを検出中...")
 
-        // RSS検出して提案
-        await detectFeedsForCandidates(context: context)
+        // RSS検出して提案（1件ずつ保存）
+        await detectFeedsForCandidates(context: context, onProgress: onProgress)
     }
 
     // MARK: - Private
@@ -89,7 +88,7 @@ actor GoogleNewsDiscovery {
         return host.replacingOccurrences(of: "www.", with: "")
     }
 
-    private func detectFeedsForCandidates(context: ModelContext) async {
+    private func detectFeedsForCandidates(context: ModelContext, onProgress: (@Sendable (String) -> Void)? = nil) async {
         // isSuggested=trueだがRSSが消えたレコードをリセット
         let brokenPredicate = #Predicate<DiscoveredDomain> {
             $0.isSuggested && !$0.isRejected
@@ -105,15 +104,19 @@ actor GoogleNewsDiscovery {
         }
         guard let candidates = try? context.fetch(FetchDescriptor(predicate: predicate)) else { return }
 
-        for candidate in candidates {
+        var found = 0
+        for (index, candidate) in candidates.enumerated() {
+            onProgress?("RSS検出中... (\(index + 1)/\(candidates.count))\(found > 0 ? " \(found)件発見" : "")")
             guard let siteURL = URL(string: "https://\(candidate.domain)") else { continue }
             if let feedURL = await RSSDetector.detectFeed(from: siteURL) {
                 candidate.detectedFeedURL = feedURL
                 candidate.feedTitle = await RSSDetector.feedTitle(from: feedURL)
                 candidate.isSuggested = true
+                found += 1
             }
+            candidate.isRSSChecked = true
+            try? context.save()
         }
-        try? context.save()
     }
 
     /// Google Newsのリダイレクトを追跡して実際のURLを取得

@@ -33,12 +33,30 @@ struct DiscoveryView: View {
                 }
             }
 
-            if suggestions.isEmpty {
+            if suggestions.isEmpty && viewModel?.isChecking != true {
                 ContentUnavailableView(
                     "新しいソースはまだありません",
                     systemImage: "sparkle.magnifyingglass",
                     description: Text("Google Newsから自動的にソースを発見します")
                 )
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if let status = viewModel?.statusMessage {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        #if !os(macOS)
+                        .controlSize(.small)
+                        #endif
+                    Text(status)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.regularMaterial)
+                .clipShape(Capsule())
+                .padding(.bottom, 8)
             }
         }
         #if os(iOS)
