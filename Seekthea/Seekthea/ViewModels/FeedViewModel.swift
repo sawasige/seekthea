@@ -19,6 +19,7 @@ class FeedViewModel {
         self.feedFetcher = FeedFetcher(modelContainer: modelContainer)
         self.aiProcessor = AIProcessor(modelContainer: modelContainer)
         self.interestEngine = InterestEngine(modelContainer: modelContainer)
+        DiscoveryManager.shared.setup(modelContainer: modelContainer)
     }
 
     /// 全フィードを更新
@@ -84,4 +85,5 @@ class FeedViewModel {
     func updateRelevanceScores() {
         interestEngine.scoreArticles()
     }
+
 }
