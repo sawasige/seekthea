@@ -3,7 +3,6 @@ import SwiftUI
 struct ArticleCardView: View {
     let article: Article
     var showScore: Bool = false
-    var onTapSource: (() -> Void)? = nil
 
     #if os(macOS)
     private let titleFont: Font = .title3.weight(.semibold)
@@ -47,23 +46,12 @@ struct ArticleCardView: View {
                 HStack(spacing: 6) {
                     let name = article.sourceName.isEmpty ? article.articleURL.host() ?? "" : article.sourceName
                     let site = article.source?.siteURL ?? URL(string: "https://\(article.articleURL.host() ?? "")") ?? article.articleURL
-                    Button {
-                        onTapSource?()
-                    } label: {
-                        HStack(spacing: 5) {
-                            SourceThumbnailView(siteURL: site, size: faviconSize)
-                            if !name.isEmpty {
-                                Text(name)
-                                    .font(metaFont)
-                                    .foregroundStyle(.primary)
-                            }
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.secondary.opacity(0.12), in: Capsule())
+                    SourceThumbnailView(siteURL: site, size: faviconSize)
+                    if !name.isEmpty {
+                        Text(name)
+                            .font(metaFont)
+                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(onTapSource == nil)
 
                     Spacer()
 

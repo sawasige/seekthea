@@ -636,21 +636,14 @@ struct FeedView: View {
                                 }
                             } label: {
                                 if useCompactLayout {
-                                    CompactArticleCardView(
-                                        article: article,
-                                        showScore: feedMode == .forYou,
-                                        onTapSource: article.source.map { src in { changeSourceFilter(to: src) } }
-                                    )
+                                    CompactArticleCardView(article: article, showScore: feedMode == .forYou)
                                 } else {
-                                    ArticleCardView(
-                                        article: article,
-                                        showScore: feedMode == .forYou,
-                                        onTapSource: article.source.map { src in { changeSourceFilter(to: src) } }
-                                    )
+                                    ArticleCardView(article: article, showScore: feedMode == .forYou)
                                 }
                             }
                             .buttonStyle(.plain)
                             .matchedTransitionSource(id: article.id, in: zoomNamespace)
+                            .contextMenu { contextMenuItems(for: article) }
                         }
                     }
                     .padding(.horizontal)
@@ -715,6 +708,37 @@ struct FeedView: View {
         }
         .offset(y: headerOffset)
         .opacity(headerHeight > 0 ? max(0, 1 + hideAmount / headerHeight) : 1)
+    }
+
+    @ViewBuilder
+    private func contextMenuItems(for article: Article) -> some View {
+        Button {
+            navigationPath.append(article)
+        } label: {
+            Label("開く", systemImage: "arrow.up.right.square")
+        }
+
+        if let source = article.source {
+            Button {
+                changeSourceFilter(to: source)
+            } label: {
+                Label("\(source.name) だけ表示", systemImage: "line.3.horizontal.decrease.circle")
+            }
+        }
+
+        Button {
+            article.isFavorite.toggle()
+            try? modelContext.save()
+        } label: {
+            Label(
+                article.isFavorite ? "お気に入りから外す" : "お気に入りに追加",
+                systemImage: article.isFavorite ? "star.slash" : "star"
+            )
+        }
+
+        ShareLink(item: article.articleURL) {
+            Label("共有", systemImage: "square.and.arrow.up")
+        }
     }
 
     private func changeSourceFilter(to source: Source?) {
