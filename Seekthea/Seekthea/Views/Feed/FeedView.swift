@@ -633,13 +633,13 @@ struct FeedView: View {
                                     CompactArticleCardView(
                                         article: article,
                                         showScore: feedMode == .forYou,
-                                        onTapSource: article.source.map { src in { sourceFilter = src } }
+                                        onTapSource: article.source.map { src in { changeSourceFilter(to: src) } }
                                     )
                                 } else {
                                     ArticleCardView(
                                         article: article,
                                         showScore: feedMode == .forYou,
-                                        onTapSource: article.source.map { src in { sourceFilter = src } }
+                                        onTapSource: article.source.map { src in { changeSourceFilter(to: src) } }
                                     )
                                 }
                             }
@@ -711,6 +711,22 @@ struct FeedView: View {
         .opacity(headerHeight > 0 ? max(0, 1 + hideAmount / headerHeight) : 1)
     }
 
+    private func changeSourceFilter(to source: Source?) {
+        guard sourceFilter?.id != source?.id else { return }
+        #if os(iOS)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        #endif
+        withAnimation(.easeOut(duration: 0.12)) {
+            gridOpacity = 0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            sourceFilter = source
+            withAnimation(.easeIn(duration: 0.15)) {
+                gridOpacity = 1
+            }
+        }
+    }
+
     private func clearStaleSourceFilter() {
         guard let filter = sourceFilter else { return }
         let filterID = filter.id
@@ -722,7 +738,7 @@ struct FeedView: View {
     private func sourceFilterChip(_ source: Source) -> some View {
         HStack {
             Button {
-                sourceFilter = nil
+                changeSourceFilter(to: nil)
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "line.3.horizontal.decrease.circle")

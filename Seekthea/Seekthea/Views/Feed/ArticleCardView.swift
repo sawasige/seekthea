@@ -81,17 +81,13 @@ struct ArticleCardView: View {
                     }
                 }
 
-                // カテゴリバッジ
+                // カテゴリタグ
                 if !article.categories.isEmpty {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 8) {
                         ForEach(article.categories, id: \.self) { cat in
                             Text(cat)
                                 .font(badgeFont)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(.tint.opacity(0.15))
                                 .foregroundStyle(Color.accentColor)
-                                .clipShape(Capsule())
                         }
                     }
                 }

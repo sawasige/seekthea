@@ -56,17 +56,13 @@ struct CompactArticleCardView: View {
                     }
                 }
 
-                // カテゴリバッジ
+                // カテゴリタグ
                 if !article.categories.isEmpty {
-                    HStack(spacing: 3) {
+                    HStack(spacing: 6) {
                         ForEach(article.categories.prefix(2), id: \.self) { cat in
                             Text(cat)
                                 .font(.caption2)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 2)
-                                .background(.tint.opacity(0.15))
                                 .foregroundStyle(Color.accentColor)
-                                .clipShape(Capsule())
                         }
                         if article.categories.count > 2 {
                             Text("+\(article.categories.count - 2)")
