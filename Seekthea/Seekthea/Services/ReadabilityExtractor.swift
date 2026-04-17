@@ -19,14 +19,18 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
     private var continuation: CheckedContinuation<Article?, Never>?
     private var timeoutTask: Task<Void, Never>?
     private var readabilityJS: String?
+    private var onProgress: ((String) -> Void)?
 
     /// URLから記事を抽出
-    func extract(from url: URL) async -> Article? {
+    func extract(from url: URL, onProgress: ((String) -> Void)? = nil) async -> Article? {
         // Readability.jsを読み込み
         if readabilityJS == nil {
             readabilityJS = loadReadabilityJS()
         }
         guard readabilityJS != nil else { return nil }
+
+        self.onProgress = onProgress
+        onProgress?("記事ページを取得中...")
 
         return await withCheckedContinuation { continuation in
             self.continuation = continuation
@@ -65,6 +69,7 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
         // ページ読み込み完了 → 少し待ってReadabilityを実行
         // （遅延ロードコンテンツの完了を待つ）
         Task { @MainActor in
+            self.onProgress?("本文を抽出中...")
             try? await Task.sleep(for: .milliseconds(800))
             self.runReadability()
         }
@@ -145,6 +150,7 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
         webView?.navigationDelegate = nil
         webView?.stopLoading()
         webView = nil
+        onProgress = nil
         continuation?.resume(returning: article)
         continuation = nil
     }

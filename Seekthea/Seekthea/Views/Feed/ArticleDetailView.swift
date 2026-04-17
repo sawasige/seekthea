@@ -27,6 +27,7 @@ struct ArticleDetailView: View {
     @State private var isLoading = true
     @State private var isAIProcessing = false
     @State private var viewMode: DetailViewMode = .reader
+    @State private var loadingStage: String = "記事ページを取得中..."
 
     var body: some View {
         contentView
@@ -76,19 +77,47 @@ struct ArticleDetailView: View {
 
     @ViewBuilder
     private var contentView: some View {
-        if isLoading {
-            ProgressView("記事を読み込み中...")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if let extracted = extractedArticle {
-            #if os(macOS)
-            macContent(extracted: extracted)
-            #else
-            iosContent(extracted: extracted)
-            #endif
-        } else {
-            OriginalPageWebView(url: article.articleURL)
-                .ignoresSafeArea()
+        ZStack {
+            if isLoading {
+                LoadingPreviewView(article: article)
+                    .transition(.opacity)
+            } else if let extracted = extractedArticle {
+                #if os(macOS)
+                macContent(extracted: extracted)
+                    .transition(.opacity)
+                #else
+                iosContent(extracted: extracted)
+                    .transition(.opacity)
+                #endif
+            } else {
+                OriginalPageWebView(url: article.articleURL)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+            }
         }
+        .animation(.easeInOut(duration: 0.35), value: isLoading)
+        .overlay(alignment: .bottom) {
+            if isLoading {
+                HStack(spacing: 10) {
+                    ProgressView()
+                        #if !os(macOS)
+                        .controlSize(.small)
+                        #endif
+                    Text(loadingStage)
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                        .contentTransition(.opacity)
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+                .background(.regularMaterial)
+                .clipShape(Capsule())
+                .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
+                .padding(.bottom, 20)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: loadingStage)
     }
 
     #if os(macOS)
@@ -148,7 +177,9 @@ struct ArticleDetailView: View {
 
     private func loadContent() async {
         let extractor = ReadabilityExtractor()
-        let extracted = await extractor.extract(from: article.articleURL)
+        let extracted = await extractor.extract(from: article.articleURL) { stage in
+            loadingStage = stage
+        }
         extractedArticle = extracted
         isLoading = false
 
@@ -167,6 +198,60 @@ struct ArticleDetailView: View {
                 await processor.analyze(articleID: articleID)
                 isAIProcessing = false
             }
+        }
+    }
+}
+
+// MARK: - ローディング中プレビュー
+
+private struct LoadingPreviewView: View {
+    let article: Article
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(article.title)
+                    .font(.title2.weight(.bold))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 6) {
+                    let name = article.source?.name ?? article.sourceName
+                    if !name.isEmpty {
+                        Text(name)
+                    }
+                    if let date = article.publishedAt {
+                        Text("・")
+                        Text(DateFormatter.localizedString(from: date, dateStyle: .long, timeStyle: .short))
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                if let imageURL = article.displayImageURL {
+                    AsyncImage(url: imageURL) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().aspectRatio(contentMode: .fit)
+                        case .failure:
+                            EmptyView()
+                        default:
+                            Color.gray.opacity(0.1).aspectRatio(16.0/9.0, contentMode: .fit)
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+
+                if let desc = article.cardDescription, !desc.isEmpty {
+                    Text(desc)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(20)
+            .padding(.bottom, 80)
+            .frame(maxWidth: 720)
+            .frame(maxWidth: .infinity)
         }
     }
 }
