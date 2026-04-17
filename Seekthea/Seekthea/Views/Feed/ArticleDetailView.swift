@@ -28,6 +28,7 @@ struct ArticleDetailView: View {
     @State private var isAIProcessing = false
     @State private var viewMode: DetailViewMode = .reader
     @State private var loadingStage: String = "記事ページを取得中..."
+    @State private var showFailureNotice = false
 
     var body: some View {
         contentView
@@ -115,9 +116,25 @@ struct ArticleDetailView: View {
                 .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
                 .padding(.bottom, 20)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if showFailureNotice {
+                HStack(spacing: 10) {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.secondary)
+                    Text("リーダー抽出に失敗しました。再読み込みで直るかもしれません。")
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+                .background(.regularMaterial)
+                .clipShape(Capsule())
+                .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
+                .padding(.bottom, 20)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(.easeInOut(duration: 0.25), value: loadingStage)
+        .animation(.easeInOut(duration: 0.3), value: showFailureNotice)
     }
 
     #if os(macOS)
@@ -171,6 +188,8 @@ struct ArticleDetailView: View {
     #endif
 
     private func retryReader() async {
+        showFailureNotice = false
+        loadingStage = "記事ページを取得中..."
         isLoading = true
         await loadContent()
     }
@@ -182,6 +201,14 @@ struct ArticleDetailView: View {
         }
         extractedArticle = extracted
         isLoading = false
+
+        if extracted == nil {
+            showFailureNotice = true
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                showFailureNotice = false
+            }
+        }
 
         if extracted != nil {
             viewMode = .reader
