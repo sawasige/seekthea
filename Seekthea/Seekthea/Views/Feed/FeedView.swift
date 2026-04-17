@@ -233,6 +233,7 @@ struct FeedView: View {
     @AppStorage("discoveryEnabled") private var discoveryEnabled = true
     @State private var hasNewSuggestions = false
     @State private var sourceFilter: Source? = nil
+    @Namespace private var zoomNamespace
 
     let modelContainer: ModelContainer
 
@@ -572,7 +573,12 @@ struct FeedView: View {
                     }
                 }
                 .navigationDestination(for: Article.self) { article in
-                    ArticleDetailView(article: article)
+                    let detail = ArticleDetailView(article: article)
+                    #if os(macOS)
+                    detail
+                    #else
+                    detail.navigationTransition(.zoom(sourceID: article.id, in: zoomNamespace))
+                    #endif
                 }
                 .overlay(alignment: .bottom) {
                     let feedStatus = viewModel?.statusMessage
@@ -644,6 +650,7 @@ struct FeedView: View {
                                 }
                             }
                             .buttonStyle(.plain)
+                            .matchedTransitionSource(id: article.id, in: zoomNamespace)
                         }
                     }
                     .padding(.horizontal)
