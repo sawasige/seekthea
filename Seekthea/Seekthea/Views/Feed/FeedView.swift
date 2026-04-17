@@ -232,10 +232,13 @@ struct FeedView: View {
     @AppStorage("useCompactLayout") private var useCompactLayout = false
     @AppStorage("discoveryEnabled") private var discoveryEnabled = true
     @State private var hasNewSuggestions = false
+    @State private var sourceFilter: Source? = nil
 
     let modelContainer: ModelContainer
 
-    private let headerHeight: CGFloat = 90
+    private var headerHeight: CGFloat {
+        sourceFilter != nil ? 130 : 90
+    }
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -299,8 +302,10 @@ struct FeedView: View {
     private func updateCachedData() {
         let activeFeedURLs = viewModel?.activeSourceFeedURLs() ?? []
 
+        let filterFeedURL = sourceFilter?.feedURL
         var modeFiltered = allArticles.filter { article in
             guard activeFeedURLs.contains(article.sourceFeedURL) else { return false }
+            if let filterFeedURL, article.sourceFeedURL != filterFeedURL { return false }
             switch feedMode {
             case .favorites:
                 return article.isFavorite
@@ -459,6 +464,11 @@ struct FeedView: View {
                     scrollProxy?.scrollTo("scrollTop", anchor: .top)
                     updateCachedData()
                 }
+                .onChange(of: sourceFilter) {
+                    hideAmount = 0
+                    scrollProxy?.scrollTo("scrollTop", anchor: .top)
+                    updateCachedData()
+                }
                 .onChange(of: isSwiping) {
                     if isSwiping, hideAmount < 0 {
                         withAnimation(.snappy(duration: 0.2)) {
@@ -553,6 +563,7 @@ struct FeedView: View {
                     }
                 }
                 .onChange(of: allSources.count) {
+                    clearStaleSourceFilter()
                     Task { await refreshAll() }
                 }
                 .onChange(of: hasActiveSource) { _, newValue in
@@ -619,9 +630,17 @@ struct FeedView: View {
                                 }
                             } label: {
                                 if useCompactLayout {
-                                    CompactArticleCardView(article: article, showScore: feedMode == .forYou)
+                                    CompactArticleCardView(
+                                        article: article,
+                                        showScore: feedMode == .forYou,
+                                        onTapSource: article.source.map { src in { sourceFilter = src } }
+                                    )
                                 } else {
-                                    ArticleCardView(article: article, showScore: feedMode == .forYou)
+                                    ArticleCardView(
+                                        article: article,
+                                        showScore: feedMode == .forYou,
+                                        onTapSource: article.source.map { src in { sourceFilter = src } }
+                                    )
                                 }
                             }
                             .buttonStyle(.plain)
@@ -656,6 +675,13 @@ struct FeedView: View {
 
     private var headerView: some View {
         VStack(spacing: 0) {
+            if let source = sourceFilter {
+                sourceFilterChip(source)
+                    .padding(.horizontal)
+                    .padding(.top, 6)
+                    .padding(.bottom, 2)
+            }
+
             Picker("モード", selection: $feedMode) {
                 ForEach(FeedMode.allCases, id: \.self) { mode in
                     Text(mode.rawValue).tag(mode)
@@ -683,6 +709,39 @@ struct FeedView: View {
         }
         .offset(y: headerOffset)
         .opacity(headerHeight > 0 ? max(0, 1 + hideAmount / headerHeight) : 1)
+    }
+
+    private func clearStaleSourceFilter() {
+        guard let filter = sourceFilter else { return }
+        let filterID = filter.id
+        if !allSources.contains(where: { $0.id == filterID }) {
+            sourceFilter = nil
+        }
+    }
+
+    private func sourceFilterChip(_ source: Source) -> some View {
+        HStack {
+            Button {
+                sourceFilter = nil
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                        .foregroundStyle(Color.accentColor)
+                    Text(source.name)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.accentColor.opacity(0.12))
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            Spacer()
+        }
     }
 
     private func statusCapsule(_ text: String) -> some View {
