@@ -675,13 +675,6 @@ struct FeedView: View {
 
     private var headerView: some View {
         VStack(spacing: 0) {
-            if let source = sourceFilter {
-                sourceFilterChip(source)
-                    .padding(.horizontal)
-                    .padding(.top, 6)
-                    .padding(.bottom, 2)
-            }
-
             Picker("モード", selection: $feedMode) {
                 ForEach(FeedMode.allCases, id: \.self) { mode in
                     Text(mode.rawValue).tag(mode)
@@ -693,6 +686,12 @@ struct FeedView: View {
 
             CategoryFilterView(selectedCategory: $selectedCategory, totalCount: cachedModeArticles.count, categoryCounts: cachedCategoryCounts, categoryOrder: sortedCategories)
                 .padding(.vertical, 6)
+
+            if let source = sourceFilter {
+                sourceFilterChip(source)
+                    .padding(.horizontal)
+                    .padding(.bottom, 6)
+            }
         }
         .frame(height: headerHeight)
         .background(alignment: .top) {
