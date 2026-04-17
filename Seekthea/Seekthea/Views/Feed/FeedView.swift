@@ -233,6 +233,8 @@ struct FeedView: View {
     @AppStorage("discoveryEnabled") private var discoveryEnabled = true
     @State private var hasNewSuggestions = false
     @State private var sourceFilter: Source? = nil
+    @State private var sessionReadIDs: Set<UUID> = []
+    @State private var hasInitialRefreshed = false
     @Namespace private var zoomNamespace
 
     let modelContainer: ModelContainer
@@ -319,7 +321,14 @@ struct FeedView: View {
 
         switch feedMode {
         case .forYou:
+            let sessionReadIDs = self.sessionReadIDs
+            func effectivelyRead(_ article: Article) -> Bool {
+                article.isRead && !sessionReadIDs.contains(article.id)
+            }
             modeFiltered.sort { a, b in
+                let aRead = effectivelyRead(a)
+                let bRead = effectivelyRead(b)
+                if aRead != bRead { return !aRead }
                 if abs(a.relevanceScore - b.relevanceScore) > 0.01 {
                     return a.relevanceScore > b.relevanceScore
                 }
@@ -485,6 +494,7 @@ struct FeedView: View {
                     #if os(macOS)
                     ToolbarItem(placement: .automatic) {
                         Button {
+                            sessionReadIDs.removeAll()
                             Task { await refreshAll() }
                         } label: {
                             Image(systemName: "arrow.clockwise")
@@ -539,7 +549,10 @@ struct FeedView: View {
                     if viewModel == nil {
                         viewModel = FeedViewModel(modelContainer: modelContainer)
                     }
-                    await refreshAll()
+                    if !hasInitialRefreshed {
+                        hasInitialRefreshed = true
+                        await refreshAll()
+                    }
                 }
                 .onAppear {
                     if viewModel != nil {
@@ -632,7 +645,7 @@ struct FeedView: View {
                         ForEach(cachedDisplayArticles, id: \.id) { article in
                             Button {
                                 if !isSwiping {
-                                    navigationPath.append(article)
+                                    openArticle(article)
                                 }
                             } label: {
                                 if useCompactLayout {
@@ -667,6 +680,7 @@ struct FeedView: View {
                 }
             }
             .refreshable {
+                sessionReadIDs.removeAll()
                 await refreshAll()
             }
         }
@@ -710,10 +724,15 @@ struct FeedView: View {
         .opacity(headerHeight > 0 ? max(0, 1 + hideAmount / headerHeight) : 1)
     }
 
+    private func openArticle(_ article: Article) {
+        sessionReadIDs.insert(article.id)
+        navigationPath.append(article)
+    }
+
     @ViewBuilder
     private func contextMenuItems(for article: Article) -> some View {
         Button {
-            navigationPath.append(article)
+            openArticle(article)
         } label: {
             Label("開く", systemImage: "arrow.up.right.square")
         }
