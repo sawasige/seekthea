@@ -719,10 +719,18 @@ struct FeedView: View {
         }
 
         if let source = article.source {
-            Button {
-                changeSourceFilter(to: source)
-            } label: {
-                Label("\(source.name) だけ表示", systemImage: "line.3.horizontal.decrease.circle")
+            if sourceFilter?.id == source.id {
+                Button {
+                    changeSourceFilter(to: nil)
+                } label: {
+                    Label("フィルタを解除", systemImage: "xmark.circle")
+                }
+            } else {
+                Button {
+                    changeSourceFilter(to: source)
+                } label: {
+                    Label("\(source.name) だけ表示", systemImage: "line.3.horizontal.decrease.circle")
+                }
             }
         }
 
