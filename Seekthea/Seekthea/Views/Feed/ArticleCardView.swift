@@ -3,6 +3,7 @@ import SwiftUI
 struct ArticleCardView: View {
     let article: Article
     var showScore: Bool = false
+    var onTapSource: (() -> Void)? = nil
 
     #if os(macOS)
     private let titleFont: Font = .title3.weight(.semibold)
@@ -10,14 +11,14 @@ struct ArticleCardView: View {
     private let metaFont: Font = .subheadline
     private let badgeFont: Font = .subheadline
     private let imageHeight: CGFloat = 180
-    private let faviconSize: CGFloat = 16
+    private let faviconSize: CGFloat = 18
     #else
     private let titleFont: Font = .body.weight(.semibold)
     private let descFont: Font = .subheadline
     private let metaFont: Font = .caption
     private let badgeFont: Font = .caption
     private let imageHeight: CGFloat = 160
-    private let faviconSize: CGFloat = 12
+    private let faviconSize: CGFloat = 16
     #endif
 
     var body: some View {
@@ -44,19 +45,25 @@ struct ArticleCardView: View {
 
                 // メタ情報
                 HStack(spacing: 6) {
-                    if let faviconData = article.siteFaviconData,
-                       let img = platformImage(from: faviconData) {
-                        Image(platformImage: img)
-                            .resizable()
-                            .frame(width: faviconSize, height: faviconSize)
-                    }
-
                     let name = article.sourceName.isEmpty ? article.articleURL.host() ?? "" : article.sourceName
-                    if !name.isEmpty {
-                        Text(name)
-                            .font(metaFont)
-                            .foregroundStyle(.secondary)
+                    let site = article.source?.siteURL ?? URL(string: "https://\(article.articleURL.host() ?? "")") ?? article.articleURL
+                    Button {
+                        onTapSource?()
+                    } label: {
+                        HStack(spacing: 5) {
+                            SourceThumbnailView(siteURL: site, size: faviconSize)
+                            if !name.isEmpty {
+                                Text(name)
+                                    .font(metaFont)
+                                    .foregroundStyle(.primary)
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.secondary.opacity(0.12), in: Capsule())
                     }
+                    .buttonStyle(.plain)
+                    .disabled(onTapSource == nil)
 
                     Spacer()
 
@@ -159,18 +166,3 @@ private struct ArticleImageView: View {
     }
 }
 
-// MARK: - Platform Image Helpers
-
-#if os(macOS)
-import AppKit
-private func platformImage(from data: Data) -> NSImage? { NSImage(data: data) }
-extension Image {
-    init(platformImage: NSImage) { self.init(nsImage: platformImage) }
-}
-#else
-import UIKit
-private func platformImage(from data: Data) -> UIImage? { UIImage(data: data) }
-extension Image {
-    init(platformImage: UIImage) { self.init(uiImage: platformImage) }
-}
-#endif

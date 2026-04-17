@@ -3,6 +3,7 @@ import SwiftUI
 struct CompactArticleCardView: View {
     let article: Article
     var showScore: Bool = false
+    var onTapSource: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -21,12 +22,23 @@ struct CompactArticleCardView: View {
                 // ソース名 + 日時
                 HStack(spacing: 4) {
                     let name = article.sourceName.isEmpty ? article.articleURL.host() ?? "" : article.sourceName
-                    if !name.isEmpty {
-                        Text(name)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                    let site = article.source?.siteURL ?? URL(string: "https://\(article.articleURL.host() ?? "")") ?? article.articleURL
+                    Button {
+                        onTapSource?()
+                    } label: {
+                        HStack(spacing: 4) {
+                            SourceThumbnailView(siteURL: site, size: 14)
+                            Text(name)
+                                .font(.caption)
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.12), in: Capsule())
                     }
+                    .buttonStyle(.plain)
+                    .disabled(onTapSource == nil || name.isEmpty)
 
                     Spacer()
 
