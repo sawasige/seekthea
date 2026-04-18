@@ -4,7 +4,6 @@ import SwiftData
 @main
 struct SeektheaApp: App {
     @Environment(\.scenePhase) private var scenePhase
-    @AppStorage("discoveryEnabled") private var discoveryEnabled = true
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -67,10 +66,8 @@ struct SeektheaApp: App {
                 try? context.save()
 
                 // 24時間に1回バックグラウンドでソース発見
-                if discoveryEnabled {
-                    DiscoveryManager.shared.setup(modelContainer: sharedModelContainer)
-                    DiscoveryManager.shared.runIfDue()
-                }
+                DiscoveryManager.shared.setup(modelContainer: sharedModelContainer)
+                DiscoveryManager.shared.runIfDue()
             }
         }
     }

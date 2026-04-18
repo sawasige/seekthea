@@ -230,12 +230,14 @@ struct FeedView: View {
     @State private var currentScrollY: CGFloat = 0
     @State private var lastScrollY: CGFloat = 0
     @AppStorage("useCompactLayout") private var useCompactLayout = false
-    @AppStorage("discoveryEnabled") private var discoveryEnabled = true
+    @AppStorage("lastFeedRefreshedAt") private var lastFeedRefreshedAt: Double = 0
     @State private var hasNewSuggestions = false
     @State private var sourceFilter: Source? = nil
     @State private var sessionReadIDs: Set<UUID> = []
     @State private var hasInitialRefreshed = false
     @Namespace private var zoomNamespace
+
+    private let autoRefreshInterval: TimeInterval = 3600  // 1時間
 
     let modelContainer: ModelContainer
 
@@ -249,6 +251,15 @@ struct FeedView: View {
 
     private var hasActiveSource: Bool {
         allSources.contains(where: { $0.isActive })
+    }
+
+    private var activeFeedURLs: Set<URL> {
+        Set(allSources.filter(\.isActive).map(\.feedURL))
+    }
+
+    private var shouldAutoRefresh: Bool {
+        guard hasActiveSource else { return false }
+        return Date().timeIntervalSince1970 - lastFeedRefreshedAt > autoRefreshInterval
     }
 
     private var emptyFeedTitle: String {
@@ -574,9 +585,12 @@ struct FeedView: View {
                     if newPhase == .active {
                         reloadArticles()
                         updateCachedData()
+                        if shouldAutoRefresh {
+                            Task { await refreshAll() }
+                        }
                     }
                 }
-                .onChange(of: allSources.count) {
+                .onChange(of: activeFeedURLs) {
                     clearStaleSourceFilter()
                     Task { await refreshAll() }
                 }
@@ -843,9 +857,9 @@ struct FeedView: View {
         }
         guard viewModel?.isLoading != true else { return }
         await viewModel?.refresh()
+        lastFeedRefreshedAt = Date().timeIntervalSince1970
         reloadArticles()
         updateCachedData()
-        if viewModel?.isClassifying == true { return }
         viewModel?.classifyInBackground(
             onArticleClassified: { [self] in
                 reloadArticles()

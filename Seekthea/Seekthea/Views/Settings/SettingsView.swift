@@ -2,9 +2,6 @@ import SwiftUI
 import SwiftData
 
 struct SettingsView: View {
-    @AppStorage("refreshInterval") private var refreshInterval: Int = 30
-    @AppStorage("aiProcessingEnabled") private var aiProcessingEnabled = true
-    @AppStorage("discoveryEnabled") private var discoveryEnabled = true
     @Environment(\.modelContext) private var modelContext
     @State private var toastMessage: String?
     @State private var showResetConfirm = false
@@ -22,6 +19,10 @@ struct SettingsView: View {
                 NavigationLink("ソース発見") {
                     DiscoveryView(modelContainer: modelContainer)
                 }
+                Button("スキップしたソースを復元") {
+                    restoreRejectedDomains()
+                    showToast("スキップしたソースを復元しました")
+                }
             }
 
             Section("パーソナライズ") {
@@ -33,41 +34,10 @@ struct SettingsView: View {
                 }
             }
 
-            Section("更新") {
-                Picker("更新間隔", selection: $refreshInterval) {
-                    Text("30分").tag(30)
-                    Text("1時間").tag(60)
-                    Text("3時間").tag(180)
-                }
-            }
-
-            Section("AI処理") {
-                Toggle("AI要約・分類", isOn: $aiProcessingEnabled)
-                Text("Apple Intelligenceを使用して記事を要約・分類します")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Button("全記事のAI要約を再生成") {
-                    resetAIProcessing()
-                    showToast("AI要約をリセットしました")
-                }
-            }
-
-            Section("発見") {
-                Toggle("ソース自動発見", isOn: $discoveryEnabled)
-                Button("スキップしたソースを復元") {
-                    restoreRejectedDomains()
-                    showToast("スキップしたソースを復元しました")
-                }
-            }
-
             Section("データ管理") {
                 Button("古い記事を削除（30日以上前）", role: .destructive) {
                     deleteOldArticles()
                     showToast("古い記事を削除しました")
-                }
-                Button("全記事を削除", role: .destructive) {
-                    deleteAllArticles()
-                    showToast("全記事を削除しました")
                 }
                 Button("すべて初期化", role: .destructive) {
                     showResetConfirm = true
@@ -123,19 +93,6 @@ struct SettingsView: View {
         }
     }
 
-    private func resetAIProcessing() {
-        let descriptor = FetchDescriptor<Article>()
-        if let articles = try? modelContext.fetch(descriptor) {
-            for article in articles {
-                article.summary = nil
-                article.aiCategory = nil
-                article.keywordsRaw = ""
-                article.isAIProcessed = false
-            }
-            try? modelContext.save()
-        }
-    }
-
     private func restoreRejectedDomains() {
         let predicate = #Predicate<DiscoveredDomain> { $0.isRejected }
         if let domains = try? modelContext.fetch(FetchDescriptor(predicate: predicate)) {
@@ -175,19 +132,8 @@ struct SettingsView: View {
         PendingSourcesStore.clear()
 
         // AppStorage の削除
-        for key in ["refreshInterval", "aiProcessingEnabled", "discoveryEnabled", "useCompactLayout", "lastDiscoveryRunAt", "lastDiscoveryCheckedAt"] {
+        for key in ["useCompactLayout", "lastDiscoveryRunAt", "lastDiscoveryCheckedAt", "lastFeedRefreshedAt"] {
             UserDefaults.standard.removeObject(forKey: key)
-        }
-    }
-
-    private func deleteAllArticles() {
-        do {
-            try modelContext.delete(model: Article.self)
-            let sources = (try? modelContext.fetch(FetchDescriptor<Source>())) ?? []
-            for source in sources { source.articleCount = 0 }
-            try? modelContext.save()
-        } catch {
-            print("Failed to delete all articles: \(error)")
         }
     }
 }
