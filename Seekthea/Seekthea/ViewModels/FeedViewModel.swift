@@ -39,8 +39,11 @@ class FeedViewModel {
         onArticleClassified: (@MainActor () -> Void)? = nil,
         onComplete: (@MainActor () -> Void)? = nil
     ) {
-        classifyTask?.cancel()
+        let oldTask = classifyTask
+        oldTask?.cancel()
         classifyTask = Task {
+            await oldTask?.value
+            if Task.isCancelled { return }
             await aiProcessor.classifyBatch(
                 onProgress: { [weak self] message in
                     self?.statusMessage = message
