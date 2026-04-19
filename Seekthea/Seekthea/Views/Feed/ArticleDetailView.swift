@@ -739,10 +739,17 @@ private struct ReaderView: View {
         @media (prefers-color-scheme: dark) {
             body { color: #f5f5f7; background: #1c1c1e; }
             .meta { color: #98989d; }
-            a { color: #64d2ff; }
-            blockquote { border-color: #48484a; color: #98989d; }
-            pre, code { background: #2c2c2e; }
-            th, td { border-color: #48484a; }
+            .content blockquote { border-color: #48484a; color: #98989d; }
+            .content pre, .content code {
+                background: #2c2c2e !important;
+                color: #f5f5f7 !important;
+            }
+            .content pre *, .content code * {
+                color: inherit !important;
+                background: transparent !important;
+            }
+            .content th, .content td { border-color: #48484a; }
+            .content a { color: #64d2ff; }
             hr { border-color: #38383a; }
         }
         h1 { font-size: 24px; line-height: 1.4; margin: 0 0 8px; font-weight: 700; }
