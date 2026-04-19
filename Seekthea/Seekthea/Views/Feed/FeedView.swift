@@ -256,7 +256,11 @@ struct FeedView: View {
     @State private var sourceFilter: SourceFilter? = nil
     @State private var sessionReadIDs: Set<UUID> = []
     @State private var hasInitialRefreshed = false
+    @State private var pendingImpressions: [UUID: Int] = [:]
+    @State private var impressionTimers: [UUID: Task<Void, Never>] = [:]
     @Namespace private var zoomNamespace
+
+    private let impressionDwellSeconds: Double = 1.0
 
     private let autoRefreshInterval: TimeInterval = 3600  // 1時間
 
@@ -503,16 +507,19 @@ struct FeedView: View {
                     }
                 }
                 .onChange(of: feedMode) {
+                    flushImpressions()
                     hideAmount = 0
                     scrollProxy?.scrollTo("scrollTop", anchor: .top)
                     updateCachedData()
                 }
                 .onChange(of: selectedCategory) {
+                    flushImpressions()
                     hideAmount = 0
                     scrollProxy?.scrollTo("scrollTop", anchor: .top)
                     updateCachedData()
                 }
                 .onChange(of: sourceFilter) {
+                    flushImpressions()
                     hideAmount = 0
                     scrollProxy?.scrollTo("scrollTop", anchor: .top)
                     updateCachedData()
@@ -615,6 +622,8 @@ struct FeedView: View {
                         if shouldAutoRefresh {
                             Task { await refreshAll() }
                         }
+                    } else {
+                        flushImpressions()
                     }
                 }
                 .onChange(of: activeFeedURLs) {
@@ -698,6 +707,8 @@ struct FeedView: View {
                             .buttonStyle(.plain)
                             .matchedTransitionSource(id: article.id, in: zoomNamespace)
                             .contextMenu { contextMenuItems(for: article) }
+                            .onAppear { startImpressionTimer(for: article) }
+                            .onDisappear { cancelImpressionTimer(for: article.id) }
                         }
                     }
                     .padding(.horizontal)
@@ -718,6 +729,7 @@ struct FeedView: View {
             .onScrollPhaseChange { _, newPhase in
                 if newPhase == .idle {
                     handleScrollIdle()
+                    flushImpressions()
                 }
             }
             .refreshable {
@@ -767,7 +779,40 @@ struct FeedView: View {
 
     private func openArticle(_ article: Article) {
         sessionReadIDs.insert(article.id)
+        cancelImpressionTimer(for: article.id)
+        pendingImpressions[article.id] = nil
         navigationPath.append(article)
+    }
+
+    // MARK: - Impression tracking
+
+    private func startImpressionTimer(for article: Article) {
+        let id = article.id
+        guard !article.isRead else { return }
+        impressionTimers[id]?.cancel()
+        impressionTimers[id] = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(impressionDwellSeconds))
+            guard !Task.isCancelled else { return }
+            pendingImpressions[id, default: 0] += 1
+            impressionTimers[id] = nil
+        }
+    }
+
+    private func cancelImpressionTimer(for id: UUID) {
+        impressionTimers[id]?.cancel()
+        impressionTimers[id] = nil
+    }
+
+    private func flushImpressions() {
+        guard !pendingImpressions.isEmpty else { return }
+        let snapshot = pendingImpressions
+        pendingImpressions.removeAll()
+        for (id, delta) in snapshot {
+            if let article = allArticles.first(where: { $0.id == id }) {
+                article.impressionCount += delta
+            }
+        }
+        try? modelContext.save()
     }
 
     @ViewBuilder

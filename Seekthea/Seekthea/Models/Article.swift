@@ -29,6 +29,7 @@ class Article {
 
     // パーソナライズ
     var relevanceScore: Double = 0  // 興味スコア（0〜1）
+    var impressionCount: Int = 0    // フィードで表示された回数（未読時の興味なしシグナル）
 
     // ソース紐付け（URLベース、リレーションなし）
     var sourceFeedURL: URL = URL(string: "https://example.com")!
