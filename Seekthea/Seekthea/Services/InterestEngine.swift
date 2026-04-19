@@ -50,6 +50,12 @@ class InterestEngine {
                 score *= 1.2
             }
 
+            // 表示回数ベースの減衰（未読のまま何度も見た記事を下げる）
+            if !article.isRead {
+                let impressionPenalty = 1.0 / (1.0 + Double(article.impressionCount) * 0.15)
+                score *= impressionPenalty
+            }
+
             // 0〜1に正規化
             article.relevanceScore = min(max(score, 0), 1.0)
         }
