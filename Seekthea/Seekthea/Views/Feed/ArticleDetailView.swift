@@ -29,6 +29,7 @@ struct ArticleDetailView: View {
     @State private var viewMode: DetailViewMode = .reader
     @State private var loadingStage: String = "記事ページを取得中..."
     @State private var showFailureNotice = false
+    @State private var webPage = WebPage()
 
     var body: some View {
         contentView
@@ -91,8 +92,12 @@ struct ArticleDetailView: View {
                     .transition(.opacity)
                 #endif
             } else {
-                OriginalPageWebView(url: article.articleURL)
+                ArticleWebView(url: article.articleURL, page: webPage)
                     .ignoresSafeArea()
+                    .safeAreaInset(edge: .bottom) {
+                        WebNavBar(page: webPage)
+                            .padding(.bottom, 8)
+                    }
                     .transition(.opacity)
             }
         }
@@ -146,7 +151,11 @@ struct ArticleDetailView: View {
             case .aiSummary:
                 AISummaryView(article: article, isAIProcessing: isAIProcessing)
             case .web:
-                OriginalPageWebView(url: article.articleURL)
+                ArticleWebView(url: article.articleURL, page: webPage)
+                    .safeAreaInset(edge: .bottom) {
+                        WebNavBar(page: webPage)
+                            .padding(.bottom, 8)
+                    }
             }
         }
         .toolbar {
@@ -167,22 +176,30 @@ struct ArticleDetailView: View {
             article: article,
             extracted: extracted,
             isAIProcessing: isAIProcessing,
+            webPage: webPage,
             selection: $viewMode
         )
         .ignoresSafeArea()
         .safeAreaInset(edge: .bottom) {
-            HStack(spacing: 8) {
-                ForEach(DetailViewMode.allCases, id: \.self) { mode in
-                    DetailModeButton(
-                        mode: mode,
-                        isSelected: viewMode == mode,
-                        isProcessing: mode == .aiSummary && isAIProcessing
-                    ) {
-                        withAnimation { viewMode = mode }
+            VStack(spacing: 8) {
+                if viewMode == .web {
+                    WebNavBar(page: webPage)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                HStack(spacing: 8) {
+                    ForEach(DetailViewMode.allCases, id: \.self) { mode in
+                        DetailModeButton(
+                            mode: mode,
+                            isSelected: viewMode == mode,
+                            isProcessing: mode == .aiSummary && isAIProcessing
+                        ) {
+                            withAnimation { viewMode = mode }
+                        }
                     }
                 }
+                .padding(.vertical, 8)
             }
-            .padding(.vertical, 8)
+            .animation(.easeInOut(duration: 0.25), value: viewMode)
         }
     }
     #endif
@@ -571,6 +588,7 @@ private struct DetailPagingView: UIViewControllerRepresentable {
     let article: Article
     let extracted: ReadabilityExtractor.Article
     let isAIProcessing: Bool
+    let webPage: WebPage
     @Binding var selection: DetailViewMode
 
     func makeCoordinator() -> Coordinator {
@@ -620,11 +638,9 @@ private struct DetailPagingView: UIViewControllerRepresentable {
                 hc.safeAreaRegions = []
                 vc = hc
             case .web:
-                let webVC = UIViewController()
-                let webView = WKWebView()
-                webView.load(URLRequest(url: parent.article.articleURL))
-                webVC.view = webView
-                vc = webVC
+                let hc = UIHostingController(rootView: ArticleWebView(url: parent.article.articleURL, page: parent.webPage))
+                hc.safeAreaRegions = []
+                vc = hc
             }
             controllers[mode] = vc
             return vc
@@ -804,15 +820,6 @@ struct ReaderWebView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {}
 }
 
-struct OriginalPageWebView: NSViewRepresentable {
-    let url: URL
-    func makeNSView(context: Context) -> WKWebView {
-        let webView = WKWebView()
-        webView.load(URLRequest(url: url))
-        return webView
-    }
-    func updateNSView(_ webView: WKWebView, context: Context) {}
-}
 #else
 struct ReaderWebView: UIViewRepresentable {
     let html: String
@@ -826,20 +833,62 @@ struct ReaderWebView: UIViewRepresentable {
     }
     func updateUIView(_ webView: WKWebView, context: Context) {}
 }
-
-struct OriginalPageWebView: UIViewRepresentable {
-    let url: URL
-    func makeUIView(context: Context) -> WKWebView {
-        let webView = WKWebView()
-        webView.isOpaque = false
-        webView.backgroundColor = .systemBackground
-        webView.scrollView.backgroundColor = .systemBackground
-        webView.load(URLRequest(url: url))
-        return webView
-    }
-    func updateUIView(_ webView: WKWebView, context: Context) {}
-}
 #endif
+
+// MARK: - ArticleWebView（iOS 26/macOS 26 WebView + WebPage）
+
+struct ArticleWebView: View {
+    let url: URL
+    let page: WebPage
+
+    var body: some View {
+        WebView(page)
+            .task(id: url) {
+                if page.url != url {
+                    page.load(URLRequest(url: url))
+                }
+            }
+    }
+}
+
+// MARK: - WebNavBar（戻る・リロードの浮遊バー）
+
+struct WebNavBar: View {
+    let page: WebPage
+
+    var body: some View {
+        // URL変更を観測して再描画を促す（backForwardListだけでは追跡されない）
+        let _ = page.url
+        let _ = page.isLoading
+
+        HStack(spacing: 24) {
+            Button {
+                if let item = page.backForwardList.backList.last {
+                    page.load(item)
+                }
+            } label: {
+                Image(systemName: "chevron.backward")
+                    .font(.title3)
+            }
+            .disabled(page.backForwardList.backList.isEmpty)
+
+            Button {
+                if page.isLoading {
+                    page.stopLoading()
+                } else {
+                    page.reload()
+                }
+            } label: {
+                Image(systemName: page.isLoading ? "xmark" : "arrow.clockwise")
+                    .font(.title3)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .background(.regularMaterial, in: Capsule())
+        .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
+    }
+}
 
 // MARK: - FlowLayout
 
