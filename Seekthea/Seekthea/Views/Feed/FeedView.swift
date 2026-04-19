@@ -10,6 +10,27 @@ enum FeedMode: String, CaseIterable {
     case history = "閲覧履歴"
 }
 
+enum SourceFilter: Equatable {
+    case only(Source)
+    case excluding([Source])
+
+    var isExclude: Bool {
+        if case .excluding = self { return true }
+        return false
+    }
+
+    static func == (lhs: SourceFilter, rhs: SourceFilter) -> Bool {
+        switch (lhs, rhs) {
+        case (.only(let a), .only(let b)):
+            return a.id == b.id
+        case (.excluding(let a), .excluding(let b)):
+            return Set(a.map(\.id)) == Set(b.map(\.id))
+        default:
+            return false
+        }
+    }
+}
+
 // MARK: - UIKit横スワイプ検知
 
 #if os(iOS)
@@ -232,7 +253,7 @@ struct FeedView: View {
     @AppStorage("useCompactLayout") private var useCompactLayout = false
     @AppStorage("lastFeedRefreshedAt") private var lastFeedRefreshedAt: Double = 0
     @State private var hasNewSuggestions = false
-    @State private var sourceFilter: Source? = nil
+    @State private var sourceFilter: SourceFilter? = nil
     @State private var sessionReadIDs: Set<UUID> = []
     @State private var hasInitialRefreshed = false
     @Namespace private var zoomNamespace
@@ -316,10 +337,16 @@ struct FeedView: View {
     private func updateCachedData() {
         let activeFeedURLs = viewModel?.activeSourceFeedURLs() ?? []
 
-        let filterFeedURL = sourceFilter?.feedURL
         var modeFiltered = allArticles.filter { article in
             guard activeFeedURLs.contains(article.sourceFeedURL) else { return false }
-            if let filterFeedURL, article.sourceFeedURL != filterFeedURL { return false }
+            switch sourceFilter {
+            case .only(let s):
+                if article.sourceFeedURL != s.feedURL { return false }
+            case .excluding(let sources):
+                if sources.contains(where: { $0.feedURL == article.sourceFeedURL }) { return false }
+            case nil:
+                break
+            }
             switch feedMode {
             case .favorites:
                 return article.isFavorite
@@ -715,8 +742,8 @@ struct FeedView: View {
             CategoryFilterView(selectedCategory: $selectedCategory, totalCount: cachedModeArticles.count, categoryCounts: cachedCategoryCounts, categoryOrder: sortedCategories)
                 .padding(.vertical, 6)
 
-            if let source = sourceFilter {
-                sourceFilterChip(source)
+            if let filter = sourceFilter {
+                sourceFilterChip(filter)
                     .padding(.horizontal)
                     .padding(.bottom, 6)
             }
@@ -752,17 +779,38 @@ struct FeedView: View {
         }
 
         if let source = article.source {
-            if sourceFilter?.id == source.id {
+            if case .only(let s) = sourceFilter, s.id == source.id {
                 Button {
                     changeSourceFilter(to: nil)
                 } label: {
                     Label("フィルタを解除", systemImage: "xmark.circle")
                 }
+            } else if case .excluding(let sources) = sourceFilter,
+                      sources.contains(where: { $0.id == source.id }) {
+                Button {
+                    let remaining = sources.filter { $0.id != source.id }
+                    changeSourceFilter(to: remaining.isEmpty ? nil : .excluding(remaining))
+                } label: {
+                    Label("\(source.name) の除外を解除", systemImage: "xmark.circle")
+                }
             } else {
                 Button {
-                    changeSourceFilter(to: source)
+                    changeSourceFilter(to: .only(source))
                 } label: {
                     Label("\(source.name) だけ表示", systemImage: "line.3.horizontal.decrease.circle")
+                }
+                if case .excluding(let sources) = sourceFilter {
+                    Button {
+                        changeSourceFilter(to: .excluding(sources + [source]))
+                    } label: {
+                        Label("\(source.name) も除外", systemImage: "eye.slash")
+                    }
+                } else {
+                    Button {
+                        changeSourceFilter(to: .excluding([source]))
+                    } label: {
+                        Label("\(source.name) を除外", systemImage: "eye.slash")
+                    }
                 }
             }
         }
@@ -782,8 +830,8 @@ struct FeedView: View {
         }
     }
 
-    private func changeSourceFilter(to source: Source?) {
-        guard sourceFilter?.id != source?.id else { return }
+    private func changeSourceFilter(to newFilter: SourceFilter?) {
+        guard sourceFilter != newFilter else { return }
         #if os(iOS)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         #endif
@@ -791,7 +839,7 @@ struct FeedView: View {
             gridOpacity = 0
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-            sourceFilter = source
+            sourceFilter = newFilter
             withAnimation(.easeIn(duration: 0.15)) {
                 gridOpacity = 1
             }
@@ -799,25 +847,46 @@ struct FeedView: View {
     }
 
     private func clearStaleSourceFilter() {
-        guard let filter = sourceFilter else { return }
-        let filterID = filter.id
-        if !allSources.contains(where: { $0.id == filterID }) {
-            sourceFilter = nil
+        switch sourceFilter {
+        case .only(let s):
+            if !allSources.contains(where: { $0.id == s.id }) {
+                sourceFilter = nil
+            }
+        case .excluding(let sources):
+            let alive = sources.filter { s in allSources.contains(where: { $0.id == s.id }) }
+            if alive.isEmpty {
+                sourceFilter = nil
+            } else if alive.count != sources.count {
+                sourceFilter = .excluding(alive)
+            }
+        case nil:
+            break
         }
     }
 
-    private func sourceFilterChip(_ source: Source) -> some View {
+    private func sourceFilterChip(_ filter: SourceFilter) -> some View {
         HStack {
             Button {
                 changeSourceFilter(to: nil)
             } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
+                    Image(systemName: filter.isExclude ? "eye.slash" : "line.3.horizontal.decrease.circle")
                         .foregroundStyle(Color.accentColor)
-                    Text(source.name)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
+                    switch filter {
+                    case .only(let s):
+                        Text(s.name)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                    case .excluding(let sources):
+                        Text("除外: ")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text(excludeSummary(sources))
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                    }
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.secondary)
                 }
@@ -829,6 +898,13 @@ struct FeedView: View {
             .buttonStyle(.plain)
             Spacer()
         }
+    }
+
+    private func excludeSummary(_ sources: [Source]) -> String {
+        if sources.count <= 2 {
+            return sources.map(\.name).joined(separator: ", ")
+        }
+        return "\(sources[0].name) +\(sources.count - 1)"
     }
 
     private func statusCapsule(_ text: String) -> some View {
