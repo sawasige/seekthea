@@ -29,6 +29,8 @@ struct ArticleDetailView: View {
     @State private var viewMode: DetailViewMode = .reader
     @State private var loadingStage: String = "記事ページを取得中..."
     @State private var showFailureNotice = false
+    @State private var webPage = WebPage()
+    @State private var scrollState = ScrollState()
 
     var body: some View {
         contentView
@@ -91,8 +93,15 @@ struct ArticleDetailView: View {
                     .transition(.opacity)
                 #endif
             } else {
-                OriginalPageWebView(url: article.articleURL)
+                ArticleWebView(url: article.articleURL, page: webPage, scrollState: scrollState)
                     .ignoresSafeArea()
+                    .safeAreaInset(edge: .bottom) {
+                        if !scrollState.barsHidden {
+                            WebNavBar(page: webPage)
+                                .padding(.bottom, 8)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
                     .transition(.opacity)
             }
         }
@@ -146,7 +155,11 @@ struct ArticleDetailView: View {
             case .aiSummary:
                 AISummaryView(article: article, isAIProcessing: isAIProcessing)
             case .web:
-                OriginalPageWebView(url: article.articleURL)
+                ArticleWebView(url: article.articleURL, page: webPage, scrollState: scrollState)
+                    .safeAreaInset(edge: .bottom) {
+                        WebNavBar(page: webPage)
+                            .padding(.bottom, 8)
+                    }
             }
         }
         .toolbar {
@@ -167,22 +180,37 @@ struct ArticleDetailView: View {
             article: article,
             extracted: extracted,
             isAIProcessing: isAIProcessing,
+            webPage: webPage,
+            scrollState: scrollState,
             selection: $viewMode
         )
         .ignoresSafeArea()
         .safeAreaInset(edge: .bottom) {
-            HStack(spacing: 8) {
-                ForEach(DetailViewMode.allCases, id: \.self) { mode in
-                    DetailModeButton(
-                        mode: mode,
-                        isSelected: viewMode == mode,
-                        isProcessing: mode == .aiSummary && isAIProcessing
-                    ) {
-                        withAnimation { viewMode = mode }
+            if !scrollState.barsHidden {
+                VStack(spacing: 8) {
+                    if viewMode == .web {
+                        WebNavBar(page: webPage)
                     }
+                    HStack(spacing: 8) {
+                        ForEach(DetailViewMode.allCases, id: \.self) { mode in
+                            DetailModeButton(
+                                mode: mode,
+                                isSelected: viewMode == mode,
+                                isProcessing: mode == .aiSummary && isAIProcessing
+                            ) {
+                                withAnimation { viewMode = mode }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 8)
                 }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            .padding(.vertical, 8)
+        }
+        .onChange(of: viewMode) {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                scrollState.barsHidden = false
+            }
         }
     }
     #endif
@@ -288,15 +316,29 @@ private struct LoadingPreviewView: View {
 private struct AISummaryView: View {
     let article: Article
     var isAIProcessing: Bool
-    @State private var webViewStore = SummaryWebViewStore()
+    var scrollState: ScrollState? = nil
+    @State private var page = WebPage()
 
     var body: some View {
-        SummaryWebView(html: buildSummaryHTML(), store: webViewStore)
+        WebView(page)
+            .task {
+                page.load(html: buildSummaryHTML(), baseURL: URL(string: "about:blank")!)
+            }
             .onChange(of: article.summary) {
-                if let summary = article.summary, !summary.isEmpty {
-                    webViewStore.updateSummary(markdownToHTML(summary))
+                guard let summary = article.summary, !summary.isEmpty else { return }
+                let escaped = markdownToHTML(summary)
+                    .replacingOccurrences(of: "\\", with: "\\\\")
+                    .replacingOccurrences(of: "'", with: "\\'")
+                    .replacingOccurrences(of: "\n", with: "\\n")
+                Task {
+                    try? await page.callJavaScript("document.getElementById('summary').innerHTML = '\(escaped)';")
                 }
             }
+            #if !os(macOS)
+            .webViewOnScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { oldY, newY in
+                scrollState?.reportScroll(oldY: oldY, newY: newY)
+            }
+            #endif
     }
 
     private func buildSummaryHTML() -> String {
@@ -501,49 +543,6 @@ private struct AISummaryView: View {
     }
 }
 
-// MARK: - Summary WebView
-
-class SummaryWebViewStore {
-    var webView: WKWebView?
-
-    func updateSummary(_ html: String) {
-        let escaped = html
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
-            .replacingOccurrences(of: "\n", with: "\\n")
-        let js = "document.getElementById('summary').innerHTML = '\(escaped)';"
-        webView?.evaluateJavaScript(js)
-    }
-}
-
-#if os(macOS)
-private struct SummaryWebView: NSViewRepresentable {
-    let html: String
-    var store: SummaryWebViewStore?
-    func makeNSView(context: Context) -> WKWebView {
-        let webView = WKWebView()
-        webView.loadHTMLString(html, baseURL: nil)
-        store?.webView = webView
-        return webView
-    }
-    func updateNSView(_ webView: WKWebView, context: Context) {}
-}
-#else
-private struct SummaryWebView: UIViewRepresentable {
-    let html: String
-    var store: SummaryWebViewStore?
-    func makeUIView(context: Context) -> WKWebView {
-        let webView = WKWebView()
-        webView.isOpaque = false
-        webView.backgroundColor = .clear
-        webView.scrollView.backgroundColor = .clear
-        webView.loadHTMLString(html, baseURL: nil)
-        store?.webView = webView
-        return webView
-    }
-    func updateUIView(_ webView: WKWebView, context: Context) {}
-}
-#endif
 
 // MARK: - Shimmer
 
@@ -571,6 +570,8 @@ private struct DetailPagingView: UIViewControllerRepresentable {
     let article: Article
     let extracted: ReadabilityExtractor.Article
     let isAIProcessing: Bool
+    let webPage: WebPage
+    let scrollState: ScrollState
     @Binding var selection: DetailViewMode
 
     func makeCoordinator() -> Coordinator {
@@ -612,19 +613,11 @@ private struct DetailPagingView: UIViewControllerRepresentable {
             let vc: UIViewController
             switch mode {
             case .reader:
-                let hc = UIHostingController(rootView: ReaderView(article: parent.article, extracted: parent.extracted))
-                hc.safeAreaRegions = []
-                vc = hc
+                vc = UIHostingController(rootView: ReaderView(article: parent.article, extracted: parent.extracted, scrollState: parent.scrollState))
             case .aiSummary:
-                let hc = UIHostingController(rootView: AISummaryView(article: parent.article, isAIProcessing: parent.isAIProcessing))
-                hc.safeAreaRegions = []
-                vc = hc
+                vc = UIHostingController(rootView: AISummaryView(article: parent.article, isAIProcessing: parent.isAIProcessing, scrollState: parent.scrollState))
             case .web:
-                let webVC = UIViewController()
-                let webView = WKWebView()
-                webView.load(URLRequest(url: parent.article.articleURL))
-                webVC.view = webView
-                vc = webVC
+                vc = UIHostingController(rootView: ArticleWebView(url: parent.article.articleURL, page: parent.webPage, scrollState: parent.scrollState))
             }
             controllers[mode] = vc
             return vc
@@ -699,9 +692,19 @@ private struct DetailModeButton: View {
 private struct ReaderView: View {
     let article: Article
     let extracted: ReadabilityExtractor.Article
+    var scrollState: ScrollState? = nil
+    @State private var page = WebPage()
 
     var body: some View {
-        ReaderWebView(html: buildReaderHTML())
+        WebView(page)
+            .task {
+                page.load(html: buildReaderHTML(), baseURL: URL(string: "about:blank")!)
+            }
+            #if !os(macOS)
+            .webViewOnScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { oldY, newY in
+                scrollState?.reportScroll(oldY: oldY, newY: newY)
+            }
+            #endif
     }
 
     private func buildReaderHTML() -> String {
@@ -791,55 +794,81 @@ private struct ReaderView: View {
     }
 }
 
-// MARK: - Reader WebView
+// MARK: - ScrollState（Safari風バーの表示状態）
 
-#if os(macOS)
-struct ReaderWebView: NSViewRepresentable {
-    let html: String
-    func makeNSView(context: Context) -> WKWebView {
-        let webView = WKWebView()
-        webView.loadHTMLString(html, baseURL: nil)
-        return webView
+@Observable
+final class ScrollState {
+    var barsHidden: Bool = false
+
+    func reportScroll(oldY: CGFloat, newY: CGFloat) {
+        let delta = newY - oldY
+        guard abs(delta) > 10, newY > 50 else { return }
+        withAnimation(.easeInOut(duration: 0.25)) {
+            barsHidden = delta > 0
+        }
     }
-    func updateNSView(_ webView: WKWebView, context: Context) {}
 }
 
-struct OriginalPageWebView: NSViewRepresentable {
+// MARK: - ArticleWebView（iOS 26/macOS 26 WebView + WebPage）
+
+struct ArticleWebView: View {
     let url: URL
-    func makeNSView(context: Context) -> WKWebView {
-        let webView = WKWebView()
-        webView.load(URLRequest(url: url))
-        return webView
+    let page: WebPage
+    let scrollState: ScrollState
+
+    var body: some View {
+        WebView(page)
+            .task(id: url) {
+                if page.url != url {
+                    page.load(URLRequest(url: url))
+                }
+            }
+            #if !os(macOS)
+            .webViewOnScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { oldY, newY in
+                scrollState.reportScroll(oldY: oldY, newY: newY)
+            }
+            #endif
     }
-    func updateNSView(_ webView: WKWebView, context: Context) {}
-}
-#else
-struct ReaderWebView: UIViewRepresentable {
-    let html: String
-    func makeUIView(context: Context) -> WKWebView {
-        let webView = WKWebView()
-        webView.isOpaque = false
-        webView.backgroundColor = .clear
-        webView.scrollView.backgroundColor = .clear
-        webView.loadHTMLString(html, baseURL: nil)
-        return webView
-    }
-    func updateUIView(_ webView: WKWebView, context: Context) {}
 }
 
-struct OriginalPageWebView: UIViewRepresentable {
-    let url: URL
-    func makeUIView(context: Context) -> WKWebView {
-        let webView = WKWebView()
-        webView.isOpaque = false
-        webView.backgroundColor = .systemBackground
-        webView.scrollView.backgroundColor = .systemBackground
-        webView.load(URLRequest(url: url))
-        return webView
+// MARK: - WebNavBar（戻る・リロードの浮遊バー）
+
+struct WebNavBar: View {
+    let page: WebPage
+
+    var body: some View {
+        // URL変更を観測して再描画を促す（backForwardListだけでは追跡されない）
+        let _ = page.url
+        let _ = page.isLoading
+
+        HStack(spacing: 24) {
+            Button {
+                if let item = page.backForwardList.backList.last {
+                    page.load(item)
+                }
+            } label: {
+                Image(systemName: "chevron.backward")
+                    .font(.title3)
+            }
+            .disabled(page.backForwardList.backList.isEmpty)
+
+            Button {
+                if page.isLoading {
+                    page.stopLoading()
+                } else {
+                    page.reload()
+                }
+            } label: {
+                Image(systemName: page.isLoading ? "xmark" : "arrow.clockwise")
+                    .font(.title3)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .background(.regularMaterial, in: Capsule())
+        .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
     }
-    func updateUIView(_ webView: WKWebView, context: Context) {}
 }
-#endif
 
 // MARK: - FlowLayout
 
