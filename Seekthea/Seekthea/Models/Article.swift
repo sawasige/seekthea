@@ -77,6 +77,11 @@ class Article {
         return cat.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 
+    /// 分類処理を試みたが分類できなかった
+    var classificationFailed: Bool {
+        aiCategory == ""
+    }
+
     var displayImageURL: URL? {
         imageURL ?? ogImageURL
     }

@@ -171,8 +171,8 @@ class AIProcessor {
                 try? context.save()
                 onArticleClassified?()
             } catch {
-                // 失敗時はスキップ（aiCategoryをマーク して無限ループ防止）
-                article.aiCategory = article.source?.category ?? ""
+                // 失敗時は空文字をマークして無限ループ防止（"未分類"扱い）
+                article.aiCategory = ""
                 try? context.save()
             }
         }
@@ -180,15 +180,67 @@ class AIProcessor {
     }
 
     private func applyFallback(article: Article) {
-        // 抽出本文の冒頭を要約代わりに使用
+        // 抽出本文の冒頭を要約代わりに使用（要約のみ、カテゴリはフォールバックしない）
         if let body = article.extractedBody, !body.isEmpty {
             article.summary = String(body.prefix(200))
         } else if let ogDesc = article.ogDescription, !ogDesc.isEmpty {
             article.summary = ogDesc
         }
-        if let source = article.source {
-            article.aiCategory = source.category
-        }
         article.isAIProcessed = true
+    }
+
+    /// 記事のAI処理結果をリセットして要約・分類を再生成
+    func reprocess(articleID: PersistentIdentifier) async {
+        let context = modelContainer.mainContext
+        guard let article = context.model(for: articleID) as? Article else { return }
+        article.summary = nil
+        article.aiCategory = nil
+        article.keywordsRaw = ""
+        article.keywordsEnRaw = ""
+        article.isAIProcessed = false
+        try? context.save()
+        await analyze(articleID: articleID)
+        await classifyArticle(articleID: articleID)
+    }
+
+    /// 単一記事の分類（再処理用）
+    private func classifyArticle(articleID: PersistentIdentifier) async {
+        let context = modelContainer.mainContext
+        guard let article = context.model(for: articleID) as? Article else { return }
+
+        #if canImport(FoundationModels)
+        let catList = labeledCategoryList
+        let desc = article.leadText ?? article.ogDescription ?? ""
+        let truncated = desc.isEmpty ? "" : "\n内容: \(String(desc.prefix(200)))"
+
+        do {
+            let session = LanguageModelSession()
+            let prompt = """
+            以下の記事を分類し、キーワードを抽出してください。
+
+            カテゴリ一覧:
+            \(catList)
+
+            記事タイトル: \(article.title)\(truncated)
+
+            - category: 最も適切なカテゴリのアルファベットを1つだけ
+            - keywords: 記事の重要キーワードを日本語で最大5つ
+            - keywordsEn: keywordsと同じ順序で各キーワードを英語1単語に翻訳
+            """
+            let response = try await session.respond(to: prompt, generating: CategoryResult.self)
+            let result = response.content
+            if let name = categoryName(from: result.category) {
+                article.aiCategory = name
+            } else {
+                article.aiCategory = ""
+            }
+            article.keywords = result.keywords
+            article.keywordsEn = result.keywordsEn
+            try? context.save()
+        } catch {
+            article.aiCategory = ""
+            try? context.save()
+        }
+        #endif
     }
 }
