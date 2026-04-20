@@ -83,17 +83,18 @@ class AIProcessor {
         #endif
     }
 
-    /// 記事を分析（要約・カテゴリ分類・キーワード抽出）
+    /// 記事を要約してメモリキャッシュに保存（永続化しない）
     func analyze(articleID: PersistentIdentifier) async {
         let context = modelContainer.mainContext
-        guard let article = context.model(for: articleID) as? Article,
-              !article.isAIProcessed else { return }
+        guard let article = context.model(for: articleID) as? Article else { return }
+        let articleId = article.id
+
+        // 既にキャッシュにあればスキップ
+        if AISummaryCache.shared.get(articleId) != nil { return }
 
         #if canImport(FoundationModels)
         do {
             let session = LanguageModelSession()
-
-            // 1. 要約を自由文で生成（Guided Generationなし）
             let summaryPrompt = """
             あなたはニュース記者です。以下の記事を書き直してください。元の記事の内容を忠実に、しかし簡潔に伝える記事を書いてください。
 
@@ -109,19 +110,16 @@ class AIProcessor {
             """
 
             let summaryResponse = try await session.respond(to: summaryPrompt)
+            if Task.isCancelled { return }
             let summary = summaryResponse.content.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            article.summary = summary
-            article.isAIProcessed = true
-            try? context.save()
+            AISummaryCache.shared.set(summary, for: articleId)
         } catch {
+            if Task.isCancelled { return }
             print("[AI] Failed: \(article.title) - \(error)")
             applyFallback(article: article)
-            try? context.save()
         }
         #else
         applyFallback(article: article)
-        try? context.save()
         #endif
     }
 
@@ -202,24 +200,28 @@ class AIProcessor {
     }
 
     private func applyFallback(article: Article) {
-        // 抽出本文の冒頭を要約代わりに使用（要約のみ、カテゴリはフォールバックしない）
+        // 要約失敗時は抽出本文/ogDescriptionの冒頭をキャッシュに保存
+        let fallback: String?
         if let body = article.extractedBody, !body.isEmpty {
-            article.summary = String(body.prefix(200))
+            fallback = String(body.prefix(200))
         } else if let ogDesc = article.ogDescription, !ogDesc.isEmpty {
-            article.summary = ogDesc
+            fallback = ogDesc
+        } else {
+            fallback = nil
         }
-        article.isAIProcessed = true
+        if let fallback {
+            AISummaryCache.shared.set(fallback, for: article.id)
+        }
     }
 
     /// 記事のAI処理結果をリセットして要約・分類を再生成
     func reprocess(articleID: PersistentIdentifier) async {
         let context = modelContainer.mainContext
         guard let article = context.model(for: articleID) as? Article else { return }
-        article.summary = nil
+        AISummaryCache.shared.remove(article.id)
         article.aiCategory = nil
         article.keywordsRaw = ""
         article.keywordsEnRaw = ""
-        article.isAIProcessed = false
         try? context.save()
         await analyze(articleID: articleID)
         await classifyArticle(articleID: articleID)

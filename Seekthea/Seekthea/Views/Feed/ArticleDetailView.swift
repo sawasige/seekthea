@@ -25,7 +25,6 @@ struct ArticleDetailView: View {
     let article: Article
     @State private var extractedArticle: ReadabilityExtractor.Article?
     @State private var isLoading = true
-    @State private var isAIProcessing = false
     @State private var viewMode: DetailViewMode = .reader
     @State private var loadingStage: String = "記事ページを取得中..."
     @State private var showFailureNotice = false
@@ -180,7 +179,7 @@ struct ArticleDetailView: View {
             case .reader:
                 ReaderView(article: article, extracted: extracted)
             case .aiSummary:
-                AISummaryView(article: article, isAIProcessing: isAIProcessing)
+                AISummaryView(article: article)
             case .web:
                 ArticleWebView(url: article.articleURL, page: webPage, scrollState: scrollState)
                     .safeAreaInset(edge: .bottom) {
@@ -206,7 +205,6 @@ struct ArticleDetailView: View {
         DetailPagingView(
             article: article,
             extracted: extracted,
-            isAIProcessing: isAIProcessing,
             webPage: webPage,
             scrollState: scrollState,
             selection: $viewMode
@@ -223,7 +221,7 @@ struct ArticleDetailView: View {
                             DetailModeButton(
                                 mode: mode,
                                 isSelected: viewMode == mode,
-                                isProcessing: mode == .aiSummary && isAIProcessing
+                                isProcessing: mode == .aiSummary && AIProgressTracker.shared.isProcessing(article.id)
                             ) {
                                 withAnimation { viewMode = mode }
                             }
@@ -250,15 +248,20 @@ struct ArticleDetailView: View {
     }
 
     private func reprocessAI() async {
-        isAIProcessing = true
+        let aid = article.id
+        guard !AIProgressTracker.shared.isProcessing(aid) else { return }
         let container = modelContext.container
         let articleID = article.persistentModelID
         if let extracted = extractedArticle {
             article.extractedBody = extracted.textContent
         }
-        let processor = AIProcessor(modelContainer: container)
-        await processor.reprocess(articleID: articleID)
-        isAIProcessing = false
+        let task = Task.detached { @MainActor in
+            defer { AIProgressTracker.shared.finish(aid) }
+            let processor = AIProcessor(modelContainer: container)
+            await processor.reprocess(articleID: articleID)
+        }
+        AIProgressTracker.shared.start(aid, task: task)
+        await task.value
     }
 
     private func loadContent() async {
@@ -286,17 +289,19 @@ struct ArticleDetailView: View {
             viewMode = .reader
         }
 
-        // 全文が取れたらAI要約を実行
-        if let extracted, !article.isAIProcessed {
+        // 全文が取れたらAI要約を実行（キャッシュにない & 処理中でない場合）
+        if let extracted, AISummaryCache.shared.get(article.id) == nil,
+           !AIProgressTracker.shared.isProcessing(article.id) {
             article.extractedBody = extracted.textContent
-            isAIProcessing = true
             let container = modelContext.container
             let articleID = article.persistentModelID
-            Task.detached { @MainActor in
+            let aid = article.id
+            let task = Task.detached { @MainActor in
+                defer { AIProgressTracker.shared.finish(aid) }
                 let processor = AIProcessor(modelContainer: container)
                 await processor.analyze(articleID: articleID)
-                isAIProcessing = false
             }
+            AIProgressTracker.shared.start(aid, task: task)
         }
     }
 }
@@ -359,17 +364,24 @@ private struct LoadingPreviewView: View {
 
 private struct AISummaryView: View {
     let article: Article
-    var isAIProcessing: Bool
     var scrollState: ScrollState? = nil
     @State private var page = WebPage()
+
+    private var isAIProcessing: Bool {
+        AIProgressTracker.shared.isProcessing(article.id)
+    }
+
+    private var summary: String? {
+        AISummaryCache.shared.get(article.id)
+    }
 
     var body: some View {
         WebView(page)
             .task {
                 page.load(html: buildSummaryHTML(), baseURL: URL(string: "about:blank")!)
             }
-            .onChange(of: article.summary) {
-                guard let summary = article.summary, !summary.isEmpty else { return }
+            .onChange(of: summary) {
+                guard let summary, !summary.isEmpty else { return }
                 let escaped = markdownToHTML(summary)
                     .replacingOccurrences(of: "\\", with: "\\\\")
                     .replacingOccurrences(of: "'", with: "\\'")
@@ -386,7 +398,7 @@ private struct AISummaryView: View {
     }
 
     private func buildSummaryHTML() -> String {
-        let summary = article.summary ?? ""
+        let summary = self.summary ?? ""
         let title = escapeHTML(article.title)
         let sourceName = escapeHTML(article.source?.name ?? "")
         let dateStr = article.publishedAt.map {
@@ -613,7 +625,6 @@ private struct ShimmerView: View {
 private struct DetailPagingView: UIViewControllerRepresentable {
     let article: Article
     let extracted: ReadabilityExtractor.Article
-    let isAIProcessing: Bool
     let webPage: WebPage
     let scrollState: ScrollState
     @Binding var selection: DetailViewMode
@@ -659,7 +670,7 @@ private struct DetailPagingView: UIViewControllerRepresentable {
             case .reader:
                 vc = UIHostingController(rootView: ReaderView(article: parent.article, extracted: parent.extracted, scrollState: parent.scrollState))
             case .aiSummary:
-                vc = UIHostingController(rootView: AISummaryView(article: parent.article, isAIProcessing: parent.isAIProcessing, scrollState: parent.scrollState))
+                vc = UIHostingController(rootView: AISummaryView(article: parent.article, scrollState: parent.scrollState))
             case .web:
                 vc = UIHostingController(rootView: ArticleWebView(url: parent.article.articleURL, page: parent.webPage, scrollState: parent.scrollState))
             }

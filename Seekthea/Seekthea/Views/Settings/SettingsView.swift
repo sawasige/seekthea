@@ -131,6 +131,7 @@ struct SettingsView: View {
         PresetOGImageCache.clear()
         PendingSourcesStore.clear()
         ReaderCache.shared.clear()
+        AISummaryCache.shared.clear()
 
         // 標準UserDefaultsのアプリ設定を一括削除
         // (将来@AppStorageキーが追加されても自動的にカバーされる)

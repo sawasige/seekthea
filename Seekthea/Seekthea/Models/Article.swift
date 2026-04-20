@@ -20,12 +20,11 @@ class Article: Identifiable {
     // 本文抽出（AI処理の入力用、永続化しない）
     @Transient var extractedBody: String? = nil
 
-    // AI処理結果
-    var summary: String? = nil
+    // AI処理結果（カテゴリ・キーワードはスコアリングで使うため永続化）
+    // 要約はメモリキャッシュ（AISummaryCache）のみ、永続化しない
     var aiCategory: String? = nil
     var keywordsRaw: String = ""
     var keywordsEnRaw: String = ""
-    var isAIProcessed: Bool = false
 
     // パーソナライズ
     var relevanceScore: Double = 0  // 興味スコア（0〜1）
@@ -86,11 +85,7 @@ class Article: Identifiable {
         imageURL ?? ogImageURL
     }
 
-    var displayDescription: String? {
-        summary ?? ogDescription ?? leadText
-    }
-
-    /// カード用（AI要約を含まない軽量な説明文）
+    /// カード用の説明文
     var cardDescription: String? {
         ogDescription ?? leadText
     }
