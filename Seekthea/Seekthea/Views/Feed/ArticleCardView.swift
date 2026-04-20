@@ -78,6 +78,10 @@ struct ArticleCardView: View {
                                 .foregroundStyle(Color.accentColor)
                         }
                     }
+                } else if article.classificationFailed {
+                    Text("未分類")
+                        .font(badgeFont)
+                        .foregroundStyle(.tertiary)
                 }
             }
             .padding(12)

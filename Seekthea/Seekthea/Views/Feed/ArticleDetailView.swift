@@ -58,12 +58,20 @@ struct ArticleDetailView: View {
                         .foregroundStyle(article.isFavorite ? .yellow : .secondary)
                 }
 
-                Link(destination: article.articleURL) {
-                    Image(systemName: "safari")
-                }
-
-                ShareLink(item: article.articleURL) {
-                    Image(systemName: "square.and.arrow.up")
+                Menu {
+                    Link(destination: article.articleURL) {
+                        Label("ブラウザで開く", systemImage: "safari")
+                    }
+                    ShareLink(item: article.articleURL) {
+                        Label("共有", systemImage: "square.and.arrow.up")
+                    }
+                    Button {
+                        Task { await reprocessAI() }
+                    } label: {
+                        Label("AI処理を再実行", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
                 }
             }
         }
@@ -220,6 +228,18 @@ struct ArticleDetailView: View {
         loadingStage = "記事ページを取得中..."
         isLoading = true
         await loadContent()
+    }
+
+    private func reprocessAI() async {
+        isAIProcessing = true
+        let container = modelContext.container
+        let articleID = article.persistentModelID
+        if let extracted = extractedArticle {
+            article.extractedBody = extracted.textContent
+        }
+        let processor = AIProcessor(modelContainer: container)
+        await processor.reprocess(articleID: articleID)
+        isAIProcessing = false
     }
 
     private func loadContent() async {

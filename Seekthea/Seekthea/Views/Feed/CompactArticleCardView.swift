@@ -58,6 +58,10 @@ struct CompactArticleCardView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                } else if article.classificationFailed {
+                    Text("未分類")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
             }
             .padding(8)
