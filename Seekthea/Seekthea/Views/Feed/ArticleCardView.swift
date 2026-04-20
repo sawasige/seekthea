@@ -94,10 +94,12 @@ struct ArticleCardView: View {
         .opacity(article.isRead ? 0.6 : 1.0)
         .overlay(alignment: .topTrailing) {
             if article.isRead {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.white, Color.accentColor)
-                    .shadow(radius: 2)
+                Text("既読")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(.ultraThinMaterial, in: Capsule())
                     .padding(8)
             }
         }
