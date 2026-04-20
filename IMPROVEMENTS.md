@@ -201,10 +201,23 @@
   - **副次的影響**: 明示的興味の相対的な影響力が約半分に下がる（Slider 1.0 が学習 max の 2倍から 1.0倍に）。スコア全体も若干下がる
   - **未解決の関連課題**: スコア全体が常時10%前後で低いという指摘が残る（正規化式 `x/(x+2)` が厳しすぎる可能性）
 
-### 14. 記事クリーンアップの実行保証
-- **領域**: Lifecycle / 観点: わかりづらい
-- **症状**: 24時間以上未起動だと走らない、説明文と実装に乖離
+### 14. 記事クリーンアップの実行保証 + ステータス表示統一
+- **領域**: Lifecycle / 観点: わかりづらい + 設計
+- **症状**:
+  - 24時間throttleのせいで長時間フォアグラウンド利用中にクリーンアップが走らない
+  - `ArticleCleanupService`独自の`statusMessage`がfetchAll実行中の`feedStatus`と理論上重なって、直列処理なのに複数ステータスが並ぶ設計不整合
 - **方向性**: 説明文を実態に合わせる、もしくはBGAppRefreshTaskで保証
+- **対応**: ✅ 完了（PR #55 + #56, 2026-04-20）
+  - **実行保証 (PR #55)**:
+    - `runIfDue` と `lastRunAt` UserDefaults を廃止、`run` に一本化、throttleなし
+    - `FeedFetcher.fetchAll` 末尾で毎回 `await cleanup.run` を呼ぶ
+    - `SeektheaApp` のscenePhase activeでも直接runを呼ぶ
+  - **ステータス表示統一 (PR #56)**:
+    - `ArticleCleanupService.statusMessage` (@Observable) を廃止、`onProgress` コールバック方式に変更
+    - `FeedFetcher.fetchAll` が自分の `onProgress` をそのままcleanupに流す → refresh時は同じ status channel で表示一本化
+    - 直列フロー: 「取得中... → 削除中... → スコア計算中...」と順番に切り替わる（stackしない）
+    - 並列（discovery等）: 別source維持で引き続きstack表示
+    - `FeedView`のoverlayから`cleanupStatus`行を撤去
 
 ### 15. オンボーディング再発火リスク
 - **領域**: Lifecycle / 観点: 使いづらい
