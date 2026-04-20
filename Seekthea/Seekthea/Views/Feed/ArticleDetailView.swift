@@ -29,6 +29,7 @@ struct ArticleDetailView: View {
     @State private var viewMode: DetailViewMode = .reader
     @State private var loadingStage: String = "記事ページを取得中..."
     @State private var showFailureNotice = false
+    @State private var showScoreBreakdown = false
     @State private var webPage = WebPage()
     @State private var scrollState = ScrollState()
 
@@ -70,6 +71,11 @@ struct ArticleDetailView: View {
                     } label: {
                         Label("AI処理を再実行", systemImage: "arrow.triangle.2.circlepath")
                     }
+                    Button {
+                        showScoreBreakdown = true
+                    } label: {
+                        Label("スコアの内訳", systemImage: "chart.bar.doc.horizontal")
+                    }
                 } label: {
                     Image(systemName: "ellipsis")
                 }
@@ -77,6 +83,9 @@ struct ArticleDetailView: View {
         }
         .task {
             await loadContent()
+        }
+        .sheet(isPresented: $showScoreBreakdown) {
+            ScoreBreakdownView(article: article, modelContainer: modelContext.container)
         }
         .onAppear {
             if !article.isRead {
