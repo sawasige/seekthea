@@ -2,6 +2,22 @@ import Foundation
 import SwiftData
 import NaturalLanguage
 
+/// スコアの内訳を表す構造体
+struct ScoreBreakdown {
+    var totalScore: Double = 0
+    var keywordRawScore: Double = 0
+    var keywordScore: Double = 0  // 正規化後
+    var matchedTopics: [(topic: String, weight: Double, multiplier: Double, matchType: String, contribution: Double)] = []
+    var semanticRawScore: Double = 0
+    var semanticScore: Double = 0  // 正規化後
+    var semanticMatches: [(interestKeyword: String, articleKeyword: String, weight: Double, similarity: Double, contribution: Double)] = []
+    var recencyBonus: Double = 1.0
+    var impressionPenalty: Double = 1.0
+    var impressionCount: Int = 0
+    var keywordWeight: Double = 0.4
+    var semanticWeight: Double = 0.6
+}
+
 /// ユーザーの興味に基づいて記事をスコアリングする
 @MainActor
 class InterestEngine {
@@ -39,10 +55,9 @@ class InterestEngine {
         for article in articles {
             let keywordScore = computeKeywordScore(article: article, topics: allTopics)
             let semanticScore = computeSemanticScore(article: article, interestEnKeywords: interestEnKeywords, wordEmbedding: wordEmbedding)
-            let categoryScore = computeCategoryScore(article: article, context: context)
 
-            // 各スコアを重み付き合算
-            var score = keywordScore * 0.3 + semanticScore * 0.4 + categoryScore * 0.3
+            // 各スコアを重み付き合算（カテゴリスコアはAI分類の信頼性問題で廃止）
+            var score = keywordScore * 0.4 + semanticScore * 0.6
 
 
             // 新しい記事にボーナス（24時間以内）
@@ -61,6 +76,94 @@ class InterestEngine {
         }
 
         try? context.save()
+    }
+
+    /// 1記事のスコア内訳を返す（UI説明用、リアルタイム計算）
+    func explainScore(for article: Article) -> ScoreBreakdown {
+        let context = modelContainer.mainContext
+        var breakdown = ScoreBreakdown()
+
+        // トピック収集
+        let interests = (try? context.fetch(FetchDescriptor<UserInterest>())) ?? []
+        let interestTopics = Dictionary(uniqueKeysWithValues: interests.map { ($0.topic.lowercased(), $0.weight) })
+        let learnedTopics = learnFromHistory(context: context)
+        var allTopics = learnedTopics
+        for (topic, weight) in interestTopics {
+            allTopics[topic] = (allTopics[topic] ?? 0) + weight * 2
+        }
+
+        // キーワードスコア
+        let titleLower = article.title.lowercased()
+        let articleKeywords = article.keywords.map { $0.lowercased() }
+        var rawKeyword = 0.0
+        for (topic, weight) in allTopics {
+            if titleLower.contains(topic) {
+                let contribution = weight * 3.0
+                rawKeyword += contribution
+                breakdown.matchedTopics.append((topic, weight, 3.0, "タイトル", contribution))
+            } else if articleKeywords.contains(where: { $0.contains(topic) || topic.contains($0) }) {
+                let contribution = weight * 2.0
+                rawKeyword += contribution
+                breakdown.matchedTopics.append((topic, weight, 2.0, "キーワード", contribution))
+            }
+        }
+        breakdown.keywordRawScore = rawKeyword
+        breakdown.keywordScore = min(rawKeyword / (rawKeyword + 2.0), 1.0)
+        breakdown.matchedTopics.sort { $0.contribution > $1.contribution }
+
+        // セマンティックスコア（記事キーワードごとに最も近い興味を1つだけ採用、重複排除）
+        let interestEnKeywords = buildEnglishInterestKeywords(context: context)
+        let articleEnKeywords = article.keywordsEn.map { $0.lowercased() }
+        var rawSemantic = 0.0
+        if let emb = NLEmbedding.wordEmbedding(for: .english), !articleEnKeywords.isEmpty {
+            for articleKw in articleEnKeywords {
+                var bestSim = 0.0
+                var bestInterest: String? = nil
+                var bestWeight = 0.0
+                for (interest, weight) in interestEnKeywords {
+                    let sim: Double
+                    if interest == articleKw {
+                        sim = 1.0
+                    } else {
+                        let distance = emb.distance(between: interest, and: articleKw)
+                        sim = max(0, 1.0 - distance / 2.0)
+                    }
+                    if sim > bestSim {
+                        bestSim = sim
+                        bestInterest = interest
+                        bestWeight = weight
+                    }
+                }
+                if bestSim > 0.5, let interest = bestInterest {
+                    let contribution = bestWeight * bestSim
+                    rawSemantic += contribution
+                    breakdown.semanticMatches.append((interest, articleKw, bestWeight, bestSim, contribution))
+                }
+            }
+        }
+        breakdown.semanticRawScore = rawSemantic
+        breakdown.semanticScore = min(rawSemantic / (rawSemantic + 1.5), 1.0)
+        breakdown.semanticMatches.sort { $0.similarity > $1.similarity }
+
+        // 合計
+        var total = breakdown.keywordScore * breakdown.keywordWeight
+            + breakdown.semanticScore * breakdown.semanticWeight
+
+        // 新着ボーナス
+        if let pub = article.publishedAt, pub > Date().addingTimeInterval(-86400) {
+            breakdown.recencyBonus = 1.2
+            total *= 1.2
+        }
+
+        // 表示回数ペナルティ
+        if !article.isRead {
+            breakdown.impressionCount = article.impressionCount
+            breakdown.impressionPenalty = 1.0 / (1.0 + Double(article.impressionCount) * 0.15)
+            total *= breakdown.impressionPenalty
+        }
+
+        breakdown.totalScore = min(max(total, 0), 1.0)
+        return breakdown
     }
 
     // MARK: - キーワードベーススコア（日本語文字列マッチ）
@@ -130,59 +233,30 @@ class InterestEngine {
         let articleEnKeywords = article.keywordsEn.map { $0.lowercased() }
         guard !articleEnKeywords.isEmpty else { return 0 }
 
+        // 各記事キーワードに対して最も近い興味キーワードを1つだけ採用（重複排除）
         var score = 0.0
-        for (interest, weight) in interestEnKeywords {
-            // 各興味キーワードに対して最も近い記事キーワードの類似度を取得
+        for articleKw in articleEnKeywords {
             var bestSim = 0.0
-            for articleKw in articleEnKeywords {
+            var bestWeight = 0.0
+            for (interest, weight) in interestEnKeywords {
+                let sim: Double
                 if interest == articleKw {
-                    bestSim = 1.0
-                    break
+                    sim = 1.0
+                } else {
+                    let distance = emb.distance(between: interest, and: articleKw)
+                    sim = max(0, 1.0 - distance / 2.0)
                 }
-                let distance = emb.distance(between: interest, and: articleKw)
-                let sim = max(0, 1.0 - distance / 2.0)
-                bestSim = max(bestSim, sim)
+                if sim > bestSim {
+                    bestSim = sim
+                    bestWeight = weight
+                }
             }
             if bestSim > 0.5 {
-                score += weight * bestSim
+                score += bestWeight * bestSim
             }
         }
 
         return min(score / (score + 1.5), 1.0)
-    }
-
-    // MARK: - カテゴリ読了率スコア
-
-    private var categoryReadRateCache: [String: Double]?
-
-    private func computeCategoryScore(article: Article, context: ModelContext) -> Double {
-        if categoryReadRateCache == nil {
-            categoryReadRateCache = buildCategoryReadRates(context: context)
-        }
-        guard let rates = categoryReadRateCache,
-              let cat = article.aiCategory else { return 0 }
-        return rates[cat] ?? 0
-    }
-
-    private func buildCategoryReadRates(context: ModelContext) -> [String: Double] {
-        let articles = (try? context.fetch(FetchDescriptor<Article>())) ?? []
-        var totalByCategory: [String: Int] = [:]
-        var readByCategory: [String: Int] = [:]
-
-        for article in articles {
-            for cat in article.categories {
-                totalByCategory[cat, default: 0] += 1
-                if article.isRead {
-                    readByCategory[cat, default: 0] += 1
-                }
-            }
-        }
-
-        var rates: [String: Double] = [:]
-        for (cat, total) in totalByCategory where total >= 3 {
-            rates[cat] = Double(readByCategory[cat] ?? 0) / Double(total)
-        }
-        return rates
     }
 
     // MARK: - 行動から興味を学習
