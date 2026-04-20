@@ -124,6 +124,10 @@ struct SourcesListView: View {
                 viewModel = SourcesViewModel(modelContainer: modelContainer)
             }
         }
+        .onChange(of: sources.count) {
+            // プレビュー画面など別経路で追加/削除されたら一覧の登録状態キャッシュを更新
+            viewModel?.refreshRegisteredURLs()
+        }
     }
 
     // MARK: - 手動追加ソース行
@@ -178,6 +182,9 @@ struct SourcesListView: View {
             if isAdded {
                 Button {
                     viewModel?.removePresetSource(preset)
+                    #if os(iOS)
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    #endif
                 } label: {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.white, .green)
@@ -187,6 +194,9 @@ struct SourcesListView: View {
             } else {
                 Button {
                     viewModel?.addPresetSource(preset)
+                    #if os(iOS)
+                    UISelectionFeedbackGenerator().selectionChanged()
+                    #endif
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .foregroundStyle(.white, Color.accentColor)

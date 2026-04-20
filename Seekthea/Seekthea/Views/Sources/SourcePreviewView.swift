@@ -133,10 +133,19 @@ struct SourcePreviewView: View {
         switch mode {
         case .preset(let preset):
             if isRegistered {
-                Text("追加済み").foregroundStyle(.secondary)
+                Button("削除", role: .destructive) {
+                    viewModel?.removePresetSource(preset)
+                    #if os(iOS)
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    #endif
+                    dismiss()
+                }
             } else {
                 Button("追加") {
                     viewModel?.addPresetSource(preset)
+                    #if os(iOS)
+                    UISelectionFeedbackGenerator().selectionChanged()
+                    #endif
                     dismiss()
                 }
             }

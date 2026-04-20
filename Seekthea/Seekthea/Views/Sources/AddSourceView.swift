@@ -9,6 +9,18 @@ struct AddSourceView: View {
 
     let modelContainer: ModelContainer
 
+    private var trimmedURL: String {
+        urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var isValidURL: Bool {
+        guard let url = URL(string: trimmedURL),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              url.host() != nil else { return false }
+        return true
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -19,19 +31,23 @@ struct AddSourceView: View {
                         .textInputAutocapitalization(.never)
                         #endif
                         .autocorrectionDisabled()
+                        .onChange(of: urlString) {
+                            viewModel?.addingError = nil
+                        }
                 }
 
                 if let error = viewModel?.addingError {
                     Section {
                         Text(error)
                             .foregroundStyle(.red)
+                            .font(.callout)
                     }
                 }
 
                 Section {
                     Button {
                         Task {
-                            guard let url = URL(string: urlString) else { return }
+                            guard let url = URL(string: trimmedURL) else { return }
                             isAdding = true
                             try? await viewModel?.addSource(url: url)
                             isAdding = false
@@ -48,7 +64,7 @@ struct AddSourceView: View {
                                 .frame(maxWidth: .infinity)
                         }
                     }
-                    .disabled(urlString.isEmpty || isAdding)
+                    .disabled(!isValidURL || isAdding)
                 }
             }
             #if os(macOS)
