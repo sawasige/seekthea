@@ -15,6 +15,13 @@ struct DiscoveryView: View {
     @State private var previewDomain: DiscoveredDomain?
     @State private var articlePreviews: [String: [String]] = [:]
     @State private var loadingPreviews: Set<String> = []
+    @State private var showSkipped = false
+
+    @Query(
+        filter: #Predicate<DiscoveredDomain> { $0.isRejected && $0.detectedFeedURL != nil },
+        sort: \DiscoveredDomain.lastSeenAt,
+        order: .reverse
+    ) private var skippedDomains: [DiscoveredDomain]
 
     let modelContainer: ModelContainer
 
@@ -64,6 +71,29 @@ struct DiscoveryView: View {
                     systemImage: "sparkle.magnifyingglass",
                     description: Text("Google Newsから自動的にソースを発見します")
                 )
+            }
+
+            if !skippedDomains.isEmpty {
+                Section {
+                    if showSkipped {
+                        ForEach(skippedDomains, id: \.domain) { domain in
+                            skippedRow(domain)
+                        }
+                    }
+                } header: {
+                    Button {
+                        withAnimation { showSkipped.toggle() }
+                    } label: {
+                        HStack {
+                            Text("スキップ済み (\(skippedDomains.count))")
+                            Spacer()
+                            Image(systemName: showSkipped ? "chevron.up" : "chevron.down")
+                                .font(.caption)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         }
         .listStyle(.plain)
@@ -138,6 +168,33 @@ struct DiscoveryView: View {
         .task {
             await loadPreview(for: domain)
         }
+    }
+
+    private func skippedRow(_ domain: DiscoveredDomain) -> some View {
+        let title = domain.feedTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return HStack(spacing: 12) {
+            SourceThumbnailView(siteURL: URL(string: "https://\(domain.domain)")!, size: 32)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title?.isEmpty == false ? title! : domain.domain)
+                    .font(.subheadline)
+                    .lineLimit(1)
+                Text(domain.domain)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            Button("復元") {
+                domain.isRejected = false
+                try? modelContext.save()
+            }
+            .font(.subheadline)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+        .listRowBackground(Color.clear)
     }
 
     private func loadPreview(for domain: DiscoveredDomain) async {
