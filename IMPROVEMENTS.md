@@ -68,6 +68,12 @@
   - 削除対象を一箇所に集約（例: `ResettableStorage`プロトコル）
   - 全SwiftData modelの削除を網羅
   - ReaderCacheなど追加キャッシュもクリア
+- **対応**: ✅ 完了（PR #44, 2026-04-20）
+  - `ReaderCache.clear()`メソッドを追加し、resetAllDataで呼び出し
+  - 手動の@AppStorageキー一覧（5件）を撤廃 → `UserDefaults.standard.removePersistentDomain(forName: bundleID)` でアプリ全体を一括削除
+  - 将来`@AppStorage`キーが追加されても自動的にカバーされる
+  - SwiftData model削除は既に5モデル全てカバー済みだったので変更なし
+  - `PendingSourcesStore.clear()`はApp Group用なので別途呼び出し継続
 
 ### 5. CloudKit同期透明性
 - **領域**: Lifecycle / 観点: わかりづらい

@@ -121,10 +121,12 @@ struct SettingsView: View {
 
         PresetOGImageCache.clear()
         PendingSourcesStore.clear()
+        ReaderCache.shared.clear()
 
-        // AppStorage の削除
-        for key in ["useCompactLayout", "lastDiscoveryRunAt", "lastDiscoveryCheckedAt", "lastFeedRefreshedAt", "lastArticleCleanupAt"] {
-            UserDefaults.standard.removeObject(forKey: key)
+        // 標準UserDefaultsのアプリ設定を一括削除
+        // (将来@AppStorageキーが追加されても自動的にカバーされる)
+        if let bundleID = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: bundleID)
         }
     }
 }

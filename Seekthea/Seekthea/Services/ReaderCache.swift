@@ -18,6 +18,10 @@ final class ReaderCache {
     func set(_ article: ReadabilityExtractor.Article, for id: UUID) {
         cache.setObject(CachedEntry(article: article), forKey: id.uuidString as NSString)
     }
+
+    func clear() {
+        cache.removeAllObjects()
+    }
 }
 
 private final class CachedEntry {
