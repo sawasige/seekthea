@@ -5,54 +5,59 @@ import SwiftData
 /// - 30日以上前の記事を削除
 /// - 件数が上限を超えたら古いものから削除
 /// - お気に入りは無期限保持
+@Observable
 @MainActor
 final class ArticleCleanupService {
     static let shared = ArticleCleanupService()
 
     static let retentionDays: Int = 30
     static let maxArticleCount: Int = 2000
-    private static let runInterval: TimeInterval = 86400 // 24時間
 
-    @MainActor private var lastRunAt: Double {
-        get { UserDefaults.standard.double(forKey: "lastArticleCleanupAt") }
-        set { UserDefaults.standard.set(newValue, forKey: "lastArticleCleanupAt") }
-    }
+    var statusMessage: String?
 
     private init() {}
 
-    /// 前回実行から24時間経過していればクリーンアップを実行
-    func runIfDue(modelContainer: ModelContainer) {
-        let now = Date().timeIntervalSince1970
-        guard now - lastRunAt >= Self.runInterval else { return }
-        lastRunAt = now
-        run(modelContainer: modelContainer)
-    }
-
-    /// 即時クリーンアップ実行
-    func run(modelContainer: ModelContainer) {
+    /// クリーンアップ実行
+    /// predicate削除と件数超過分のみ対象なので処理は軽く、throttleなしで頻繁に呼んでよい
+    func run(modelContainer: ModelContainer) async {
         let context = ModelContext(modelContainer)
 
-        // 1. 30日以上前の非お気に入り記事を削除
+        // 削除予定件数を先にカウント（0件なら何もしない）
         let cutoff = Calendar.current.date(byAdding: .day, value: -Self.retentionDays, to: Date())!
         let oldPredicate = #Predicate<Article> { article in
             article.fetchedAt < cutoff && !article.isFavorite
         }
-        try? context.delete(model: Article.self, where: oldPredicate)
+        let oldCount = (try? context.fetchCount(FetchDescriptor<Article>(predicate: oldPredicate))) ?? 0
 
-        // 2. 残った非お気に入り記事が上限を超えていたら古い順から削除
         let remainingPredicate = #Predicate<Article> { !$0.isFavorite }
-        var descriptor = FetchDescriptor<Article>(
-            predicate: remainingPredicate,
-            sortBy: [SortDescriptor(\.fetchedAt, order: .reverse)]
-        )
-        descriptor.fetchLimit = Self.maxArticleCount + 500
-        if let remaining = try? context.fetch(descriptor), remaining.count > Self.maxArticleCount {
-            for article in remaining[Self.maxArticleCount...] {
-                context.delete(article)
+        let remainingTotal = (try? context.fetchCount(FetchDescriptor<Article>(predicate: remainingPredicate))) ?? 0
+        let excessCount = max(0, remainingTotal - oldCount - Self.maxArticleCount)
+
+        let total = oldCount + excessCount
+        guard total > 0 else { return }
+
+        statusMessage = "古い記事を\(total)件削除中..."
+        await Task.yield()
+
+        // 実削除
+        if oldCount > 0 {
+            try? context.delete(model: Article.self, where: oldPredicate)
+        }
+        if excessCount > 0 {
+            var descriptor = FetchDescriptor<Article>(
+                predicate: remainingPredicate,
+                sortBy: [SortDescriptor(\.fetchedAt, order: .reverse)]
+            )
+            descriptor.fetchLimit = Self.maxArticleCount + 500
+            if let remaining = try? context.fetch(descriptor), remaining.count > Self.maxArticleCount {
+                for article in remaining[Self.maxArticleCount...] {
+                    context.delete(article)
+                }
             }
         }
-
         try? context.save()
+
+        statusMessage = nil
     }
 
     /// 現在の記事数（お気に入り含む）

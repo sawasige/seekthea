@@ -54,6 +54,9 @@ class FeedFetcher {
             try? context.save()
         }
         onProgress?("フィードを更新中...")
+
+        // 記事が増えた後に毎回クリーンアップ
+        await ArticleCleanupService.shared.run(modelContainer: modelContainer)
     }
 
     static func fetchOGImage(from url: URL) async -> URL? {
