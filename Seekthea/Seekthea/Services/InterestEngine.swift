@@ -27,6 +27,15 @@ class InterestEngine {
         self.modelContainer = modelContainer
     }
 
+    /// 表示回数ペナルティの計算
+    /// - 最初の2回は免除（急激な初期減衰を防ぐ）
+    /// - 上限8カウントで下げ止まり（永遠に下がる問題を防ぐ）
+    /// - 例: count=0..2 → ×1.00, count=3 → ×0.87, count=10 → ×0.45 (floor)
+    static func impressionPenalty(count: Int) -> Double {
+        let effective = max(0, min(count - 2, 8))
+        return 1.0 / (1.0 + Double(effective) * 0.15)
+    }
+
     /// 全記事のrelevanceScoreを更新
     func scoreArticles() {
         let context = modelContainer.mainContext
@@ -67,8 +76,7 @@ class InterestEngine {
 
             // 表示回数ベースの減衰（未読のまま何度も見た記事を下げる）
             if !article.isRead {
-                let impressionPenalty = 1.0 / (1.0 + Double(article.impressionCount) * 0.15)
-                score *= impressionPenalty
+                score *= Self.impressionPenalty(count: article.impressionCount)
             }
 
             // 0〜1に正規化
@@ -99,8 +107,7 @@ class InterestEngine {
             score *= 1.2
         }
         if !article.isRead {
-            let impressionPenalty = 1.0 / (1.0 + Double(article.impressionCount) * 0.15)
-            score *= impressionPenalty
+            score *= Self.impressionPenalty(count: article.impressionCount)
         }
         article.relevanceScore = min(max(score, 0), 1.0)
         try? context.save()
@@ -186,7 +193,7 @@ class InterestEngine {
         // 表示回数ペナルティ
         if !article.isRead {
             breakdown.impressionCount = article.impressionCount
-            breakdown.impressionPenalty = 1.0 / (1.0 + Double(article.impressionCount) * 0.15)
+            breakdown.impressionPenalty = Self.impressionPenalty(count: article.impressionCount)
             total *= breakdown.impressionPenalty
         }
 
