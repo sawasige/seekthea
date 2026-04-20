@@ -42,15 +42,6 @@ struct ArticleDetailView: View {
         #endif
         .toolbar {
             ToolbarItemGroup(placement: .automatic) {
-                // リーダー抽出失敗時のリトライボタン
-                if extractedArticle == nil && !isLoading {
-                    Button {
-                        Task { await retryReader() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                }
-
                 Button {
                     article.isFavorite.toggle()
                     try? modelContext.save()
@@ -146,12 +137,28 @@ struct ArticleDetailView: View {
                 .padding(.bottom, 20)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             } else if showFailureNotice {
-                HStack(spacing: 10) {
+                HStack(spacing: 12) {
                     Image(systemName: "info.circle")
                         .foregroundStyle(.secondary)
-                    Text("リーダー抽出に失敗しました。再読み込みで直るかもしれません。")
+                    Text("リーダー抽出に失敗しました")
                         .font(.subheadline)
                         .foregroundStyle(.primary)
+                    Button {
+                        Task { await retryReader() }
+                    } label: {
+                        Text("再読み込み")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                    Button {
+                        showFailureNotice = false
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 12)
@@ -273,10 +280,6 @@ struct ArticleDetailView: View {
 
         if extracted == nil {
             showFailureNotice = true
-            Task {
-                try? await Task.sleep(for: .seconds(3))
-                showFailureNotice = false
-            }
         }
 
         if extracted != nil {
