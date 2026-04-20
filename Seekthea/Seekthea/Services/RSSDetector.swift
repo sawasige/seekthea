@@ -13,6 +13,29 @@ struct RSSDetector {
         return await detectFromCommonPaths(siteURL)
     }
 
+    /// フィードURLから記事タイトルを取得
+    static func articleTitles(from url: URL, limit: Int = 3) async -> [String] {
+        var request = URLRequest(url: url, timeoutInterval: 5)
+        request.cachePolicy = .returnCacheDataElseLoad
+        guard let (data, _) = try? await URLSession.shared.data(for: request) else { return [] }
+        let parser = FeedKit.FeedParser(data: data)
+        guard case .success(let feed) = parser.parse() else { return [] }
+        let titles: [String]
+        switch feed {
+        case .rss(let rss):
+            titles = (rss.items ?? []).compactMap { $0.title }
+        case .atom(let atom):
+            titles = (atom.entries ?? []).compactMap { $0.title }
+        case .json(let json):
+            titles = (json.items ?? []).compactMap { $0.title }
+        }
+        return titles
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .prefix(limit)
+            .map { $0 }
+    }
+
     /// フィードURLからタイトルを取得（RSSでなければnil）
     static func feedTitle(from url: URL) async -> String? {
         guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
