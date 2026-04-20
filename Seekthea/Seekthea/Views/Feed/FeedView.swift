@@ -255,6 +255,8 @@ struct FeedView: View {
     @State private var hasNewSuggestions = false
     @State private var sourceFilter: SourceFilter? = nil
     @State private var sessionReadIDs: Set<UUID> = []
+    @State private var lockedSortKeys: [UUID: Double] = [:]
+    @State private var wasBackgrounded = false
     @State private var hasInitialRefreshed = false
     @State private var pendingImpressions: [UUID: Int] = [:]
     @State private var impressionTimers: [UUID: Task<Void, Never>] = [:]
@@ -363,6 +365,13 @@ struct FeedView: View {
 
         switch feedMode {
         case .forYou:
+            // 表示中のスコアをロック: 初回表示時の値を記録、以降は固定して並びを安定化
+            var lockedKeys = lockedSortKeys
+            for article in modeFiltered where lockedKeys[article.id] == nil {
+                lockedKeys[article.id] = article.relevanceScore
+            }
+            lockedSortKeys = lockedKeys
+
             let sessionReadIDs = self.sessionReadIDs
             func effectivelyRead(_ article: Article) -> Bool {
                 article.isRead && !sessionReadIDs.contains(article.id)
@@ -371,8 +380,10 @@ struct FeedView: View {
                 let aRead = effectivelyRead(a)
                 let bRead = effectivelyRead(b)
                 if aRead != bRead { return !aRead }
-                if abs(a.relevanceScore - b.relevanceScore) > 0.01 {
-                    return a.relevanceScore > b.relevanceScore
+                let aScore = lockedKeys[a.id] ?? a.relevanceScore
+                let bScore = lockedKeys[b.id] ?? b.relevanceScore
+                if abs(aScore - bScore) > 0.01 {
+                    return aScore > bScore
                 }
                 return (a.publishedAt ?? .distantPast) > (b.publishedAt ?? .distantPast)
             }
@@ -540,6 +551,7 @@ struct FeedView: View {
                     ToolbarItem(placement: .automatic) {
                         Button {
                             sessionReadIDs.removeAll()
+                            lockedSortKeys.removeAll()
                             Task { await refreshAll() }
                         } label: {
                             Image(systemName: "arrow.clockwise")
@@ -616,7 +628,16 @@ struct FeedView: View {
                     reloadArticles()
                 }
                 .onChange(of: scenePhase) { _, newPhase in
+                    if newPhase == .background {
+                        wasBackgrounded = true
+                    }
                     if newPhase == .active {
+                        // バックグラウンド復帰時はソート順を再ランキングするためロック解除
+                        if wasBackgrounded {
+                            wasBackgrounded = false
+                            lockedSortKeys.removeAll()
+                            sessionReadIDs.removeAll()
+                        }
                         reloadArticles()
                         updateCachedData()
                         if shouldAutoRefresh {
@@ -734,6 +755,7 @@ struct FeedView: View {
             }
             .refreshable {
                 sessionReadIDs.removeAll()
+                lockedSortKeys.removeAll()
                 await refreshAll()
             }
         }
