@@ -169,10 +169,27 @@
   - ヘッダータップで展開/収納、復元で`isRejected=false`に戻して通常セクションに復帰
   - スナックバー案より常時可視で、後日の復元にも対応
 
-### 12. AI要約進捗の状態同期
-- **領域**: Feed / 観点: 使いづらい
-- **症状**: 記事詳細離脱中も処理は続くが、戻ってきても進捗が見えない
+### 12. AI要約進捗の状態同期 + 要約のキャッシュ化
+- **領域**: Feed / 観点: 使いづらい + 設計一貫性
+- **症状**:
+  - 記事詳細離脱中も処理は続くが、戻ってきても進捗が見えない
+  - 同じ記事を再オープンすると `analyze()` が重複実行される
+  - 別記事を10件開いたら処理が並列爆発する
+  - AI要約だけ永続化されており、リーダー本文（メモリキャッシュのみ）と設計が不整合。要約は他用途で使われていない（display only）
 - **方向性**: グローバルな処理状態をDiscoveryManager同様に共有
+- **対応**: ✅ 完了（PR #53, 2026-04-20）
+  - **AI要約をキャッシュ化**: `Article.summary` と `isAIProcessed` を削除し、新設 `AISummaryCache` (`@Observable @MainActor`) のメモリ管理に。リーダー本文と設計を統一
+  - **AIProgressTracker** を `Set<UUID>` から `[UUID: Task<Void, Never>]` に変更し、別記事Task開始時に既存タスクを自動キャンセル（最新優先）
+  - **AIProcessor.analyze** が `Task.isCancelled` チェックを行い、キャンセル時はキャッシュ書き込みをスキップ
+  - **AISummaryView** が `AISummaryCache` を直接観察 → 再表示時にも進捗・結果が復元
+  - **SettingsView.resetAllData** で `AISummaryCache.shared.clear()` を呼ぶ
+  - **トレードオフ**: アプリ再起動・別端末で要約は再生成されるが、要約は display 用途なので影響軽微
+- **対応**: ✅ 完了（PR #53, 2026-04-20）
+  - `AIProgressTracker`シングルトン追加（@Observable @MainActor、`Set<UUID>`で処理中記事ID管理）
+  - ArticleDetailViewのローカル`isAIProcessing` @Stateを撤廃
+  - AISummaryViewが直接Trackerを観察 → 再表示時にも進捗が復元される
+  - loadContent / reprocessAI でmarkStarted/markFinished、重複ガードもTracker参照に
+  - **副次効果**: 同じ記事を処理中に再度開いても`analyze()`が二重実行されない
 
 ### 13. 学習重みの単位統一
 - **領域**: AI / 観点: わかりづらい
