@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 @Model
-class Article {
+class Article: Identifiable {
     var id: UUID = UUID()
     var title: String = ""
     var articleURL: URL = URL(string: "https://example.com")!

@@ -258,6 +258,7 @@ struct FeedView: View {
     @State private var lockedSortKeys: [UUID: Double] = [:]
     @State private var wasBackgrounded = false
     @State private var hasInitialRefreshed = false
+    @State private var scoreBreakdownArticle: Article?
     @State private var pendingImpressions: [UUID: Int] = [:]
     @State private var impressionTimers: [UUID: Task<Void, Never>] = [:]
     @Namespace private var zoomNamespace
@@ -664,6 +665,9 @@ struct FeedView: View {
                     detail.navigationTransition(.zoom(sourceID: article.id, in: zoomNamespace))
                     #endif
                 }
+                .sheet(item: $scoreBreakdownArticle) { article in
+                    ScoreBreakdownView(article: article, modelContainer: modelContainer)
+                }
                 .overlay(alignment: .bottom) {
                     let feedStatus = viewModel?.statusMessage
                     let discoveryStatus = DiscoveryManager.shared.statusMessage
@@ -894,6 +898,12 @@ struct FeedView: View {
 
         ShareLink(item: article.articleURL) {
             Label("共有", systemImage: "square.and.arrow.up")
+        }
+
+        Button {
+            scoreBreakdownArticle = article
+        } label: {
+            Label("スコアの内訳", systemImage: "chart.bar.doc.horizontal")
         }
     }
 

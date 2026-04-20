@@ -91,6 +91,9 @@ struct ArticleDetailView: View {
             if !article.isRead {
                 article.isRead = true
                 try? modelContext.save()
+                // 既読化でペナルティが解除されるためスコアを再計算
+                let engine = InterestEngine(modelContainer: modelContext.container)
+                engine.rescore(article: article)
             }
         }
     }
