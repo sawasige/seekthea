@@ -6,6 +6,7 @@ struct InterestSettingsView: View {
     @Query(sort: \UserInterest.addedAt) private var interests: [UserInterest]
     @State private var newTopic = ""
     @State private var learnedTopics: [(topic: String, weight: Double)] = []
+    @State private var translatingTopics: Set<String> = []
 
     // プリセットの興味トピック候補（日本語: 英語）
     private let suggestions: [(ja: String, en: String)] = [
@@ -32,19 +33,29 @@ struct InterestSettingsView: View {
                         .font(.subheadline)
                 }
                 ForEach(interests, id: \.topic) { interest in
-                    HStack {
-                        Text(interest.topic)
-                        Spacer()
-                        // 重みスライダー
-                        Slider(value: Binding(
-                            get: { interest.weight },
-                            set: { interest.weight = $0; try? modelContext.save() }
-                        ), in: 0.1...2.0, step: 0.1)
-                        .frame(width: 120)
-                        Text(String(format: "%.1f", interest.weight))
-                            .font(.caption).monospacedDigit()
-                            .foregroundStyle(.secondary)
-                            .frame(width: 30)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(interest.topic)
+                            if translatingTopics.contains(interest.topic) {
+                                ProgressView().controlSize(.mini)
+                            }
+                            Spacer()
+                            // 重みスライダー
+                            Slider(value: Binding(
+                                get: { interest.weight },
+                                set: { interest.weight = $0; try? modelContext.save() }
+                            ), in: 0.1...2.0, step: 0.1)
+                            .frame(width: 120)
+                            Text(String(format: "%.1f", interest.weight))
+                                .font(.caption).monospacedDigit()
+                                .foregroundStyle(.secondary)
+                                .frame(width: 30)
+                        }
+                        if !translatingTopics.contains(interest.topic) && isTranslationMissing(interest) {
+                            Label("英訳が取得できなかったため、セマンティック類似のスコアは効きません", systemImage: "exclamationmark.triangle")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                        }
                     }
                 }
                 .onDelete { offsets in
@@ -64,9 +75,12 @@ struct InterestSettingsView: View {
                         #endif
                     Button("追加") {
                         let trimmed = newTopic.trimmingCharacters(in: .whitespaces)
-                        // プリセットにあれば英訳を使う、なければトピックをそのまま英語として使用
-                        let en = suggestions.first(where: { $0.ja == trimmed })?.en ?? trimmed
-                        addTopic(trimmed, en: en)
+                        if let pair = suggestions.first(where: { $0.ja == trimmed }) {
+                            addTopic(pair.ja, en: pair.en)
+                        } else {
+                            // プリセット外: バックグラウンドでAI翻訳
+                            addTopic(trimmed)
+                        }
                         newTopic = ""
                     }
                     .disabled(newTopic.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -132,9 +146,34 @@ struct InterestSettingsView: View {
         guard !topic.isEmpty else { return }
         let existing = Set(interests.map(\.topic))
         guard !existing.contains(topic) else { return }
-        let interest = UserInterest(topic: topic, topicEn: en.isEmpty ? topic : en)
+        let providedEn = en.trimmingCharacters(in: .whitespaces)
+        let needsTranslation = providedEn.isEmpty && containsNonASCII(topic)
+        let interest = UserInterest(topic: topic, topicEn: providedEn.isEmpty ? topic : providedEn)
         modelContext.insert(interest)
         try? modelContext.save()
+
+        // プリセット外の非ASCIIトピックはバックグラウンドでAI翻訳
+        if needsTranslation {
+            translatingTopics.insert(topic)
+            Task { @MainActor in
+                if let translated = await AIProcessor.translateToEnglish(topic),
+                   !containsNonASCII(translated) {
+                    interest.topicEn = translated
+                    try? modelContext.save()
+                }
+                translatingTopics.remove(topic)
+            }
+        }
+    }
+
+    private func containsNonASCII(_ s: String) -> Bool {
+        s.unicodeScalars.contains { !$0.isASCII }
+    }
+
+    /// 英訳が取得できなかったトピック判定
+    /// - 日本語など非ASCIIトピックで topicEn が同じ（=翻訳されてない）の時
+    private func isTranslationMissing(_ interest: UserInterest) -> Bool {
+        containsNonASCII(interest.topic) && interest.topic == interest.topicEn
     }
 }
 

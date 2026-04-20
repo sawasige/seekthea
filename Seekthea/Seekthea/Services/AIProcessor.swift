@@ -61,6 +61,28 @@ class AIProcessor {
         #endif
     }
 
+    /// 日本語の単語を英単語1語に翻訳（興味トピック用）
+    /// 失敗時はnil
+    static func translateToEnglish(_ text: String) async -> String? {
+        #if canImport(FoundationModels)
+        let session = LanguageModelSession()
+        let prompt = """
+        次の単語を英単語1語に翻訳してください。回答は単語のみ、説明や記号は不要。
+
+        単語: \(text)
+        """
+        guard let response = try? await session.respond(to: prompt) else { return nil }
+        let trimmed = response.content
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\"'.,。、"))
+        // 空白を含む場合は最初の単語だけ採用
+        let firstWord = trimmed.split(separator: " ").first.map(String.init) ?? trimmed
+        return firstWord.isEmpty ? nil : firstWord
+        #else
+        return nil
+        #endif
+    }
+
     /// 記事を分析（要約・カテゴリ分類・キーワード抽出）
     func analyze(articleID: PersistentIdentifier) async {
         let context = modelContainer.mainContext
