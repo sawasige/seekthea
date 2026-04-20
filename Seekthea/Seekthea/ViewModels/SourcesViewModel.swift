@@ -23,7 +23,8 @@ class SourcesViewModel {
         refreshRegisteredURLs()
     }
 
-    private func refreshRegisteredURLs() {
+    /// 登録済みURLキャッシュを再構築
+    func refreshRegisteredURLs() {
         let context = modelContainer.mainContext
         let sources = (try? context.fetch(FetchDescriptor<Source>())) ?? []
         registeredFeedURLs = Set(sources.map(\.feedURL))
@@ -86,7 +87,7 @@ class SourcesViewModel {
             feedURL = detected
             feedTitle = await RSSDetector.feedTitle(from: detected)
         } else {
-            addingError = "RSSフィードが見つかりませんでした"
+            addingError = "RSSフィードが見つかりませんでした。サイトのトップページのURLを試すか、RSSのURLを直接入力してください。"
             return
         }
 

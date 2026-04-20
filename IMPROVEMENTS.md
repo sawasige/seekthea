@@ -46,6 +46,17 @@
   - プリセット削除にも確認ダイアログ追加
   - SourcePreviewViewにプリセット削除アクション追加
   - AddSourceViewのエラー後フローを整理
+- **対応**: ✅ 完了（PR #43, 2026-04-20）
+  - **#1**: 確認ダイアログは付けず、追加/削除でハプティックを使い分け
+    - 追加: `UISelectionFeedbackGenerator().selectionChanged()`（軽いtick）
+    - 削除: `UIImpactFeedbackGenerator(style: .medium)`（重め）
+    - トーストはうざいので不採用
+  - **#2**: SourcePreviewViewの登録済みプリセットに「削除」ボタン追加（同じハプティック適用）
+    - 副バグ修正: プレビューで追加/削除した時に一覧のマークが更新されない問題
+      - SourcesListViewに`onChange(of: sources.count)`を追加してviewModelキャッシュを再構築
+      - `SourcesViewModel.refreshRegisteredURLs`を内部privateからpublicに変更
+  - **#3-A**: AddSourceViewでURL編集時に`addingError`を自動クリア、URL形式バリデーション追加（http/https + host必須）
+  - **#3-B**: エラー文言を「RSSフィードが見つかりませんでした。サイトのトップページのURLを試すか、RSSのURLを直接入力してください。」に詳細化
 
 ### 4. 「すべて初期化」の取りこぼし修正
 - **領域**: Lifecycle / 観点: 仕様矛盾
