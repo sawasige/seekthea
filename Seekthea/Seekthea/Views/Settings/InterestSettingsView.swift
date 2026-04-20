@@ -46,10 +46,10 @@ struct InterestSettingsView: View {
                                 set: { interest.weight = $0; try? modelContext.save() }
                             ), in: 0.1...2.0, step: 0.1)
                             .frame(width: 120)
-                            Text(String(format: "%.1f", interest.weight))
+                            Text(String(format: "×%.1f", interest.weight))
                                 .font(.caption).monospacedDigit()
                                 .foregroundStyle(.secondary)
-                                .frame(width: 30)
+                                .frame(width: 36)
                         }
                         if !translatingTopics.contains(interest.topic) && isTranslationMissing(interest) {
                             Label("英訳が取得できなかったため、セマンティック類似のスコアは効きません", systemImage: "exclamationmark.triangle")
@@ -115,10 +115,10 @@ struct InterestSettingsView: View {
                             Spacer()
                             ProgressView(value: item.weight)
                                 .frame(width: 80)
-                            Text(String(format: "%.0f%%", item.weight * 100))
+                            Text(String(format: "×%.2f", item.weight))
                                 .font(.caption).monospacedDigit()
                                 .foregroundStyle(.secondary)
-                                .frame(width: 40, alignment: .trailing)
+                                .frame(width: 44, alignment: .trailing)
                         }
                     }
                 }
