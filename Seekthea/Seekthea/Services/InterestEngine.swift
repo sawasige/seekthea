@@ -41,7 +41,7 @@ class InterestEngine {
         // 3. 全トピックをマージ（明示 + 学習）
         var allTopics = learnedTopics
         for (topic, weight) in interestTopics {
-            allTopics[topic] = (allTopics[topic] ?? 0) + weight * 2
+            allTopics[topic] = (allTopics[topic] ?? 0) + weight
         }
 
         // 4. 英語word embeddingを取得
@@ -86,7 +86,7 @@ class InterestEngine {
         let learnedTopics = learnFromHistory(context: context)
         var allTopics = learnedTopics
         for (topic, weight) in interestTopics {
-            allTopics[topic] = (allTopics[topic] ?? 0) + weight * 2
+            allTopics[topic] = (allTopics[topic] ?? 0) + weight
         }
         let interestEnKeywords = buildEnglishInterestKeywords(context: context)
         let wordEmbedding = NLEmbedding.wordEmbedding(for: .english)
@@ -117,7 +117,7 @@ class InterestEngine {
         let learnedTopics = learnFromHistory(context: context)
         var allTopics = learnedTopics
         for (topic, weight) in interestTopics {
-            allTopics[topic] = (allTopics[topic] ?? 0) + weight * 2
+            allTopics[topic] = (allTopics[topic] ?? 0) + weight
         }
 
         // キーワードスコア
