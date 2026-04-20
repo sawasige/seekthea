@@ -18,11 +18,14 @@ struct RSSDetector {
         guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
         let parser = FeedKit.FeedParser(data: data)
         guard case .success(let feed) = parser.parse() else { return nil }
+        let raw: String?
         switch feed {
-        case .rss(let rss): return rss.title
-        case .atom(let atom): return atom.title
-        case .json(let json): return json.title
+        case .rss(let rss): raw = rss.title
+        case .atom(let atom): raw = atom.title
+        case .json(let json): raw = json.title
         }
+        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (trimmed?.isEmpty == false) ? trimmed : nil
     }
 
     // MARK: - Private

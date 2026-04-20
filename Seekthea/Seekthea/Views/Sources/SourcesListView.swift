@@ -180,17 +180,17 @@ struct SourcesListView: View {
                     viewModel?.removePresetSource(preset)
                 } label: {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                        .font(.title3)
+                        .foregroundStyle(.white, .green)
+                        .font(.title)
                 }
                 .buttonStyle(.plain)
             } else {
                 Button {
                     viewModel?.addPresetSource(preset)
                 } label: {
-                    Image(systemName: "plus.circle")
-                        .foregroundStyle(Color.accentColor)
-                        .font(.title3)
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundStyle(.white, Color.accentColor)
+                        .font(.title)
                 }
                 .buttonStyle(.plain)
             }
