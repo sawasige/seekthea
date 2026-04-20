@@ -375,14 +375,26 @@ private struct AISummaryView: View {
         AISummaryCache.shared.get(article.id)
     }
 
+    private static let shimmerHTML = """
+    <div class="shimmer-block"></div>
+    <div class="shimmer-block" style="width:80%"></div>
+    <div class="shimmer-block" style="width:60%"></div>
+    """
+
     var body: some View {
         WebView(page)
             .task {
                 page.load(html: buildSummaryHTML(), baseURL: URL(string: "about:blank")!)
             }
             .onChange(of: summary) {
-                guard let summary, !summary.isEmpty else { return }
-                let escaped = markdownToHTML(summary)
+                let html: String
+                if let summary, !summary.isEmpty {
+                    html = markdownToHTML(summary)
+                } else {
+                    // キャッシュクリア時（再処理開始時など）はshimmerに戻す
+                    html = Self.shimmerHTML
+                }
+                let escaped = html
                     .replacingOccurrences(of: "\\", with: "\\\\")
                     .replacingOccurrences(of: "'", with: "\\'")
                     .replacingOccurrences(of: "\n", with: "\\n")
