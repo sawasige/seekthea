@@ -47,6 +47,15 @@ struct SettingsView: View {
                 Text("データ管理")
             }
 
+            Section {
+                LabeledContent("iCloud同期", value: CloudSyncStatus.shared.status.label)
+                Text(CloudSyncStatus.shared.status.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text("同期")
+            }
+
             Section("情報") {
                 LabeledContent("バージョン", value: "1.0")
                 NavigationLink("ライセンス") {

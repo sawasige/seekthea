@@ -82,6 +82,13 @@
   - 同期状態（CloudKit接続中/失敗/ローカルのみ）を設定画面に表示
   - エラー時は1度だけバナーで通知
   - 重複削除はログ・統計を残す
+- **対応**: ✅ Phase A 完了（PR #45, 2026-04-20）
+  - `CloudSyncStatus`シングルトン追加（@Observable @MainActor）
+  - ModelContainer初期化結果 + `CKContainer.default().accountStatus()` の組み合わせで判断
+  - 状態enum: `.available` / `.noAccount` / `.restricted` / `.temporarilyUnavailable` / `.couldNotDetermine` / `.localOnly` / `.unknown`
+  - 各状態にlabel + descriptionを定義し、SettingsView「同期」セクションに表示
+  - SeektheaApp起動時 + scenePhase active復帰時に`CloudSyncStatus.shared.refresh()`を呼ぶ
+  - **残タスク**: エラーバナー / 重複削除の可視化（Phase B、必要なら後で）
 
 ---
 
