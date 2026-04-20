@@ -3,6 +3,7 @@ import SwiftData
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
+    @Query private var allArticles: [Article]
     @State private var toastMessage: String?
     @State private var showResetConfirm = false
 
@@ -34,14 +35,16 @@ struct SettingsView: View {
                 }
             }
 
-            Section("データ管理") {
-                Button("古い記事を削除（30日以上前）", role: .destructive) {
-                    deleteOldArticles()
-                    showToast("古い記事を削除しました")
-                }
+            Section {
+                LabeledContent("保存中の記事", value: "\(allArticles.count)件")
+                Text("\(ArticleCleanupService.retentionDays)日以上前または\(ArticleCleanupService.maxArticleCount)件を超えた古い記事は自動削除されます。お気に入りは無期限保存。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Button("すべて初期化", role: .destructive) {
                     showResetConfirm = true
                 }
+            } header: {
+                Text("データ管理")
             }
 
             Section("情報") {
@@ -104,18 +107,6 @@ struct SettingsView: View {
         }
     }
 
-    private func deleteOldArticles() {
-        let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: Date())!
-        let predicate = #Predicate<Article> { article in
-            article.fetchedAt < cutoff && !article.isFavorite
-        }
-        do {
-            try modelContext.delete(model: Article.self, where: predicate)
-        } catch {
-            print("Failed to delete old articles: \(error)")
-        }
-    }
-
     private func resetAllData() {
         do {
             try modelContext.delete(model: Article.self)
@@ -132,7 +123,7 @@ struct SettingsView: View {
         PendingSourcesStore.clear()
 
         // AppStorage の削除
-        for key in ["useCompactLayout", "lastDiscoveryRunAt", "lastDiscoveryCheckedAt", "lastFeedRefreshedAt"] {
+        for key in ["useCompactLayout", "lastDiscoveryRunAt", "lastDiscoveryCheckedAt", "lastFeedRefreshedAt", "lastArticleCleanupAt"] {
             UserDefaults.standard.removeObject(forKey: key)
         }
     }
