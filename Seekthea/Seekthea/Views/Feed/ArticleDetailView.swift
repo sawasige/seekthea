@@ -223,9 +223,18 @@ struct ArticleDetailView: View {
     }
 
     private func loadContent() async {
-        let extractor = ReadabilityExtractor()
-        let extracted = await extractor.extract(from: article.articleURL) { stage in
-            loadingStage = stage
+        let cacheID = article.id
+        let extracted: ReadabilityExtractor.Article?
+        if let cached = ReaderCache.shared.get(cacheID) {
+            extracted = cached
+        } else {
+            let extractor = ReadabilityExtractor()
+            extracted = await extractor.extract(from: article.articleURL) { stage in
+                loadingStage = stage
+            }
+            if let extracted {
+                ReaderCache.shared.set(extracted, for: cacheID)
+            }
         }
         extractedArticle = extracted
         isLoading = false
