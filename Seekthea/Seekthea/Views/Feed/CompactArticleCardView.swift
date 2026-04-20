@@ -30,8 +30,8 @@ struct CompactArticleCardView: View {
 
                     Spacer()
 
-                    if showScore && article.relevanceScore > 0.1 {
-                        Text("\(Int(article.relevanceScore * 100))%")
+                    if showScore && article.relevanceScore > 0 {
+                        Text("\(max(1, Int(round(article.relevanceScore * 100))))%")
                             .font(.caption)
                             .fontWeight(.medium)
                             .foregroundStyle(.orange)

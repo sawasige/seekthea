@@ -78,6 +78,34 @@ class InterestEngine {
         try? context.save()
     }
 
+    /// 1記事だけrelevanceScoreを再計算して保存
+    func rescore(article: Article) {
+        let context = modelContainer.mainContext
+        let interests = (try? context.fetch(FetchDescriptor<UserInterest>())) ?? []
+        let interestTopics = Dictionary(uniqueKeysWithValues: interests.map { ($0.topic.lowercased(), $0.weight) })
+        let learnedTopics = learnFromHistory(context: context)
+        var allTopics = learnedTopics
+        for (topic, weight) in interestTopics {
+            allTopics[topic] = (allTopics[topic] ?? 0) + weight * 2
+        }
+        let interestEnKeywords = buildEnglishInterestKeywords(context: context)
+        let wordEmbedding = NLEmbedding.wordEmbedding(for: .english)
+
+        let keywordScore = computeKeywordScore(article: article, topics: allTopics)
+        let semanticScore = computeSemanticScore(article: article, interestEnKeywords: interestEnKeywords, wordEmbedding: wordEmbedding)
+        var score = keywordScore * 0.4 + semanticScore * 0.6
+
+        if let pub = article.publishedAt, pub > Date().addingTimeInterval(-86400) {
+            score *= 1.2
+        }
+        if !article.isRead {
+            let impressionPenalty = 1.0 / (1.0 + Double(article.impressionCount) * 0.15)
+            score *= impressionPenalty
+        }
+        article.relevanceScore = min(max(score, 0), 1.0)
+        try? context.save()
+    }
+
     /// 1記事のスコア内訳を返す（UI説明用、リアルタイム計算）
     func explainScore(for article: Article) -> ScoreBreakdown {
         let context = modelContainer.mainContext
