@@ -9,9 +9,11 @@ struct OnboardingView: View {
     let modelContainer: ModelContainer
     let onDismiss: () -> Void
 
+    @Query private var sources: [Source]
     @State private var step: Step = .welcome
     @State private var viewModel: SourcesViewModel?
     @State private var addedCount = 0
+    @State private var syncDetected = false
 
     enum Step {
         case welcome
@@ -52,6 +54,23 @@ struct OnboardingView: View {
                 viewModel = SourcesViewModel(modelContainer: modelContainer)
             }
         }
+        .onChange(of: sources) { _, newValue in
+            guard !newValue.isEmpty else { return }
+            switch step {
+            case .welcome:
+                onDismiss()
+            case .categoryPicker:
+                syncDetected = true
+            case .done:
+                break
+            }
+        }
+        .alert("以前の設定が同期されました", isPresented: $syncDetected) {
+            Button("既存の設定を使う") { onDismiss() }
+            Button("選択を続ける", role: .cancel) { }
+        } message: {
+            Text("以前の端末で登録していたソースが見つかりました。そのまま使うか、選択中のカテゴリを追加するか選べます。")
+        }
     }
 
     private var zoomCrossFade: AnyTransition {
@@ -79,3 +98,4 @@ struct OnboardingView: View {
         }
     }
 }
+
