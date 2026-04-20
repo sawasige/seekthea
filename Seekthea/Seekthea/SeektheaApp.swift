@@ -68,6 +68,9 @@ struct SeektheaApp: App {
                 // 24時間に1回バックグラウンドでソース発見
                 DiscoveryManager.shared.setup(modelContainer: sharedModelContainer)
                 DiscoveryManager.shared.runIfDue()
+
+                // 24時間に1回古い記事をクリーンアップ
+                ArticleCleanupService.shared.runIfDue(modelContainer: sharedModelContainer)
             }
         }
     }
