@@ -13,6 +13,8 @@ struct DiscoveryView: View {
     @State private var checkedAtSnapshot: Date?
     @State private var sourcesViewModel: SourcesViewModel?
     @State private var previewDomain: DiscoveredDomain?
+    @State private var articlePreviews: [String: [String]] = [:]
+    @State private var loadingPreviews: Set<String> = []
 
     let modelContainer: ModelContainer
 
@@ -133,49 +135,91 @@ struct DiscoveryView: View {
                 try? modelContext.save()
             }
         }
+        .task {
+            await loadPreview(for: domain)
+        }
+    }
+
+    private func loadPreview(for domain: DiscoveredDomain) async {
+        let key = domain.domain
+        guard articlePreviews[key] == nil, !loadingPreviews.contains(key),
+              let feedURL = domain.detectedFeedURL else { return }
+        loadingPreviews.insert(key)
+        let titles = await RSSDetector.articleTitles(from: feedURL, limit: 3)
+        articlePreviews[key] = titles
+        loadingPreviews.remove(key)
     }
 
     private func cardContent(_ domain: DiscoveredDomain) -> some View {
-        HStack(alignment: .center, spacing: 14) {
-            SourceThumbnailView(siteURL: URL(string: "https://\(domain.domain)")!, size: 56)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 14) {
+                SourceThumbnailView(siteURL: URL(string: "https://\(domain.domain)")!, size: 56)
 
-            let displayTitle = domain.feedTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(displayTitle?.isEmpty == false ? displayTitle! : domain.domain)
-                    .font(.headline)
-                    .lineLimit(1)
-
-                if displayTitle?.isEmpty == false {
-                    Text(domain.domain)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                let displayTitle = domain.feedTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(displayTitle?.isEmpty == false ? displayTitle! : domain.domain)
+                        .font(.headline)
                         .lineLimit(1)
+
+                    if displayTitle?.isEmpty == false {
+                        Text(domain.domain)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkle.magnifyingglass")
+                        Text(relativeDate(domain.lastSeenAt))
+                        Text("·")
+                        Text("\(domain.mentionCount)回検出")
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
                 }
 
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkle.magnifyingglass")
-                    Text(relativeDate(domain.lastSeenAt))
-                    Text("·")
-                    Text("\(domain.mentionCount)回検出")
+                Spacer()
+
+                Button {
+                    Task { await sourcesViewModel?.acceptDiscoveredSource(domain) }
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundStyle(.white, Color.accentColor)
+                        .font(.title)
                 }
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .padding(.top, 2)
+                .buttonStyle(.plain)
             }
 
-            Spacer()
-
-            Button {
-                Task { await sourcesViewModel?.acceptDiscoveredSource(domain) }
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundStyle(.white, Color.accentColor)
-                    .font(.title)
-            }
-            .buttonStyle(.plain)
+            articlePreview(for: domain)
         }
         .padding(14)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    @ViewBuilder
+    private func articlePreview(for domain: DiscoveredDomain) -> some View {
+        if let titles = articlePreviews[domain.domain], !titles.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(titles, id: \.self) { title in
+                    HStack(alignment: .top, spacing: 6) {
+                        Text("•").foregroundStyle(.tertiary)
+                        Text(title)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+        } else if loadingPreviews.contains(domain.domain) {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(0..<2, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.secondary.opacity(0.15))
+                        .frame(height: 12)
+                }
+            }
+        }
     }
 
     private func relativeDate(_ date: Date) -> String {
