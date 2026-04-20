@@ -23,6 +23,7 @@ struct SeektheaApp: App {
                 cloudKitDatabase: .automatic
             )]
         ) {
+            Task { @MainActor in CloudSyncStatus.shared.setContainerInitialized(cloudKitEnabled: true) }
             return container
         }
 
@@ -34,6 +35,7 @@ struct SeektheaApp: App {
         )
 
         if let container = try? ModelContainer(for: schema, configurations: [localConfig]) {
+            Task { @MainActor in CloudSyncStatus.shared.setContainerInitialized(cloudKitEnabled: false) }
             return container
         }
 
@@ -48,7 +50,9 @@ struct SeektheaApp: App {
         }
 
         do {
-            return try ModelContainer(for: schema, configurations: [localConfig])
+            let container = try ModelContainer(for: schema, configurations: [localConfig])
+            Task { @MainActor in CloudSyncStatus.shared.setContainerInitialized(cloudKitEnabled: false) }
+            return container
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
@@ -71,6 +75,9 @@ struct SeektheaApp: App {
 
                 // 24時間に1回古い記事をクリーンアップ
                 ArticleCleanupService.shared.runIfDue(modelContainer: sharedModelContainer)
+
+                // iCloudアカウント状態をチェック
+                Task { await CloudSyncStatus.shared.refresh() }
             }
         }
     }
