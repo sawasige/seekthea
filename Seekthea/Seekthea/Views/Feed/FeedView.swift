@@ -261,6 +261,7 @@ struct FeedView: View {
     @State private var scoreBreakdownArticle: Article?
     @State private var pendingImpressions: [UUID: Int] = [:]
     @State private var impressionTimers: [UUID: Task<Void, Never>] = [:]
+    @State private var sessionImpressed: Set<UUID> = []
     @Namespace private var zoomNamespace
 
     private let impressionDwellSeconds: Double = 1.0
@@ -814,11 +815,12 @@ struct FeedView: View {
 
     private func startImpressionTimer(for article: Article) {
         let id = article.id
-        guard !article.isRead else { return }
+        guard !article.isRead, !sessionImpressed.contains(id) else { return }
         impressionTimers[id]?.cancel()
         impressionTimers[id] = Task { @MainActor in
             try? await Task.sleep(for: .seconds(impressionDwellSeconds))
             guard !Task.isCancelled else { return }
+            sessionImpressed.insert(id)
             pendingImpressions[id, default: 0] += 1
             impressionTimers[id] = nil
         }
