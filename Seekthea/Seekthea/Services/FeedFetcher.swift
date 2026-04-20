@@ -12,7 +12,7 @@ class FeedFetcher {
     }
 
     /// アクティブな全ソースからRSS取得
-    func fetchAll(onProgress: ((String) -> Void)? = nil) async {
+    func fetchAll(onProgress: ((String?) -> Void)? = nil) async {
         guard !isFetching else { return }
         isFetching = true
         defer { isFetching = false }
@@ -55,8 +55,8 @@ class FeedFetcher {
         }
         onProgress?("フィードを更新中...")
 
-        // 記事が増えた後に毎回クリーンアップ
-        await ArticleCleanupService.shared.run(modelContainer: modelContainer)
+        // 記事が増えた後に毎回クリーンアップ（status は同じonProgressに流す）
+        await ArticleCleanupService.shared.run(modelContainer: modelContainer, onProgress: onProgress)
     }
 
     static func fetchOGImage(from url: URL) async -> URL? {

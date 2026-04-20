@@ -5,7 +5,6 @@ import SwiftData
 /// - 30日以上前の記事を削除
 /// - 件数が上限を超えたら古いものから削除
 /// - お気に入りは無期限保持
-@Observable
 @MainActor
 final class ArticleCleanupService {
     static let shared = ArticleCleanupService()
@@ -13,13 +12,11 @@ final class ArticleCleanupService {
     static let retentionDays: Int = 30
     static let maxArticleCount: Int = 2000
 
-    var statusMessage: String?
-
     private init() {}
 
     /// クリーンアップ実行
-    /// predicate削除と件数超過分のみ対象なので処理は軽く、throttleなしで頻繁に呼んでよい
-    func run(modelContainer: ModelContainer) async {
+    /// 呼び出し側の onProgress にステータスを流す（直列フロー中は同じchannelで表示を一本化）
+    func run(modelContainer: ModelContainer, onProgress: ((String?) -> Void)? = nil) async {
         let context = ModelContext(modelContainer)
 
         // 削除予定件数を先にカウント（0件なら何もしない）
@@ -36,10 +33,9 @@ final class ArticleCleanupService {
         let total = oldCount + excessCount
         guard total > 0 else { return }
 
-        statusMessage = "古い記事を\(total)件削除中..."
+        onProgress?("古い記事を\(total)件削除中...")
         await Task.yield()
 
-        // 実削除
         if oldCount > 0 {
             try? context.delete(model: Article.self, where: oldPredicate)
         }
@@ -56,8 +52,6 @@ final class ArticleCleanupService {
             }
         }
         try? context.save()
-
-        statusMessage = nil
     }
 
     /// 現在の記事数（お気に入り含む）
