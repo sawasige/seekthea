@@ -221,8 +221,19 @@
 
 ### 15. オンボーディング再発火リスク
 - **領域**: Lifecycle / 観点: 使いづらい
-- **症状**: CloudKit同期遅延で`sources.isEmpty`が誤検知され、再表示されうる
-- **方向性**: オンボーディング完了フラグを@AppStorageに保存
+- **症状**: CloudKit同期遅延で`sources.isEmpty`が誤検知され、機種変・再インストール時にオンボーディングが誤表示される
+- **検討経緯**:
+  - 当初案「`@AppStorage`完了フラグ」は、新端末ではフラグもクリーンなため本命シナリオ（機種変）で効果なし
+  - CloudKitの同期タイミング自体は制御不能、raceは inherent
+  - `@Query`でオンボーディング表示中もsourcesを観察できることに着目
+- **対応**: ✅ 完了（PR #58, 2026-04-20）
+  - `OnboardingView`に`@Query private var sources: [Source]`を追加、`onChange`でsync到着を検知
+  - **welcome画面**: sources非空になったら無言で自動dismiss（ユーザーがまだ何も選んでいない）
+  - **categoryPicker画面**: アラートモーダル表示で強制判断（「既存の設定を使う」/「選択を続ける」）
+    - 当初overlayバナー案 → レイアウト崩れ + 気づかず選択を続けてしまうリスクで却下
+    - アラートで割り込み、ユーザーの時間とデータを守る
+  - **done画面**: 既にaddPopularSources完了後なので何もしない
+  - `addPopularSources`は`existingURLs`でdedup済のため、「選択を続ける」を選んでもデータ破損なし
 
 ---
 
