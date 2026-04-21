@@ -49,8 +49,9 @@ class DiscoveryManager {
     func runIfNeeded() {
         guard !isRunning, let discovery else { return }
         isRunning = true
+        let presetFeedURLs = Set(PresetCatalog.all.map(\.feedURL))
         Task {
-            await discovery.discoverNewSources { message in
+            await discovery.discoverNewSources(presetFeedURLs: presetFeedURLs) { message in
                 Task { @MainActor in
                     DiscoveryManager.shared.statusMessage = message
                 }

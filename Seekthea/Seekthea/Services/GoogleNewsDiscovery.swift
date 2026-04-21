@@ -19,10 +19,8 @@ actor GoogleNewsDiscovery {
         self.modelContainer = modelContainer
     }
 
-    func discoverNewSources(onProgress: (@Sendable (String) -> Void)? = nil) async {
+    func discoverNewSources(presetFeedURLs: Set<URL> = [], onProgress: (@Sendable (String) -> Void)? = nil) async {
         let context = ModelContext(modelContainer)
-        let allSources = (try? context.fetch(FetchDescriptor<Source>())) ?? []
-        let knownDomains = Set(allSources.compactMap { extractDomain(from: $0.siteURL) })
 
         var discoveredDomains: [String: Int] = [:]
 
@@ -35,24 +33,21 @@ actor GoogleNewsDiscovery {
             for item in rssFeed.items ?? [] {
                 if let sourceURL = item.source?.attributes?.url,
                    let url = URL(string: sourceURL),
-                   let domain = extractDomain(from: url) {
-                    if !knownDomains.contains(domain) && !domain.contains("google.") {
-                        discoveredDomains[domain, default: 0] += 1
-                    }
+                   let domain = extractDomain(from: url),
+                   !domain.contains("google.") {
+                    discoveredDomains[domain, default: 0] += 1
                     continue
                 }
 
                 if let link = item.link, let url = URL(string: link) {
                     if let domain = extractDomain(from: url), !domain.contains("google.") {
-                        if !knownDomains.contains(domain) {
-                            discoveredDomains[domain, default: 0] += 1
-                        }
+                        discoveredDomains[domain, default: 0] += 1
                         continue
                     }
 
                     if let resolved = await resolveGoogleNewsURL(url),
                        let domain = extractDomain(from: resolved),
-                       !knownDomains.contains(domain) {
+                       !domain.contains("google.") {
                         discoveredDomains[domain, default: 0] += 1
                     }
                 }
@@ -80,7 +75,7 @@ actor GoogleNewsDiscovery {
         onProgress?("\(discoveredDomains.count)件のドメインからRSSを検出中...")
 
         // RSS検出して提案（1件ずつ保存）
-        await detectFeedsForCandidates(context: context, onProgress: onProgress)
+        await detectFeedsForCandidates(context: context, presetFeedURLs: presetFeedURLs, onProgress: onProgress)
     }
 
     // MARK: - Private
@@ -90,7 +85,7 @@ actor GoogleNewsDiscovery {
         return host.replacingOccurrences(of: "www.", with: "")
     }
 
-    private func detectFeedsForCandidates(context: ModelContext, onProgress: (@Sendable (String) -> Void)? = nil) async {
+    private func detectFeedsForCandidates(context: ModelContext, presetFeedURLs: Set<URL>, onProgress: (@Sendable (String) -> Void)? = nil) async {
         // isSuggested=trueだがRSSが消えたレコードをリセット
         let brokenPredicate = #Predicate<DiscoveredDomain> {
             $0.isSuggested && !$0.isRejected
@@ -98,6 +93,30 @@ actor GoogleNewsDiscovery {
         if let broken = try? context.fetch(FetchDescriptor(predicate: brokenPredicate)) {
             for d in broken where d.detectedFeedURL == nil {
                 d.isSuggested = false
+            }
+        }
+
+        // 既知 feedURL（登録済みSource + プリセット）を集める
+        let allSources = (try? context.fetch(FetchDescriptor<Source>())) ?? []
+        var knownFeedURLs = Set(allSources.map(\.feedURL))
+        knownFeedURLs.formUnion(presetFeedURLs)
+
+        // 既に suggested 済みの feedURL（発見内重複排除用）
+        let suggestedPredicate = #Predicate<DiscoveredDomain> {
+            $0.isSuggested && !$0.isRejected
+        }
+        var suggestedFeedURLs = Set(
+            (try? context.fetch(FetchDescriptor(predicate: suggestedPredicate)))?
+                .compactMap(\.detectedFeedURL) ?? []
+        )
+
+        // 既存の suggested レコードのうち、既知 feedURL と一致するものは候補から外す
+        if let existingSuggested = try? context.fetch(FetchDescriptor(predicate: suggestedPredicate)) {
+            for d in existingSuggested {
+                if let feed = d.detectedFeedURL, knownFeedURLs.contains(feed) {
+                    d.isSuggested = false
+                    suggestedFeedURLs.remove(feed)
+                }
             }
         }
 
@@ -111,9 +130,18 @@ actor GoogleNewsDiscovery {
             onProgress?("RSS検出中... (\(index + 1)/\(candidates.count))\(found > 0 ? " \(found)件発見" : "")")
             guard let siteURL = URL(string: "https://\(candidate.domain)") else { continue }
             if let feedURL = await RSSDetector.detectFeed(from: siteURL) {
+                // 既知 feedURL（登録済み or プリセット）と一致したら候補から外す
+                if knownFeedURLs.contains(feedURL) {
+                    continue
+                }
+                // 発見内で同じ feedURL が既に suggested 済みならスキップ
+                if suggestedFeedURLs.contains(feedURL) {
+                    continue
+                }
                 candidate.detectedFeedURL = feedURL
                 candidate.feedTitle = await RSSDetector.feedTitle(from: feedURL)
                 candidate.isSuggested = true
+                suggestedFeedURLs.insert(feedURL)
                 found += 1
             }
             try? context.save()
