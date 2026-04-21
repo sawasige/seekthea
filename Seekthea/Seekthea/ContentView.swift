@@ -93,6 +93,25 @@ struct ContentView: View {
             }
         }
 
+        let discovered = (try? modelContext.fetch(
+            FetchDescriptor<DiscoveredDomain>(sortBy: [SortDescriptor(\.lastSeenAt, order: .reverse)])
+        )) ?? []
+        var seenDomains: [String: DiscoveredDomain] = [:]
+        for d in discovered {
+            if let kept = seenDomains[d.domain] {
+                kept.mentionCount += d.mentionCount
+                if d.isRejected { kept.isRejected = true }
+                if d.isSuggested && !kept.isSuggested {
+                    kept.isSuggested = true
+                    kept.detectedFeedURL = d.detectedFeedURL
+                    kept.feedTitle = d.feedTitle
+                }
+                modelContext.delete(d)
+            } else {
+                seenDomains[d.domain] = d
+            }
+        }
+
         try? modelContext.save()
     }
 }
