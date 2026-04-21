@@ -267,8 +267,13 @@
   - **リセットUIは作らない**: ユーザーに内部概念を露出させないため
 
 ### 18. カテゴリの複数タグ非対応
-- `aiCategory`は単一、複数カテゴリの記事を1つに固定
-- 複数選択UI追加（モデル変更必要）
+- **状態確認時の発見**: `Article.aiCategory`は既にカンマ区切り対応、`categories`計算プロパティで配列展開、表示・フィルタも `categories.contains` で複数前提に書かれていた。穴は**InterestEngineのスコアリング学習部分のみ**で、raw `aiCategory`を直接1キーとして扱っていた
+- **設計意図**: AIの精度が低いため意図的に1カテゴリに絞っているが、精度向上時に複数返せるよう周辺は複数前提を維持したい
+- **対応**: ✅ 完了（PR #62, 2026-04-21）
+  - `InterestEngine.learnFromHistory`の2箇所を `if let cat = article.aiCategory` から `for cat in article.categories` に変更
+  - 現在AIが単一を返している間も動作（`categories` は1要素配列）
+  - 将来AIが複数を返したら、そのまま全カテゴリが学習対象になる
+  - AI側（`AIProcessor`）は単一固定のまま据え置き
 
 ### 19. 検索範囲の拡張
 - 現状: ソース管理画面の検索はプリセットのみ

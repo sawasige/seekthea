@@ -313,7 +313,7 @@ class InterestEngine {
             for keyword in article.keywords {
                 topicCounts[keyword.lowercased(), default: 0] += 3.0
             }
-            if let cat = article.aiCategory {
+            for cat in article.categories {
                 topicCounts[cat.lowercased(), default: 0] += 2.0
             }
         }
@@ -322,7 +322,7 @@ class InterestEngine {
             for keyword in article.keywords {
                 topicCounts[keyword.lowercased(), default: 0] += 1.0
             }
-            if let cat = article.aiCategory {
+            for cat in article.categories {
                 topicCounts[cat.lowercased(), default: 0] += 0.5
             }
         }
