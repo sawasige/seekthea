@@ -12,9 +12,15 @@ struct SourcesListView: View {
 
     let modelContainer: ModelContainer
 
-    /// 手動追加（プリセット外）ソース
+    /// 手動追加（プリセット外）ソース（検索フィルタ済み）
     private var manualSources: [Source] {
-        sources.filter { !$0.isPreset }
+        let all = sources.filter { !$0.isPreset }
+        let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !query.isEmpty else { return all }
+        return all.filter {
+            $0.name.lowercased().contains(query)
+                || ($0.siteURL.host()?.lowercased().contains(query) ?? false)
+        }
     }
 
     /// カテゴリ別プリセット一覧（検索フィルタ済み）
