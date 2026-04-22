@@ -5,13 +5,22 @@ import SwiftData
 /// 起動時とフィードリロード時に呼ばれる
 @MainActor
 enum DataDeduplicator {
-    static func run(in context: ModelContext) {
+    /// 重複を整理する。各モデルの処理間に Task.yield を挟むので、
+    /// onProgress で流したステータスが UI に反映される
+    static func run(in context: ModelContext, onProgress: ((String?) -> Void)? = nil) async {
+        onProgress?("重複を整理中...")
+        await Task.yield()
         dedupSources(context)
+        await Task.yield()
         dedupArticles(context)
+        await Task.yield()
         dedupDiscoveredDomains(context)
+        await Task.yield()
         dedupUserCategories(context)
+        await Task.yield()
         dedupUserInterests(context)
         try? context.save()
+        onProgress?(nil)
     }
 
     private static func dedupSources(_ context: ModelContext) {

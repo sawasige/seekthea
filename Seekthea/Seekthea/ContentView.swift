@@ -16,7 +16,7 @@ struct ContentView: View {
     var body: some View {
         FeedView(modelContainer: modelContainer)
             .task {
-                DataDeduplicator.run(in: modelContext)
+                await DataDeduplicator.run(in: modelContext)
                 checkPendingSources()
                 await checkSyncAndSeed()
             }
@@ -44,7 +44,7 @@ struct ContentView: View {
         didOnboardingCheck = true
         try? await Task.sleep(for: .milliseconds(1500))
         // 同期で届いた重複を整理してから seed
-        DataDeduplicator.run(in: modelContext)
+        await DataDeduplicator.run(in: modelContext)
         UserCategory.seedIfNeeded(context: modelContext)
         if sources.isEmpty {
             showOnboarding = true
