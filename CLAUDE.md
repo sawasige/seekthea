@@ -101,11 +101,18 @@ Seekthea/
 │   ├── Services/
 │   │   ├── FeedFetcher.swift
 │   │   ├── AIProcessor.swift
+│   │   ├── AIProgressTracker.swift
+│   │   ├── AISummaryCache.swift
+│   │   ├── ArticleCleanupService.swift
+│   │   ├── CloudSyncObserver.swift     // CloudKit同期イベント購読、import完了でdedup自動実行
+│   │   ├── CloudSyncStatus.swift
+│   │   ├── DataDeduplicator.swift      // 全モデルの重複排除（起動時/リフレッシュ時/同期時）
+│   │   ├── DiscoveryManager.swift
 │   │   ├── InterestEngine.swift
 │   │   ├── RSSDetector.swift
 │   │   ├── ReadabilityExtractor.swift
-│   │   ├── GoogleNewsDiscovery.swift
-│   │   └── AppGroupConstants.swift
+│   │   ├── ReaderCache.swift
+│   │   └── GoogleNewsDiscovery.swift
 │   ├── ViewModels/
 │   │   ├── FeedViewModel.swift
 │   │   ├── DiscoveryViewModel.swift

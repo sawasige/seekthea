@@ -73,7 +73,7 @@
   - 手動の@AppStorageキー一覧（5件）を撤廃 → `UserDefaults.standard.removePersistentDomain(forName: bundleID)` でアプリ全体を一括削除
   - 将来`@AppStorage`キーが追加されても自動的にカバーされる
   - SwiftData model削除は既に5モデル全てカバー済みだったので変更なし
-  - `PendingSourcesStore.clear()`はApp Group用なので別途呼び出し継続
+  - ~~`PendingSourcesStore.clear()`はApp Group用なので別途呼び出し継続~~ → PR #69 で share extension 撤去に伴い削除
 
 ### 5. CloudKit同期透明性
 - **領域**: Lifecycle / 観点: わかりづらい
@@ -88,7 +88,14 @@
   - 状態enum: `.available` / `.noAccount` / `.restricted` / `.temporarilyUnavailable` / `.couldNotDetermine` / `.localOnly` / `.unknown`
   - 各状態にlabel + descriptionを定義し、SettingsView「同期」セクションに表示
   - SeektheaApp起動時 + scenePhase active復帰時に`CloudSyncStatus.shared.refresh()`を呼ぶ
-  - **残タスク**: エラーバナー / 重複削除の可視化（Phase B、必要なら後で）
+- **対応**: ✅ Phase B 完了（PR #65/#66/#67/#68/#69, 2026-04-22）
+  - **重複排除の集約**: `Services/DataDeduplicator.swift` 新設、Source/Article/DiscoveredDomain/UserCategory/UserInterestを統一処理
+  - **多端末カテゴリ重複の根因対応**: `seedIfNeeded`がCloudKit同期前に独立に走り「テクノロジー」が7-8件並ぶ問題を、起動時の事後dedup＋seed前1500ms wait＋手動URL追加時のローカルチェックで解消
+  - **同期イベント駆動のdedup**: `CloudSyncObserver`を新設し`NSPersistentCloudKitContainer.eventChangedNotification`を購読。`.import`完了時に自動でdedupを実行（リロード待ち不要）
+  - **ステータス可視化**: import中「iCloudから取り込み中...」、dedup中「重複を整理中...」をフィード下部のステータスバーに表示
+  - **dedup実行トリガー**: 起動時 / pull-to-refresh / CloudKit import完了 の3層
+  - **share extension撤去の掃除**: `SeektheaShareExtension/`配下、`AppGroupConstants.swift`、ContentViewのpending alert、entitlementのApp Group、pbxprojのorphan参照をまとめて削除
+  - **残タスク**: エラーバナー（Phase C）、最終同期時刻の表示（Phase C）— 必要なら後で
 
 ---
 
