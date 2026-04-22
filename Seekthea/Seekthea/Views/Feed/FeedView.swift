@@ -1012,6 +1012,8 @@ struct FeedView: View {
         }
         guard viewModel?.isLoading != true else { return }
         await viewModel?.refresh()
+        // CloudKit同期で届いた重複もここで整理
+        DataDeduplicator.run(in: modelContext)
         lastFeedRefreshedAt = Date().timeIntervalSince1970
         reloadArticles()
         updateCachedData()
