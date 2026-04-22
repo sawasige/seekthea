@@ -4,8 +4,6 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var sources: [Source]
-    @State private var pendingSourceAlert = false
-    @State private var pendingSources: [PendingSource] = []
     @State private var showOnboarding = false
     @State private var didOnboardingCheck = false
 
@@ -18,19 +16,7 @@ struct ContentView: View {
             .task {
                 CloudSyncObserver.shared.setup(modelContainer: modelContainer)
                 await DataDeduplicator.run(in: modelContext)
-                checkPendingSources()
                 await checkSyncAndSeed()
-            }
-            .alert("新しいソースが共有されました", isPresented: $pendingSourceAlert) {
-                Button("追加") {
-                    addPendingSources()
-                }
-                Button("キャンセル", role: .cancel) {
-                    PendingSourcesStore.clear()
-                }
-            } message: {
-                let names = pendingSources.compactMap(\.title).joined(separator: ", ")
-                Text("\(names) をソースに追加しますか？")
             }
             .modifier(OnboardingPresenter(
                 isPresented: $showOnboarding,
@@ -51,30 +37,6 @@ struct ContentView: View {
             showOnboarding = true
         }
     }
-
-    private func checkPendingSources() {
-        let sources = PendingSourcesStore.load()
-        if !sources.isEmpty {
-            pendingSources = sources
-            pendingSourceAlert = true
-        }
-    }
-
-    private func addPendingSources() {
-        for pending in pendingSources {
-            if let feedURL = pending.detectedFeedURL {
-                let source = Source(
-                    name: pending.title ?? pending.url.host() ?? "Unknown",
-                    feedURL: feedURL,
-                    siteURL: pending.url
-                )
-                modelContext.insert(source)
-            }
-        }
-        try? modelContext.save()
-        PendingSourcesStore.clear()
-    }
-
 }
 
 private struct OnboardingPresenter: ViewModifier {

@@ -75,11 +75,6 @@
 			path = SeektheaUITests;
 			sourceTree = "<group>";
 		};
-		BB0000000000000000000009 /* SeektheaShareExtension */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = SeektheaShareExtension;
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -112,7 +107,6 @@
 			isa = PBXGroup;
 			children = (
 				2A5CE5B52F7CBDE20099E5ED /* Seekthea */,
-				BB0000000000000000000009 /* SeektheaShareExtension */,
 				2A5CE5C72F7CBDE40099E5ED /* SeektheaTests */,
 				2A5CE5D12F7CBDE40099E5ED /* SeektheaUITests */,
 				2A5CE5B42F7CBDE20099E5ED /* Products */,
