@@ -672,12 +672,16 @@ struct FeedView: View {
                 .overlay(alignment: .bottom) {
                     let feedStatus = viewModel?.statusMessage
                     let discoveryStatus = DiscoveryManager.shared.statusMessage
-                    if feedStatus != nil || discoveryStatus != nil {
+                    let syncStatus = CloudSyncObserver.shared.statusMessage
+                    if feedStatus != nil || discoveryStatus != nil || syncStatus != nil {
                         VStack(spacing: 4) {
                             if let status = feedStatus {
                                 statusCapsule(status)
                             }
                             if let status = discoveryStatus {
+                                statusCapsule(status)
+                            }
+                            if let status = syncStatus {
                                 statusCapsule(status)
                             }
                         }
@@ -687,6 +691,7 @@ struct FeedView: View {
                 }
                 .animation(.easeInOut(duration: 0.3), value: viewModel?.statusMessage)
                 .animation(.easeInOut(duration: 0.3), value: DiscoveryManager.shared.statusMessage)
+                .animation(.easeInOut(duration: 0.3), value: CloudSyncObserver.shared.statusMessage)
         }
     }
 
