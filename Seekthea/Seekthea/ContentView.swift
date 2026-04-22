@@ -17,9 +17,8 @@ struct ContentView: View {
         FeedView(modelContainer: modelContainer)
             .task {
                 deduplicateSources()
-                UserCategory.seedIfNeeded(context: modelContext)
                 checkPendingSources()
-                await checkOnboarding()
+                await checkSyncAndSeed()
             }
             .alert("新しいソースが共有されました", isPresented: $pendingSourceAlert) {
                 Button("追加") {
@@ -38,11 +37,15 @@ struct ContentView: View {
             ))
     }
 
-    private func checkOnboarding() async {
+    /// CloudKit同期を待ってから seed と onboarding 判定を行う
+    /// 待たずに seed すると複数端末で独立にデフォルト投入が走り、同期後に重複する
+    private func checkSyncAndSeed() async {
         guard !didOnboardingCheck else { return }
         didOnboardingCheck = true
-        // CloudKit 同期を待つため少し遅延
         try? await Task.sleep(for: .milliseconds(1500))
+        // 同期で届いた重複を整理してから seed
+        deduplicateSources()
+        UserCategory.seedIfNeeded(context: modelContext)
         if sources.isEmpty {
             showOnboarding = true
         }
@@ -109,6 +112,35 @@ struct ContentView: View {
                 modelContext.delete(d)
             } else {
                 seenDomains[d.domain] = d
+            }
+        }
+
+        // 多端末で seedIfNeeded が同期前に独立に走ると、デフォルトカテゴリが N×10 個並ぶ
+        let categories = (try? modelContext.fetch(
+            FetchDescriptor<UserCategory>(sortBy: [SortDescriptor(\.addedAt)])
+        )) ?? []
+        var seenCategories = Set<String>()
+        for cat in categories {
+            let key = cat.name.trimmingCharacters(in: .whitespaces)
+            guard !key.isEmpty else { continue }
+            if seenCategories.contains(key) {
+                modelContext.delete(cat)
+            } else {
+                seenCategories.insert(key)
+            }
+        }
+
+        let interests = (try? modelContext.fetch(
+            FetchDescriptor<UserInterest>(sortBy: [SortDescriptor(\.addedAt)])
+        )) ?? []
+        var seenInterests = Set<String>()
+        for interest in interests {
+            let key = interest.topic.trimmingCharacters(in: .whitespaces)
+            guard !key.isEmpty else { continue }
+            if seenInterests.contains(key) {
+                modelContext.delete(interest)
+            } else {
+                seenInterests.insert(key)
             }
         }
 
