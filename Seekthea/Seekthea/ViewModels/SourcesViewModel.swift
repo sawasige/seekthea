@@ -91,6 +91,11 @@ class SourcesViewModel {
             return
         }
 
+        guard !registeredFeedURLs.contains(feedURL) else {
+            addingError = "このRSSフィードは既に登録されています。"
+            return
+        }
+
         let name = feedTitle ?? url.host() ?? url.absoluteString
         let context = modelContainer.mainContext
         let source = Source(

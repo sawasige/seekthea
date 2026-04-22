@@ -129,7 +129,6 @@ struct SettingsView: View {
         }
 
         PresetOGImageCache.clear()
-        PendingSourcesStore.clear()
         ReaderCache.shared.clear()
         AISummaryCache.shared.clear()
 
