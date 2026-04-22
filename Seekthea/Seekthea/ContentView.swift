@@ -16,7 +16,7 @@ struct ContentView: View {
     var body: some View {
         FeedView(modelContainer: modelContainer)
             .task {
-                deduplicateSources()
+                DataDeduplicator.run(in: modelContext)
                 checkPendingSources()
                 await checkSyncAndSeed()
             }
@@ -44,7 +44,7 @@ struct ContentView: View {
         didOnboardingCheck = true
         try? await Task.sleep(for: .milliseconds(1500))
         // 同期で届いた重複を整理してから seed
-        deduplicateSources()
+        DataDeduplicator.run(in: modelContext)
         UserCategory.seedIfNeeded(context: modelContext)
         if sources.isEmpty {
             showOnboarding = true
@@ -74,78 +74,6 @@ struct ContentView: View {
         PendingSourcesStore.clear()
     }
 
-    /// 重複を削除（CloudKit同期で発生しうる）
-    private func deduplicateSources() {
-        let sources = (try? modelContext.fetch(FetchDescriptor<Source>())) ?? []
-        var seenSources = Set<URL>()
-        for source in sources {
-            if seenSources.contains(source.feedURL) {
-                modelContext.delete(source)
-            } else {
-                seenSources.insert(source.feedURL)
-            }
-        }
-
-        let articles = (try? modelContext.fetch(FetchDescriptor<Article>())) ?? []
-        var seenArticles = Set<URL>()
-        for article in articles {
-            if seenArticles.contains(article.articleURL) {
-                modelContext.delete(article)
-            } else {
-                seenArticles.insert(article.articleURL)
-            }
-        }
-
-        let discovered = (try? modelContext.fetch(
-            FetchDescriptor<DiscoveredDomain>(sortBy: [SortDescriptor(\.lastSeenAt, order: .reverse)])
-        )) ?? []
-        var seenDomains: [String: DiscoveredDomain] = [:]
-        for d in discovered {
-            if let kept = seenDomains[d.domain] {
-                kept.mentionCount += d.mentionCount
-                if d.isRejected { kept.isRejected = true }
-                if d.isSuggested && !kept.isSuggested {
-                    kept.isSuggested = true
-                    kept.detectedFeedURL = d.detectedFeedURL
-                    kept.feedTitle = d.feedTitle
-                }
-                modelContext.delete(d)
-            } else {
-                seenDomains[d.domain] = d
-            }
-        }
-
-        // 多端末で seedIfNeeded が同期前に独立に走ると、デフォルトカテゴリが N×10 個並ぶ
-        let categories = (try? modelContext.fetch(
-            FetchDescriptor<UserCategory>(sortBy: [SortDescriptor(\.addedAt)])
-        )) ?? []
-        var seenCategories = Set<String>()
-        for cat in categories {
-            let key = cat.name.trimmingCharacters(in: .whitespaces)
-            guard !key.isEmpty else { continue }
-            if seenCategories.contains(key) {
-                modelContext.delete(cat)
-            } else {
-                seenCategories.insert(key)
-            }
-        }
-
-        let interests = (try? modelContext.fetch(
-            FetchDescriptor<UserInterest>(sortBy: [SortDescriptor(\.addedAt)])
-        )) ?? []
-        var seenInterests = Set<String>()
-        for interest in interests {
-            let key = interest.topic.trimmingCharacters(in: .whitespaces)
-            guard !key.isEmpty else { continue }
-            if seenInterests.contains(key) {
-                modelContext.delete(interest)
-            } else {
-                seenInterests.insert(key)
-            }
-        }
-
-        try? modelContext.save()
-    }
 }
 
 private struct OnboardingPresenter: ViewModifier {
