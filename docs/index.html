@@ -79,11 +79,15 @@
         }
 
         /* Screenshots */
+        .screenshots-wrap {
+            position: relative;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
         .screenshots {
             display: flex;
             gap: 20px;
-            max-width: 900px;
-            margin: 0 auto;
             padding: 40px 20px;
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
@@ -97,6 +101,51 @@
             box-shadow: 0 8px 32px rgba(0,0,0,0.08);
             scroll-snap-align: center;
             cursor: zoom-in;
+        }
+
+        .scroll-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 44px;
+            height: 44px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.35);
+            color: white;
+            font-size: 28px;
+            line-height: 1;
+            cursor: pointer;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: opacity 0.2s ease, background 0.2s ease;
+        }
+
+        .scroll-arrow:hover {
+            background: rgba(0, 0, 0, 0.55);
+        }
+
+        .scroll-arrow.left {
+            left: 8px;
+        }
+
+        .scroll-arrow.right {
+            right: 8px;
+        }
+
+        .scroll-arrow.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* タッチデバイスではスワイプが自然なので矢印を隠す */
+        @media (hover: none) {
+            .scroll-arrow {
+                display: none;
+            }
         }
 
         /* Intro */
@@ -406,16 +455,20 @@
         </a>
     </section>
 
-    <section class="screenshots">
-        <img src="assets/screenshot1.png" alt="フィード">
-        <img src="assets/screenshot2.png" alt="AI要約">
-        <img src="assets/screenshot3.png" alt="興味トピック">
-        <img src="assets/screenshot4.png" alt="ソース管理">
-        <img src="assets/screenshot5.png" alt="オンボーディング">
-        <img src="assets/ipad1.png" alt="iPad">
-        <img src="assets/mac1.png" alt="Mac">
-        <img src="assets/visionos1.png" alt="Apple Vision Pro">
-    </section>
+    <div class="screenshots-wrap">
+        <button class="scroll-arrow left hidden" aria-label="前へ" type="button">‹</button>
+        <section class="screenshots">
+            <img src="assets/screenshot1.png" alt="フィード">
+            <img src="assets/screenshot2.png" alt="AI要約">
+            <img src="assets/screenshot3.png" alt="興味トピック">
+            <img src="assets/screenshot4.png" alt="ソース管理">
+            <img src="assets/screenshot5.png" alt="オンボーディング">
+            <img src="assets/ipad1.png" alt="iPad">
+            <img src="assets/mac1.png" alt="Mac">
+            <img src="assets/visionos1.png" alt="Apple Vision Pro">
+        </section>
+        <button class="scroll-arrow right" aria-label="次へ" type="button">›</button>
+    </div>
 
     <section class="intro">
         <h2>自分だけのトレンドフィードを作ろう</h2>
@@ -578,6 +631,33 @@
         lightbox.addEventListener('click', function() {
             lightbox.classList.remove('active');
         });
+
+        // スクリーンショットカルーセルの矢印
+        var screenshots = document.querySelector('.screenshots');
+        var leftArrow = document.querySelector('.scroll-arrow.left');
+        var rightArrow = document.querySelector('.scroll-arrow.right');
+
+        if (screenshots && leftArrow && rightArrow) {
+            function updateArrows() {
+                var sl = screenshots.scrollLeft;
+                var max = screenshots.scrollWidth - screenshots.clientWidth;
+                leftArrow.classList.toggle('hidden', sl <= 1);
+                rightArrow.classList.toggle('hidden', sl >= max - 1);
+            }
+
+            function scrollByStep(direction) {
+                // ビューポート幅の60%程度ずつ送る
+                var step = Math.max(200, screenshots.clientWidth * 0.6);
+                screenshots.scrollBy({ left: step * direction, behavior: 'smooth' });
+            }
+
+            leftArrow.addEventListener('click', function() { scrollByStep(-1); });
+            rightArrow.addEventListener('click', function() { scrollByStep(1); });
+            screenshots.addEventListener('scroll', updateArrows, { passive: true });
+            window.addEventListener('resize', updateArrows);
+            window.addEventListener('load', updateArrows);
+            updateArrows();
+        }
     </script>
 </body>
 </html>
