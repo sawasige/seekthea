@@ -40,13 +40,23 @@ class AIProcessor {
         }.joined(separator: "\n")
     }
 
-    /// ラベル文字列（"A"）をカテゴリ名に変換（先頭1文字のみ採用）
+    /// AIの応答をカテゴリ名に変換する。
+    /// プロンプトでは letter（"A" など）を要求しているが、
+    /// AIが指示を無視してカテゴリ名そのもの（"スポーツ"）を返すことがあるので両方サポート
     private func categoryName(from labelStr: String) -> String? {
-        guard let char = labelStr.trimmingCharacters(in: .whitespaces).uppercased().first,
-              char.isLetter,
-              let idx = Self.alphabet.firstIndex(of: char),
-              idx < userCategories.count else { return nil }
-        return userCategories[idx]
+        let trimmed = labelStr.trimmingCharacters(in: .whitespaces)
+        // letter パターン（"A" → userCategories[0]）
+        if let char = trimmed.uppercased().first,
+           char.isLetter,
+           let idx = Self.alphabet.firstIndex(of: char),
+           idx < userCategories.count {
+            return userCategories[idx]
+        }
+        // カテゴリ名そのものパターン（"スポーツ" → "スポーツ"）
+        if userCategories.contains(trimmed) {
+            return trimmed
+        }
+        return nil
     }
 
     init(modelContainer: ModelContainer) {
@@ -167,30 +177,53 @@ class AIProcessor {
             let desc = article.leadText ?? article.ogDescription ?? ""
             let truncated = desc.isEmpty ? "" : "\n内容: \(String(desc.prefix(200)))"
 
+            let session = LanguageModelSession()
+            let prompt = """
+            以下の記事を分類し、キーワードを抽出してください。
+
+            カテゴリ一覧:
+            \(catList)
+
+            記事タイトル: \(article.title)\(truncated)
+
+            - category: 最も適切なカテゴリのアルファベットを1つだけ
+            - keywords: 記事の重要キーワードを日本語で最大5つ
+            - keywordsEn: keywordsと同じ順序で各キーワードを英語1単語に翻訳
+            """
+            let startTime = Date()
             do {
-                let session = LanguageModelSession()
-                let prompt = """
-                以下の記事を分類し、キーワードを抽出してください。
-
-                カテゴリ一覧:
-                \(catList)
-
-                記事タイトル: \(article.title)\(truncated)
-
-                - category: 最も適切なカテゴリのアルファベットを1つだけ
-                - keywords: 記事の重要キーワードを日本語で最大5つ
-                - keywordsEn: keywordsと同じ順序で各キーワードを英語1単語に翻訳
-                """
                 let response = try await session.respond(to: prompt, generating: CategoryResult.self)
+                let elapsed = Date().timeIntervalSince(startTime)
                 let result = response.content
-                if let name = categoryName(from: result.category) {
+                let mappedName = categoryName(from: result.category)
+                #if DEBUG
+                print("[AI分類] ────────────")
+                print("[AI分類] タイトル: \(article.title)")
+                print("[AI分類] 本文: \(desc.isEmpty ? "(なし)" : String(desc.prefix(200)))")
+                print("[AI分類] 実行時間: \(String(format: "%.2f", elapsed))秒")
+                print("[AI分類] → カテゴリ: \(result.category) (\(mappedName ?? "未マップ"))")
+                print("[AI分類] → キーワード(JP): \(result.keywords)")
+                print("[AI分類] → キーワード(EN): \(result.keywordsEn)")
+                #endif
+                if let name = mappedName {
                     article.aiCategory = name
+                } else {
+                    // letter以外（カテゴリ名そのものなど）が返ってきた時はマップ失敗。
+                    // 空文字を入れて「処理済」扱いにしないと、次回も同じ記事を拾って無限ループする
+                    article.aiCategory = ""
+                    #if DEBUG
+                    print("[AI分類] ⚠️マップ失敗（category='\(result.category)'）: \(article.title)")
+                    #endif
                 }
                 article.keywords = result.keywords
                 article.keywordsEn = result.keywordsEn
                 try? context.save()
                 onArticleClassified?()
             } catch {
+                let elapsed = Date().timeIntervalSince(startTime)
+                #if DEBUG
+                print("[AI分類] ✗失敗（\(String(format: "%.2f", elapsed))秒）: \(article.title) — \(error)")
+                #endif
                 // 失敗時は空文字をマークして無限ループ防止（"未分類"扱い）
                 article.aiCategory = ""
                 try? context.save()
