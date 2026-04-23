@@ -12,9 +12,13 @@ struct SourcesListView: View {
 
     let modelContainer: ModelContainer
 
-    /// 手動追加（プリセット外）ソース（検索フィルタ済み）
+    /// 手動追加（現プリセット外）ソース（検索フィルタ済み）。
+    /// 「現 PresetCatalog に feedURL が無い Source」を手動扱いとする。
+    /// Source.isPreset フラグは見ない（過去の preset 削除/改名で orphan 化した
+    /// Source も自動的に手動扱いとして UI に表示される）。
     private var manualSources: [Source] {
-        let all = sources.filter { !$0.isPreset }
+        let presetURLs = PresetCatalog.allFeedURLs
+        let all = sources.filter { !presetURLs.contains($0.feedURL) }
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
         guard !query.isEmpty else { return all }
         return all.filter {

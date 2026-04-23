@@ -28,6 +28,11 @@ struct PresetCatalog {
         shared.values.flatMap { $0 }
     }
 
+    /// 全プリセットの feedURL セット（Source の preset 判定で使う）
+    static var allFeedURLs: Set<URL> {
+        Set(all.map(\.feedURL))
+    }
+
     /// カテゴリ順のキー配列（表示順を固定）
     static let categoryOrder = [
         "ニュース", "テクノロジー", "開発", "ビジネス", "エンタメ",

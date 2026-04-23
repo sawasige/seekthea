@@ -658,6 +658,10 @@ struct FeedView: View {
                 }
                 .onChange(of: activeFeedURLs) {
                     clearStaleSourceFilter()
+                    // 即時にDB状態を表示へ反映（Source削除時の cascade 結果やフィルタ更新）。
+                    // RSS再取得は重いので別タスクで非同期に。
+                    reloadArticles()
+                    updateCachedData()
                     Task { await refreshAll() }
                 }
                 .onChange(of: hasActiveSource) { _, newValue in
