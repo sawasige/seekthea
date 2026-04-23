@@ -488,13 +488,6 @@
       "popular": false
     },
     {
-      "name": "clicccar",
-      "feedURL": "https://clicccar.com/feed/",
-      "siteURL": "https://clicccar.com/",
-      "category": "クルマ・バイク",
-      "popular": false
-    },
-    {
       "name": "Motor-Fan",
       "feedURL": "https://motor-fan.jp/feed",
       "siteURL": "https://motor-fan.jp/",
@@ -528,13 +521,6 @@
       "name": "Togetter",
       "feedURL": "https://togetter.com/rss/hot",
       "siteURL": "https://togetter.com/",
-      "category": "話題",
-      "popular": true
-    },
-    {
-      "name": "ねとらぼ",
-      "feedURL": "https://rss.itmedia.co.jp/rss/2.0/netlab.xml",
-      "siteURL": "https://nlab.itmedia.co.jp/",
       "category": "話題",
       "popular": true
     },
@@ -651,13 +637,6 @@
       "name": "CASA BRUTUS",
       "feedURL": "https://casabrutus.com/feed",
       "siteURL": "https://casabrutus.com/",
-      "category": "ライフスタイル",
-      "popular": false
-    },
-    {
-      "name": "Rettyグルメニュース",
-      "feedURL": "https://retty.news/feed/",
-      "siteURL": "https://retty.news/",
       "category": "ライフスタイル",
       "popular": false
     },
