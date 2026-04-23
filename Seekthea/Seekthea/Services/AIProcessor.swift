@@ -33,10 +33,28 @@ class AIProcessor {
 
     private static let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
+    /// カテゴリ名 → AI判定のヒントになる説明文。
+    /// 該当キーがない場合（ユーザー追加の独自カテゴリなど）は説明なしでフォールバック。
+    private static let categoryDescriptions: [String: String] = [
+        "政治": "選挙、国会、政策、外交、与野党",
+        "経済": "株、為替、企業業績、市場、金融",
+        "社会": "事件、事故、犯罪、災害、社会問題",
+        "国際": "海外ニュース、国際関係、外国情勢",
+        "テクノロジー": "IT、ガジェット、AI、Apple、ソフトウェア",
+        "科学": "宇宙、物理、生物、研究、学術",
+        "スポーツ": "野球、サッカー、選手、試合、オリンピック",
+        "エンタメ": "芸能、YouTuber、VTuber、映画、音楽、テレビ、ネット話題",
+        "ライフ": "暮らし、料理、ファッション、健康、住まい、グルメ",
+        "開発": "プログラミング、エンジニアリング、コード、フレームワーク"
+    ]
+
     private var labeledCategoryList: String {
-        userCategories.enumerated().map {
-            let label = $0.offset < Self.alphabet.count ? String(Self.alphabet[$0.offset]) : "\($0.offset)"
-            return "\(label). \($0.element)"
+        userCategories.enumerated().map { idx, name in
+            let label = idx < Self.alphabet.count ? String(Self.alphabet[idx]) : "\(idx)"
+            if let desc = Self.categoryDescriptions[name] {
+                return "\(label). \(name)（\(desc)）"
+            }
+            return "\(label). \(name)"
         }.joined(separator: "\n")
     }
 
