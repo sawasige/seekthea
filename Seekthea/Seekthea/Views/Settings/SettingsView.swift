@@ -11,6 +11,11 @@ struct SettingsView: View {
         modelContext.container
     }
 
+    /// Info.plist の CFBundleShortVersionString（= MARKETING_VERSION）から取得
+    static let appVersion: String = {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+    }()
+
     var body: some View {
         Form {
             Section("ソース") {
@@ -57,7 +62,7 @@ struct SettingsView: View {
             }
 
             Section("情報") {
-                LabeledContent("バージョン", value: "1.0")
+                LabeledContent("バージョン", value: Self.appVersion)
                 NavigationLink("ライセンス") {
                     LicensesView()
                 }
