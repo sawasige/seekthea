@@ -109,7 +109,7 @@
     },
     {
       "name": "iPhone Mania",
-      "feedURL": "https://iphone-mania.jp/feed",
+      "feedURL": "https://iphone-mania.jp/feed/",
       "siteURL": "https://iphone-mania.jp/",
       "category": "テクノロジー",
       "popular": false
@@ -252,20 +252,6 @@
       "siteURL": "https://www.cinematoday.jp/",
       "category": "エンタメ",
       "popular": true
-    },
-    {
-      "name": "モデルプレス",
-      "feedURL": "https://mdpr.jp/rss",
-      "siteURL": "https://mdpr.jp/",
-      "category": "エンタメ",
-      "popular": true
-    },
-    {
-      "name": "CINRA",
-      "feedURL": "https://www.cinra.net/article/rss",
-      "siteURL": "https://www.cinra.net/",
-      "category": "エンタメ",
-      "popular": false
     },
     {
       "name": "Lmaga.jp",
@@ -422,13 +408,6 @@
     }
   ],
   "スポーツ": [
-    {
-      "name": "Number Web",
-      "feedURL": "https://number.bunshun.jp/list/feed",
-      "siteURL": "https://number.bunshun.jp/",
-      "category": "スポーツ",
-      "popular": true
-    },
     {
       "name": "Full-Count (野球)",
       "feedURL": "https://full-count.jp/feed/",
@@ -700,8 +679,8 @@
   "掲示板まとめ": [
     {
       "name": "痛いニュース",
-      "feedURL": "http://blog.livedoor.jp/dqnplus/index.rdf",
-      "siteURL": "http://blog.livedoor.jp/dqnplus/",
+      "feedURL": "https://itainews.com/index.rdf",
+      "siteURL": "https://itainews.com/",
       "category": "掲示板まとめ",
       "popular": true
     },
@@ -713,30 +692,9 @@
       "popular": true
     },
     {
-      "name": "暇人速報",
-      "feedURL": "http://himasoku.com/index.rdf",
-      "siteURL": "http://himasoku.com/",
-      "category": "掲示板まとめ",
-      "popular": true
-    },
-    {
       "name": "哲学ニュースnwk",
-      "feedURL": "http://blog.livedoor.jp/nwknews/index.rdf",
-      "siteURL": "http://blog.livedoor.jp/nwknews/",
-      "category": "掲示板まとめ",
-      "popular": false
-    },
-    {
-      "name": "キニ速",
-      "feedURL": "http://blog.livedoor.jp/kinisoku/index.rdf",
-      "siteURL": "http://blog.livedoor.jp/kinisoku/",
-      "category": "掲示板まとめ",
-      "popular": false
-    },
-    {
-      "name": "VIPPERな俺",
-      "feedURL": "http://blog.livedoor.jp/news23vip/index.rdf",
-      "siteURL": "http://blog.livedoor.jp/news23vip/",
+      "feedURL": "https://nwknews.jp/index.rdf",
+      "siteURL": "https://nwknews.jp/",
       "category": "掲示板まとめ",
       "popular": false
     }
