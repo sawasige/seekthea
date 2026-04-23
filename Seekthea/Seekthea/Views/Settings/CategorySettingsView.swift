@@ -152,6 +152,9 @@ private struct CategoryCreateSheet: View {
                     Text("どんな記事がこのカテゴリに該当するかをAIに伝える説明文。空欄でも分類はできるが、説明があると精度が上がります。デフォルトカテゴリ名（政治、経済など）を入力した場合は標準の説明が自動入力されます。")
                 }
             }
+            #if !os(macOS)
+            .scrollDismissesKeyboard(.interactively)
+            #endif
             #if os(macOS)
             .formStyle(.grouped)
             .frame(minWidth: 480, minHeight: 400)
@@ -208,6 +211,9 @@ private struct CategoryDetailView: View {
                 Text("どんな記事がこのカテゴリに該当するかをAIに伝えるための説明文。空欄でも分類はできるが、説明があると精度が上がります。\n例: 「野球、サッカー、選手、試合（個別企業の業績は「経済」へ）」のように、含めるトピックや他カテゴリとの境界を書くと効果的。")
             }
         }
+        #if !os(macOS)
+        .scrollDismissesKeyboard(.interactively)
+        #endif
         #if os(macOS)
         .formStyle(.grouped)
         .frame(maxWidth: 600)
