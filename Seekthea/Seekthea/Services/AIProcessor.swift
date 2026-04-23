@@ -20,24 +20,55 @@ struct CategoryResult {
 class AIProcessor {
     private let modelContainer: ModelContainer
 
-    /// ユーザー定義カテゴリリスト（SwiftData から order 順で取得）
-    private var userCategories: [String] {
+    /// ユーザー定義カテゴリエンティティ（SwiftData から order 順で取得）
+    private var userCategoryEntities: [UserCategory] {
         let context = modelContainer.mainContext
         let descriptor = FetchDescriptor<UserCategory>(sortBy: [SortDescriptor(\.order)])
-        let fetched = (try? context.fetch(descriptor)) ?? []
-        if fetched.isEmpty {
+        return (try? context.fetch(descriptor)) ?? []
+    }
+
+    /// カテゴリ名一覧（letter のマッピング順）
+    private var userCategories: [String] {
+        let entities = userCategoryEntities
+        if entities.isEmpty {
             return UserCategory.defaults
         }
-        return fetched.map(\.name)
+        return entities.map(\.name)
     }
 
     private static let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
     private var labeledCategoryList: String {
-        userCategories.enumerated().map {
-            let label = $0.offset < Self.alphabet.count ? String(Self.alphabet[$0.offset]) : "\($0.offset)"
-            return "\(label). \($0.element)"
+        userCategories.enumerated().map { idx, name in
+            let label = idx < Self.alphabet.count ? String(Self.alphabet[idx]) : "\(idx)"
+            return "\(label). \(name)"
         }.joined(separator: "\n")
+    }
+
+    /// カテゴリ説明ブロック（プロンプトで「参考」セクションとして渡す）
+    /// labeledCategoryList とは別にすることで、AIが説明文を keywords に
+    /// そのまま流用してしまうのを防ぐ。aiHint が空のカテゴリはスキップ。
+    private var categoryDescriptionsBlock: String {
+        let entities = userCategoryEntities
+        if entities.isEmpty {
+            // SwiftData にデータがないとき（テスト等）のフォールバック
+            return UserCategory.defaults.compactMap { name in
+                guard let hint = UserCategory.defaultHints[name], !hint.isEmpty else { return nil }
+                return "- \(name): \(hint)"
+            }.joined(separator: "\n")
+        }
+        return entities.compactMap { cat in
+            guard !cat.aiHint.isEmpty else { return nil }
+            return "- \(cat.name): \(cat.aiHint)"
+        }.joined(separator: "\n")
+    }
+
+    /// 本文が短すぎ／プレースホルダのみのケースを検出。
+    /// このケースは AI がキーワード抽出に失敗しがちで、
+    /// カテゴリ説明文を流用してしまうので、別プロンプトで処理する
+    static func isThinBody(_ desc: String) -> Bool {
+        let trimmed = desc.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.count < 30
     }
 
     /// AIの応答をカテゴリ名に変換する。
@@ -160,6 +191,7 @@ class AIProcessor {
         #if canImport(FoundationModels)
         let context = modelContainer.mainContext
         let catList = labeledCategoryList
+        let catDescBlock = categoryDescriptionsBlock
 
         while !Task.isCancelled {
             var descriptor = FetchDescriptor<Article>(
@@ -175,19 +207,36 @@ class AIProcessor {
             onProgress?("カテゴリ分類中... 残り\(remaining)件")
 
             let desc = article.leadText ?? article.ogDescription ?? ""
-            let truncated = desc.isEmpty ? "" : "\n内容: \(String(desc.prefix(200)))"
+            let isThin = Self.isThinBody(desc)
+            let articleSection: String
+            let keywordInstruction: String
+            if isThin {
+                // 本文が空 or "記事を読む" のような placeholder の時は、AIが
+                // 抽出語を見つけられず【参考】の説明文を流用してしまうので、
+                // タイトルだけから抽出するよう指示し、無理に5つ揃えなくてよいと明示
+                articleSection = "タイトル: \(article.title)"
+                keywordInstruction = "上のタイトルから抽出できる重要語句を日本語で（最大5つ。抽出できる語が少なければ無理に揃えなくてよい）"
+            } else {
+                articleSection = "タイトル: \(article.title)\n内容: \(String(desc.prefix(200)))"
+                keywordInstruction = "上の記事タイトル・内容に実際に登場する重要語句を日本語で最大5つ抽出（カテゴリ参考の語ではなく、記事本文から）"
+            }
 
             let session = LanguageModelSession()
             let prompt = """
             以下の記事を分類し、キーワードを抽出してください。
 
-            カテゴリ一覧:
+            【カテゴリ】
             \(catList)
 
-            記事タイトル: \(article.title)\(truncated)
+            【参考: 各カテゴリの傾向】
+            \(catDescBlock)
 
+            【記事】
+            \(articleSection)
+
+            【出力】
             - category: 最も適切なカテゴリのアルファベットを1つだけ
-            - keywords: 記事の重要キーワードを日本語で最大5つ
+            - keywords: \(keywordInstruction)
             - keywordsEn: keywordsと同じ順序で各キーワードを英語1単語に翻訳
             """
             let startTime = Date()
@@ -199,7 +248,7 @@ class AIProcessor {
                 #if DEBUG
                 print("[AI分類] ────────────")
                 print("[AI分類] タイトル: \(article.title)")
-                print("[AI分類] 本文: \(desc.isEmpty ? "(なし)" : String(desc.prefix(200)))")
+                print("[AI分類] 本文: \(desc.isEmpty ? "(なし)" : String(desc.prefix(200)))\(isThin ? " [thin]" : "")")
                 print("[AI分類] 実行時間: \(String(format: "%.2f", elapsed))秒")
                 print("[AI分類] → カテゴリ: \(result.category) (\(mappedName ?? "未マップ"))")
                 print("[AI分類] → キーワード(JP): \(result.keywords)")
@@ -267,6 +316,7 @@ class AIProcessor {
 
         #if canImport(FoundationModels)
         let catList = labeledCategoryList
+        let catDescBlock = categoryDescriptionsBlock
         let desc = article.leadText ?? article.ogDescription ?? ""
         let truncated = desc.isEmpty ? "" : "\n内容: \(String(desc.prefix(200)))"
 
@@ -275,13 +325,18 @@ class AIProcessor {
             let prompt = """
             以下の記事を分類し、キーワードを抽出してください。
 
-            カテゴリ一覧:
+            【カテゴリ】
             \(catList)
 
-            記事タイトル: \(article.title)\(truncated)
+            【参考: 各カテゴリの傾向】
+            \(catDescBlock)
 
+            【記事】
+            タイトル: \(article.title)\(truncated)
+
+            【出力】
             - category: 最も適切なカテゴリのアルファベットを1つだけ
-            - keywords: 記事の重要キーワードを日本語で最大5つ
+            - keywords: 上の記事タイトル・内容に実際に登場する重要語句を日本語で最大5つ抽出（カテゴリ参考の語ではなく、記事本文から）
             - keywordsEn: keywordsと同じ順序で各キーワードを英語1単語に翻訳
             """
             let response = try await session.respond(to: prompt, generating: CategoryResult.self)
