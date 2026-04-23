@@ -21,7 +21,10 @@ struct CompactArticleCardView: View {
                 // ソース名 + 日時
                 HStack(spacing: 4) {
                     let name = article.sourceName.isEmpty ? article.articleURL.host() ?? "" : article.sourceName
-                    let site = article.source?.siteURL ?? URL(string: "https://\(article.articleURL.host() ?? "")") ?? article.articleURL
+                    // article.source.siteURL を読むと Source オブジェクトの全更新（lastFetchedAt等）が
+                    // SwiftUI の observation 経由で全カードの再評価を引き起こす。
+                    // favicon は host 単位なので article URL の host から組み立てれば十分
+                    let site = URL(string: "https://\(article.articleURL.host() ?? "")") ?? article.articleURL
                     SourceThumbnailView(siteURL: site, size: 14)
                     Text(name)
                         .font(.caption)
