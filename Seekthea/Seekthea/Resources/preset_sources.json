@@ -350,7 +350,7 @@
     },
     {
       "name": "Science Portal (JST)",
-      "feedURL": "https://scienceportal.jst.go.jp/feed/",
+      "feedURL": "https://scienceportal.jst.go.jp/feed/rss.xml",
       "siteURL": "https://scienceportal.jst.go.jp/",
       "category": "サイエンス",
       "popular": false
@@ -401,7 +401,7 @@
     },
     {
       "name": "Eurogamer (English)",
-      "feedURL": "https://www.eurogamer.net/?format=rss",
+      "feedURL": "https://www.eurogamer.net/feed",
       "siteURL": "https://www.eurogamer.net/",
       "category": "ゲーム",
       "popular": false
@@ -656,7 +656,7 @@
     },
     {
       "name": "Rettyグルメニュース",
-      "feedURL": "https://retty.news/feed",
+      "feedURL": "https://retty.news/feed/",
       "siteURL": "https://retty.news/",
       "category": "ライフスタイル",
       "popular": false
