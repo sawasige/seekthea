@@ -20,34 +20,23 @@ struct CategoryResult {
 class AIProcessor {
     private let modelContainer: ModelContainer
 
-    /// ユーザー定義カテゴリリスト（SwiftData から order 順で取得）
-    private var userCategories: [String] {
+    /// ユーザー定義カテゴリエンティティ（SwiftData から order 順で取得）
+    private var userCategoryEntities: [UserCategory] {
         let context = modelContainer.mainContext
         let descriptor = FetchDescriptor<UserCategory>(sortBy: [SortDescriptor(\.order)])
-        let fetched = (try? context.fetch(descriptor)) ?? []
-        if fetched.isEmpty {
+        return (try? context.fetch(descriptor)) ?? []
+    }
+
+    /// カテゴリ名一覧（letter のマッピング順）
+    private var userCategories: [String] {
+        let entities = userCategoryEntities
+        if entities.isEmpty {
             return UserCategory.defaults
         }
-        return fetched.map(\.name)
+        return entities.map(\.name)
     }
 
     private static let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-    /// カテゴリ名 → AI判定のヒントになる説明文。
-    /// 該当キーがない場合（ユーザー追加の独自カテゴリなど）は説明なしでフォールバック。
-    /// 「（X は Y へ）」の disambiguation で過剰流出を抑制する。
-    private static let categoryDescriptions: [String: String] = [
-        "政治": "政府・国会の動き、選挙、政策、外交、与野党（個別の事件・事故は「社会」、企業業績は「経済」、スポーツ選手の処遇は「スポーツ」）",
-        "経済": "株、為替、企業業績、市場、金融、決算、M&A、物価",
-        "社会": "事件、事故、犯罪、災害、社会問題、地域ニュース、店舗運営の話題",
-        "国際": "海外ニュース、国際関係、外国情勢（米政権の動き、各国首脳）",
-        "テクノロジー": "IT、AI、ガジェット、新技術、ソフトウェア（個別企業の業績は「経済」、店舗運営の話は「社会」、コーディングは「開発」）",
-        "科学": "宇宙、物理、生物、研究、学術",
-        "スポーツ": "野球、サッカー、選手、試合、オリンピック、チーム成績、選手の去就",
-        "エンタメ": "芸能、YouTuber、VTuber、映画、音楽、テレビ、ネット話題",
-        "ライフ": "暮らし、料理、ファッション、健康、住まい、グルメ",
-        "開発": "プログラミング、エンジニアリング、コード、フレームワーク、開発者向けツール"
-    ]
 
     private var labeledCategoryList: String {
         userCategories.enumerated().map { idx, name in
@@ -58,11 +47,19 @@ class AIProcessor {
 
     /// カテゴリ説明ブロック（プロンプトで「参考」セクションとして渡す）
     /// labeledCategoryList とは別にすることで、AIが説明文を keywords に
-    /// そのまま流用してしまうのを防ぐ
+    /// そのまま流用してしまうのを防ぐ。aiHint が空のカテゴリはスキップ。
     private var categoryDescriptionsBlock: String {
-        userCategories.compactMap { name in
-            guard let desc = Self.categoryDescriptions[name] else { return nil }
-            return "- \(name): \(desc)"
+        let entities = userCategoryEntities
+        if entities.isEmpty {
+            // SwiftData にデータがないとき（テスト等）のフォールバック
+            return UserCategory.defaults.compactMap { name in
+                guard let hint = UserCategory.defaultHints[name], !hint.isEmpty else { return nil }
+                return "- \(name): \(hint)"
+            }.joined(separator: "\n")
+        }
+        return entities.compactMap { cat in
+            guard !cat.aiHint.isEmpty else { return nil }
+            return "- \(cat.name): \(cat.aiHint)"
         }.joined(separator: "\n")
     }
 

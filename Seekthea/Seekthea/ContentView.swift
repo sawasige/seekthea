@@ -33,6 +33,8 @@ struct ContentView: View {
         // 同期で届いた重複を整理してから seed
         await DataDeduplicator.run(in: modelContext)
         UserCategory.seedIfNeeded(context: modelContext)
+        // aiHint フィールド追加前から使っている既存ユーザーへの backfill
+        UserCategory.backfillHintsIfNeeded(context: modelContext)
         if sources.isEmpty {
             showOnboarding = true
         }
