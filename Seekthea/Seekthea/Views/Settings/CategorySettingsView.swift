@@ -4,7 +4,7 @@ import SwiftData
 struct CategorySettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \UserCategory.order) private var categories: [UserCategory]
-    @State private var newCategory: String = ""
+    @State private var showAddSheet = false
 
     static let defaultCategories = UserCategory.defaults
 
@@ -40,19 +40,6 @@ struct CategorySettingsView: View {
             }
 
             Section {
-                HStack {
-                    TextField("新しいカテゴリ", text: $newCategory)
-                        #if !os(macOS)
-                        .textInputAutocapitalization(.never)
-                        #endif
-                    Button("追加") {
-                        addCategory()
-                    }
-                    .disabled(newCategory.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-            }
-
-            Section {
                 Button("デフォルトに戻す") {
                     resetToDefaults()
                 }
@@ -64,19 +51,35 @@ struct CategorySettingsView: View {
         .frame(maxWidth: .infinity)
         #endif
         .navigationTitle("カテゴリ管理")
-        #if !os(macOS)
-        .toolbar { EditButton() }
-        #endif
+        .toolbar {
+            #if !os(macOS)
+            ToolbarItem(placement: .primaryAction) {
+                EditButton()
+            }
+            #endif
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showAddSheet = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+            }
+        }
+        .sheet(isPresented: $showAddSheet) {
+            CategoryCreateSheet(existingNames: Set(categories.map(\.name))) { name, hint in
+                addCategory(name: name, hint: hint)
+            }
+        }
     }
 
-    private func addCategory() {
-        let trimmed = newCategory.trimmingCharacters(in: .whitespaces)
+    private func addCategory(name: String, hint: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, !categories.contains(where: { $0.name == trimmed }) else { return }
         let maxOrder = categories.map(\.order).max() ?? -1
-        let hint = UserCategory.defaultHints[trimmed] ?? ""
-        modelContext.insert(UserCategory(name: trimmed, order: maxOrder + 1, aiHint: hint))
+        let trimmedHint = hint.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalHint = trimmedHint.isEmpty ? (UserCategory.defaultHints[trimmed] ?? "") : trimmedHint
+        modelContext.insert(UserCategory(name: trimmed, order: maxOrder + 1, aiHint: finalHint))
         try? modelContext.save()
-        newCategory = ""
     }
 
     private func delete(at offsets: IndexSet) {
@@ -104,6 +107,72 @@ struct CategorySettingsView: View {
             modelContext.insert(UserCategory(name: name, order: idx, aiHint: hint))
         }
         try? modelContext.save()
+    }
+}
+
+// MARK: - 新規追加シート
+
+private struct CategoryCreateSheet: View {
+    let existingNames: Set<String>
+    let onAdd: (String, String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String = ""
+    @State private var aiHint: String = ""
+
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespaces)
+    }
+
+    private var canAdd: Bool {
+        !trimmedName.isEmpty && !existingNames.contains(trimmedName)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("カテゴリ名") {
+                    TextField("例: ガジェット", text: $name)
+                        #if !os(macOS)
+                        .textInputAutocapitalization(.never)
+                        #endif
+                }
+
+                Section {
+                    #if os(macOS)
+                    TextEditor(text: $aiHint)
+                        .frame(minHeight: 80)
+                    #else
+                    TextField("例: スマホ、タブレット、PC、周辺機器", text: $aiHint, axis: .vertical)
+                        .lineLimit(2...6)
+                    #endif
+                } header: {
+                    Text("AIへの説明（省略可）")
+                } footer: {
+                    Text("どんな記事がこのカテゴリに該当するかをAIに伝える説明文。空欄でも分類はできるが、説明があると精度が上がります。デフォルトカテゴリ名（政治、経済など）を入力した場合は標準の説明が自動入力されます。")
+                }
+            }
+            #if os(macOS)
+            .formStyle(.grouped)
+            .frame(minWidth: 480, minHeight: 400)
+            #endif
+            .navigationTitle("カテゴリを追加")
+            #if !os(macOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("キャンセル") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("追加") {
+                        onAdd(name, aiHint)
+                        dismiss()
+                    }
+                    .disabled(!canAdd)
+                }
+            }
+        }
     }
 }
 
