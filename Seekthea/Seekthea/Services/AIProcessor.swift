@@ -51,10 +51,17 @@ class AIProcessor {
     private var labeledCategoryList: String {
         userCategories.enumerated().map { idx, name in
             let label = idx < Self.alphabet.count ? String(Self.alphabet[idx]) : "\(idx)"
-            if let desc = Self.categoryDescriptions[name] {
-                return "\(label). \(name)（\(desc)）"
-            }
             return "\(label). \(name)"
+        }.joined(separator: "\n")
+    }
+
+    /// カテゴリ説明ブロック（プロンプトで「参考」セクションとして渡す）
+    /// labeledCategoryList とは別にすることで、AIが説明文を keywords に
+    /// そのまま流用してしまうのを防ぐ
+    private var categoryDescriptionsBlock: String {
+        userCategories.compactMap { name in
+            guard let desc = Self.categoryDescriptions[name] else { return nil }
+            return "- \(name): \(desc)"
         }.joined(separator: "\n")
     }
 
@@ -178,6 +185,7 @@ class AIProcessor {
         #if canImport(FoundationModels)
         let context = modelContainer.mainContext
         let catList = labeledCategoryList
+        let catDescBlock = categoryDescriptionsBlock
 
         while !Task.isCancelled {
             var descriptor = FetchDescriptor<Article>(
@@ -199,13 +207,18 @@ class AIProcessor {
             let prompt = """
             以下の記事を分類し、キーワードを抽出してください。
 
-            カテゴリ一覧:
+            【カテゴリ】
             \(catList)
 
-            記事タイトル: \(article.title)\(truncated)
+            【参考: 各カテゴリの傾向】
+            \(catDescBlock)
 
+            【記事】
+            タイトル: \(article.title)\(truncated)
+
+            【出力】
             - category: 最も適切なカテゴリのアルファベットを1つだけ
-            - keywords: 記事の重要キーワードを日本語で最大5つ
+            - keywords: 上の記事タイトル・内容に実際に登場する重要語句を日本語で最大5つ抽出（カテゴリ参考の語ではなく、記事本文から）
             - keywordsEn: keywordsと同じ順序で各キーワードを英語1単語に翻訳
             """
             let startTime = Date()
@@ -285,6 +298,7 @@ class AIProcessor {
 
         #if canImport(FoundationModels)
         let catList = labeledCategoryList
+        let catDescBlock = categoryDescriptionsBlock
         let desc = article.leadText ?? article.ogDescription ?? ""
         let truncated = desc.isEmpty ? "" : "\n内容: \(String(desc.prefix(200)))"
 
@@ -293,13 +307,18 @@ class AIProcessor {
             let prompt = """
             以下の記事を分類し、キーワードを抽出してください。
 
-            カテゴリ一覧:
+            【カテゴリ】
             \(catList)
 
-            記事タイトル: \(article.title)\(truncated)
+            【参考: 各カテゴリの傾向】
+            \(catDescBlock)
 
+            【記事】
+            タイトル: \(article.title)\(truncated)
+
+            【出力】
             - category: 最も適切なカテゴリのアルファベットを1つだけ
-            - keywords: 記事の重要キーワードを日本語で最大5つ
+            - keywords: 上の記事タイトル・内容に実際に登場する重要語句を日本語で最大5つ抽出（カテゴリ参考の語ではなく、記事本文から）
             - keywordsEn: keywordsと同じ順序で各キーワードを英語1単語に翻訳
             """
             let response = try await session.respond(to: prompt, generating: CategoryResult.self)
