@@ -229,6 +229,17 @@ private struct ScrollViewSwipeHelper: UIViewRepresentable {
 
 // MARK: - FeedView
 
+/// スクロール位置・ヘッダー隠し量を持つ。
+/// FeedView の @State にすると毎フレームの scroll 更新で FeedView.body 全体が
+/// 再評価されるため、@Observable 参照型に分離する。読むのは ScrollAwareHeader だけ。
+@Observable
+@MainActor
+final class FeedScrollState {
+    var currentScrollY: CGFloat = 0
+    var lastScrollY: CGFloat = 0
+    var hideAmount: CGFloat = 0
+}
+
 struct FeedView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
@@ -239,7 +250,6 @@ struct FeedView: View {
     @State private var viewModel: FeedViewModel?
     @State private var feedMode: FeedMode = .forYou
     @State private var selectedCategory: String? = nil
-    @State private var hideAmount: CGFloat = 0
     @State private var cachedModeArticles: [Article] = []
     @State private var cachedCategoryCounts: [String: Int] = [:]
     @State private var cachedDisplayArticles: [Article] = []
@@ -248,8 +258,9 @@ struct FeedView: View {
     @State private var isSwiping: Bool = false
     @State private var swipeProgress: CGFloat = 0
     @State private var swipeDirection: CGFloat = 0  // -1: left, 1: right
-    @State private var currentScrollY: CGFloat = 0
-    @State private var lastScrollY: CGFloat = 0
+    /// スクロール tracking 専用 state。@Observable 参照なので
+    /// 読むビュー（ScrollAwareHeader）だけが invalidate される
+    @State private var scrollState = FeedScrollState()
     @AppStorage("useCompactLayout") private var useCompactLayout = false
     @AppStorage("lastFeedRefreshedAt") private var lastFeedRefreshedAt: Double = 0
     @State private var hasNewSuggestions = false
@@ -467,16 +478,12 @@ struct FeedView: View {
 
     // MARK: - Hide on Scroll
 
-    private var headerOffset: CGFloat {
-        max(0, currentScrollY) + hideAmount
-    }
-
     private func handleScroll(_ newValue: CGFloat, _ oldValue: CGFloat) {
         // Pull-to-refresh中（上に引っ張り）はヘッダーを表示
         if newValue < 0 {
-            if hideAmount < 0 {
+            if scrollState.hideAmount < 0 {
                 withAnimation(.snappy(duration: 0.2)) {
-                    hideAmount = 0
+                    scrollState.hideAmount = 0
                 }
             }
             return
@@ -489,15 +496,15 @@ struct FeedView: View {
         guard abs(delta) > 0.5 else { return }
 
         if delta > 0 {
-            hideAmount = max(-headerHeight, hideAmount - delta)
+            scrollState.hideAmount = max(-headerHeight, scrollState.hideAmount - delta)
         } else {
-            hideAmount = min(0, hideAmount - delta)
+            scrollState.hideAmount = min(0, scrollState.hideAmount - delta)
         }
     }
 
     private func handleScrollIdle() {
         withAnimation(.snappy(duration: 0.2)) {
-            hideAmount = hideAmount < -headerHeight * 0.5 ? -headerHeight : 0
+            scrollState.hideAmount = scrollState.hideAmount < -headerHeight * 0.5 ? -headerHeight : 0
         }
     }
 
@@ -521,26 +528,26 @@ struct FeedView: View {
                 }
                 .onChange(of: feedMode) {
                     flushImpressions()
-                    hideAmount = 0
+                    scrollState.hideAmount = 0
                     scrollProxy?.scrollTo("scrollTop", anchor: .top)
                     updateCachedData()
                 }
                 .onChange(of: selectedCategory) {
                     flushImpressions()
-                    hideAmount = 0
+                    scrollState.hideAmount = 0
                     scrollProxy?.scrollTo("scrollTop", anchor: .top)
                     updateCachedData()
                 }
                 .onChange(of: sourceFilter) {
                     flushImpressions()
-                    hideAmount = 0
+                    scrollState.hideAmount = 0
                     scrollProxy?.scrollTo("scrollTop", anchor: .top)
                     updateCachedData()
                 }
                 .onChange(of: isSwiping) {
-                    if isSwiping, hideAmount < 0 {
+                    if isSwiping, scrollState.hideAmount < 0 {
                         withAnimation(.snappy(duration: 0.2)) {
-                            hideAmount = 0
+                            scrollState.hideAmount = 0
                         }
                     }
                 }
@@ -752,9 +759,9 @@ struct FeedView: View {
             .onScrollGeometryChange(for: CGFloat.self) { geo in
                 geo.contentOffset.y + geo.contentInsets.top
             } action: { _, newValue in
-                let oldValue = lastScrollY
-                currentScrollY = newValue
-                lastScrollY = newValue
+                let oldValue = scrollState.lastScrollY
+                scrollState.currentScrollY = newValue
+                scrollState.lastScrollY = newValue
                 handleScroll(newValue, oldValue)
             }
             .onScrollPhaseChange { _, newPhase in
@@ -773,40 +780,18 @@ struct FeedView: View {
     }
 
     private var headerView: some View {
-        VStack(spacing: 0) {
-            Picker("モード", selection: $feedMode) {
-                ForEach(FeedMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.top, 4)
-
-            CategoryFilterView(selectedCategory: $selectedCategory, totalCount: cachedModeArticles.count, categoryCounts: cachedCategoryCounts, categoryOrder: sortedCategories)
-                .padding(.vertical, 6)
-
-            if let filter = sourceFilter {
-                sourceFilterChip(filter)
-                    .padding(.horizontal)
-                    .padding(.bottom, 6)
-            }
-        }
-        .frame(height: headerHeight)
-        .background(alignment: .top) {
-            let extraHeight: CGFloat = currentScrollY < 0 ? 0 : 500
-            #if os(macOS)
-            Color(nsColor: .windowBackgroundColor)
-                .frame(height: headerHeight + extraHeight)
-                .offset(y: -extraHeight)
-            #else
-            Color(uiColor: .systemBackground)
-                .frame(height: headerHeight + extraHeight)
-                .offset(y: -extraHeight)
-            #endif
-        }
-        .offset(y: headerOffset)
-        .opacity(headerHeight > 0 ? max(0, 1 + hideAmount / headerHeight) : 1)
+        ScrollAwareHeader(
+            scrollState: scrollState,
+            feedMode: $feedMode,
+            selectedCategory: $selectedCategory,
+            totalCount: cachedModeArticles.count,
+            categoryCounts: cachedCategoryCounts,
+            categoryOrder: sortedCategories,
+            headerHeight: headerHeight,
+            sourceFilter: sourceFilter,
+            excludeSummary: excludeSummary,
+            onClearSourceFilter: { changeSourceFilter(to: nil) }
+        )
     }
 
     private func openArticle(_ article: Article) {
@@ -948,42 +933,6 @@ struct FeedView: View {
         }
     }
 
-    private func sourceFilterChip(_ filter: SourceFilter) -> some View {
-        HStack {
-            Button {
-                changeSourceFilter(to: nil)
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: filter.isExclude ? "eye.slash" : "line.3.horizontal.decrease.circle")
-                        .foregroundStyle(Color.accentColor)
-                    switch filter {
-                    case .only(let s):
-                        Text(s.name)
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                    case .excluding(let sources):
-                        Text("除外: ")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Text(excludeSummary(sources))
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                    }
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Color.accentColor.opacity(0.12))
-                .clipShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            Spacer()
-        }
-    }
-
     private func excludeSummary(_ sources: [Source]) -> String {
         if sources.count <= 2 {
             return sources.map(\.name).joined(separator: ", ")
@@ -1038,5 +987,96 @@ struct FeedView: View {
                 hasNewSuggestions = DiscoveryManager.shared.hasUncheckedSuggestions(in: modelContext)
             }
         )
+    }
+}
+
+// MARK: - ScrollAwareHeader
+
+/// FeedView の header を別struct に切り出し、scrollState を直接読むことで
+/// scroll 更新時に FeedView.body を invalidate しないようにする。
+private struct ScrollAwareHeader: View {
+    let scrollState: FeedScrollState
+    @Binding var feedMode: FeedMode
+    @Binding var selectedCategory: String?
+    let totalCount: Int
+    let categoryCounts: [String: Int]
+    let categoryOrder: [String]
+    let headerHeight: CGFloat
+    let sourceFilter: SourceFilter?
+    let excludeSummary: ([Source]) -> String
+    let onClearSourceFilter: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker("モード", selection: $feedMode) {
+                ForEach(FeedMode.allCases, id: \.self) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.top, 4)
+
+            CategoryFilterView(selectedCategory: $selectedCategory, totalCount: totalCount, categoryCounts: categoryCounts, categoryOrder: categoryOrder)
+                .padding(.vertical, 6)
+
+            if let filter = sourceFilter {
+                sourceFilterChip(filter)
+                    .padding(.horizontal)
+                    .padding(.bottom, 6)
+            }
+        }
+        .frame(height: headerHeight)
+        .background(alignment: .top) {
+            let extraHeight: CGFloat = scrollState.currentScrollY < 0 ? 0 : 500
+            #if os(macOS)
+            Color(nsColor: .windowBackgroundColor)
+                .frame(height: headerHeight + extraHeight)
+                .offset(y: -extraHeight)
+            #else
+            Color(uiColor: .systemBackground)
+                .frame(height: headerHeight + extraHeight)
+                .offset(y: -extraHeight)
+            #endif
+        }
+        .offset(y: max(0, scrollState.currentScrollY) + scrollState.hideAmount)
+        .opacity(headerHeight > 0 ? max(0, 1 + scrollState.hideAmount / headerHeight) : 1)
+    }
+
+    @ViewBuilder
+    private func sourceFilterChip(_ filter: SourceFilter) -> some View {
+        HStack {
+            Button {
+                onClearSourceFilter()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: filter.isExclude ? "eye.slash" : "line.3.horizontal.decrease.circle")
+                        .foregroundStyle(Color.accentColor)
+                    switch filter {
+                    case .only(let s):
+                        Text(s.name)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                    case .excluding(let sources):
+                        Text("除外: ")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text(excludeSummary(sources))
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                    }
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.accentColor.opacity(0.12))
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            Spacer()
+        }
     }
 }
