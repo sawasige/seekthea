@@ -35,17 +35,18 @@ class AIProcessor {
 
     /// カテゴリ名 → AI判定のヒントになる説明文。
     /// 該当キーがない場合（ユーザー追加の独自カテゴリなど）は説明なしでフォールバック。
+    /// 「（X は Y へ）」の disambiguation で過剰流出を抑制する。
     private static let categoryDescriptions: [String: String] = [
-        "政治": "選挙、国会、政策、外交、与野党",
-        "経済": "株、為替、企業業績、市場、金融",
-        "社会": "事件、事故、犯罪、災害、社会問題",
-        "国際": "海外ニュース、国際関係、外国情勢",
-        "テクノロジー": "IT、ガジェット、AI、Apple、ソフトウェア",
+        "政治": "政府・国会の動き、選挙、政策、外交、与野党（個別の事件・事故は「社会」、企業業績は「経済」、スポーツ選手の処遇は「スポーツ」）",
+        "経済": "株、為替、企業業績、市場、金融、決算、M&A、物価",
+        "社会": "事件、事故、犯罪、災害、社会問題、地域ニュース、店舗運営の話題",
+        "国際": "海外ニュース、国際関係、外国情勢（米政権の動き、各国首脳）",
+        "テクノロジー": "IT、AI、ガジェット、新技術、ソフトウェア（個別企業の業績は「経済」、店舗運営の話は「社会」、コーディングは「開発」）",
         "科学": "宇宙、物理、生物、研究、学術",
-        "スポーツ": "野球、サッカー、選手、試合、オリンピック",
+        "スポーツ": "野球、サッカー、選手、試合、オリンピック、チーム成績、選手の去就",
         "エンタメ": "芸能、YouTuber、VTuber、映画、音楽、テレビ、ネット話題",
         "ライフ": "暮らし、料理、ファッション、健康、住まい、グルメ",
-        "開発": "プログラミング、エンジニアリング、コード、フレームワーク"
+        "開発": "プログラミング、エンジニアリング、コード、フレームワーク、開発者向けツール"
     ]
 
     private var labeledCategoryList: String {
@@ -63,6 +64,14 @@ class AIProcessor {
             guard let desc = Self.categoryDescriptions[name] else { return nil }
             return "- \(name): \(desc)"
         }.joined(separator: "\n")
+    }
+
+    /// 本文が短すぎ／プレースホルダのみのケースを検出。
+    /// このケースは AI がキーワード抽出に失敗しがちで、
+    /// カテゴリ説明文を流用してしまうので、別プロンプトで処理する
+    static func isThinBody(_ desc: String) -> Bool {
+        let trimmed = desc.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.count < 30
     }
 
     /// AIの応答をカテゴリ名に変換する。
@@ -201,7 +210,19 @@ class AIProcessor {
             onProgress?("カテゴリ分類中... 残り\(remaining)件")
 
             let desc = article.leadText ?? article.ogDescription ?? ""
-            let truncated = desc.isEmpty ? "" : "\n内容: \(String(desc.prefix(200)))"
+            let isThin = Self.isThinBody(desc)
+            let articleSection: String
+            let keywordInstruction: String
+            if isThin {
+                // 本文が空 or "記事を読む" のような placeholder の時は、AIが
+                // 抽出語を見つけられず【参考】の説明文を流用してしまうので、
+                // タイトルだけから抽出するよう指示し、無理に5つ揃えなくてよいと明示
+                articleSection = "タイトル: \(article.title)"
+                keywordInstruction = "上のタイトルから抽出できる重要語句を日本語で（最大5つ。抽出できる語が少なければ無理に揃えなくてよい）"
+            } else {
+                articleSection = "タイトル: \(article.title)\n内容: \(String(desc.prefix(200)))"
+                keywordInstruction = "上の記事タイトル・内容に実際に登場する重要語句を日本語で最大5つ抽出（カテゴリ参考の語ではなく、記事本文から）"
+            }
 
             let session = LanguageModelSession()
             let prompt = """
@@ -214,11 +235,11 @@ class AIProcessor {
             \(catDescBlock)
 
             【記事】
-            タイトル: \(article.title)\(truncated)
+            \(articleSection)
 
             【出力】
             - category: 最も適切なカテゴリのアルファベットを1つだけ
-            - keywords: 上の記事タイトル・内容に実際に登場する重要語句を日本語で最大5つ抽出（カテゴリ参考の語ではなく、記事本文から）
+            - keywords: \(keywordInstruction)
             - keywordsEn: keywordsと同じ順序で各キーワードを英語1単語に翻訳
             """
             let startTime = Date()
@@ -230,7 +251,7 @@ class AIProcessor {
                 #if DEBUG
                 print("[AI分類] ────────────")
                 print("[AI分類] タイトル: \(article.title)")
-                print("[AI分類] 本文: \(desc.isEmpty ? "(なし)" : String(desc.prefix(200)))")
+                print("[AI分類] 本文: \(desc.isEmpty ? "(なし)" : String(desc.prefix(200)))\(isThin ? " [thin]" : "")")
                 print("[AI分類] 実行時間: \(String(format: "%.2f", elapsed))秒")
                 print("[AI分類] → カテゴリ: \(result.category) (\(mappedName ?? "未マップ"))")
                 print("[AI分類] → キーワード(JP): \(result.keywords)")
