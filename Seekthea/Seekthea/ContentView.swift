@@ -6,6 +6,9 @@ struct ContentView: View {
     @Query private var sources: [Source]
     @State private var showOnboarding = false
     @State private var didOnboardingCheck = false
+    /// 最後に適用した defaultHints のバージョン。`UserCategory.defaultHintsVersion` 未満なら
+    /// デフォルトカテゴリの aiHint を新しい default に上書きする。
+    @AppStorage("appliedDefaultHintsVersion") private var appliedDefaultHintsVersion = 0
 
     private var modelContainer: ModelContainer {
         modelContext.container
@@ -35,6 +38,11 @@ struct ContentView: View {
         UserCategory.seedIfNeeded(context: modelContext)
         // aiHint フィールド追加前から使っている既存ユーザーへの backfill
         UserCategory.backfillHintsIfNeeded(context: modelContext)
+        // defaultHints が更新されていれば、デフォルトカテゴリの hint を新版に上書き
+        if appliedDefaultHintsVersion < UserCategory.defaultHintsVersion {
+            UserCategory.syncDefaultHintsToCurrentVersion(context: modelContext)
+            appliedDefaultHintsVersion = UserCategory.defaultHintsVersion
+        }
         if sources.isEmpty {
             showOnboarding = true
         }
