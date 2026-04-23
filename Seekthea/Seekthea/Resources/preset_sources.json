@@ -80,6 +80,13 @@
       "popular": false
     },
     {
+      "name": "週刊アスキー",
+      "feedURL": "https://weekly.ascii.jp/rss/index.rdf",
+      "siteURL": "https://weekly.ascii.jp/",
+      "category": "テクノロジー",
+      "popular": false
+    },
+    {
       "name": "WIRED.jp",
       "feedURL": "https://wired.jp/rssfeeder/",
       "siteURL": "https://wired.jp/",
@@ -118,13 +125,6 @@
       "name": "Engadget (English)",
       "feedURL": "https://www.engadget.com/rss.xml",
       "siteURL": "https://www.engadget.com/",
-      "category": "テクノロジー",
-      "popular": false
-    },
-    {
-      "name": "週刊アスキー",
-      "feedURL": "https://weekly.ascii.jp/rss/index.rdf",
-      "siteURL": "https://weekly.ascii.jp/",
       "category": "テクノロジー",
       "popular": false
     }
@@ -166,9 +166,23 @@
       "popular": false
     },
     {
+      "name": "Developers.IO",
+      "feedURL": "https://dev.classmethod.jp/feed/",
+      "siteURL": "https://dev.classmethod.jp/",
+      "category": "開発",
+      "popular": false
+    },
+    {
       "name": "gihyo.jp",
       "feedURL": "https://gihyo.jp/feed/rss2",
       "siteURL": "https://gihyo.jp/",
+      "category": "開発",
+      "popular": false
+    },
+    {
+      "name": "さくらのナレッジ",
+      "feedURL": "https://knowledge.sakura.ad.jp/feed/",
+      "siteURL": "https://knowledge.sakura.ad.jp/",
       "category": "開発",
       "popular": false
     },
@@ -190,20 +204,6 @@
       "name": "Product Hunt (English)",
       "feedURL": "https://www.producthunt.com/feed",
       "siteURL": "https://www.producthunt.com/",
-      "category": "開発",
-      "popular": false
-    },
-    {
-      "name": "Developers.IO",
-      "feedURL": "https://dev.classmethod.jp/feed/",
-      "siteURL": "https://dev.classmethod.jp/",
-      "category": "開発",
-      "popular": false
-    },
-    {
-      "name": "さくらのナレッジ",
-      "feedURL": "https://knowledge.sakura.ad.jp/feed/",
-      "siteURL": "https://knowledge.sakura.ad.jp/",
       "category": "開発",
       "popular": false
     }
@@ -245,6 +245,13 @@
       "popular": false
     },
     {
+      "name": "日経クロステック",
+      "feedURL": "https://xtech.nikkei.com/rss/index.rdf",
+      "siteURL": "https://xtech.nikkei.com/",
+      "category": "ビジネス",
+      "popular": false
+    },
+    {
       "name": "ITmedia ビジネスオンライン",
       "feedURL": "https://rss.itmedia.co.jp/rss/2.0/business.xml",
       "siteURL": "https://www.itmedia.co.jp/business/",
@@ -262,13 +269,6 @@
       "name": "ZUU online",
       "feedURL": "https://zuuonline.com/feed",
       "siteURL": "https://zuuonline.com/",
-      "category": "ビジネス",
-      "popular": false
-    },
-    {
-      "name": "日経クロステック",
-      "feedURL": "https://xtech.nikkei.com/rss/index.rdf",
-      "siteURL": "https://xtech.nikkei.com/",
       "category": "ビジネス",
       "popular": false
     },
@@ -333,6 +333,13 @@
       "popular": true
     },
     {
+      "name": "コミックナタリー",
+      "feedURL": "https://natalie.mu/comic/feed/news",
+      "siteURL": "https://natalie.mu/comic/",
+      "category": "アニメ・漫画",
+      "popular": false
+    },
+    {
       "name": "声優グランプリ",
       "feedURL": "https://seigura.com/feed",
       "siteURL": "https://seigura.com/",
@@ -357,13 +364,6 @@
       "name": "コロコロオンライン",
       "feedURL": "https://corocoro.jp/feed",
       "siteURL": "https://corocoro.jp/",
-      "category": "アニメ・漫画",
-      "popular": false
-    },
-    {
-      "name": "コミックナタリー",
-      "feedURL": "https://natalie.mu/comic/feed/news",
-      "siteURL": "https://natalie.mu/comic/",
       "category": "アニメ・漫画",
       "popular": false
     }
@@ -486,9 +486,9 @@
       "popular": false
     },
     {
-      "name": "Autosport (English)",
-      "feedURL": "https://www.autosport.com/rss/feed/all",
-      "siteURL": "https://www.autosport.com/",
+      "name": "Football Tribe Japan",
+      "feedURL": "https://football-tribe.com/japan/feed/",
+      "siteURL": "https://football-tribe.com/japan/",
       "category": "スポーツ",
       "popular": false
     },
@@ -500,9 +500,9 @@
       "popular": false
     },
     {
-      "name": "Football Tribe Japan",
-      "feedURL": "https://football-tribe.com/japan/feed/",
-      "siteURL": "https://football-tribe.com/japan/",
+      "name": "Autosport (English)",
+      "feedURL": "https://www.autosport.com/rss/feed/all",
+      "siteURL": "https://www.autosport.com/",
       "category": "スポーツ",
       "popular": false
     }
@@ -697,6 +697,20 @@
       "popular": false
     },
     {
+      "name": "LEE",
+      "feedURL": "https://lee.hpplus.jp/feed/",
+      "siteURL": "https://lee.hpplus.jp/",
+      "category": "ライフスタイル",
+      "popular": false
+    },
+    {
+      "name": "マイナビウーマン",
+      "feedURL": "https://woman.mynavi.jp/feed/",
+      "siteURL": "https://woman.mynavi.jp/",
+      "category": "ライフスタイル",
+      "popular": false
+    },
+    {
       "name": "WWD JAPAN",
       "feedURL": "https://www.wwdjapan.com/feed",
       "siteURL": "https://www.wwdjapan.com/",
@@ -723,20 +737,6 @@
       "siteURL": "https://psnews.jp/cat/",
       "category": "ライフスタイル",
       "popular": false
-    },
-    {
-      "name": "LEE",
-      "feedURL": "https://lee.hpplus.jp/feed/",
-      "siteURL": "https://lee.hpplus.jp/",
-      "category": "ライフスタイル",
-      "popular": false
-    },
-    {
-      "name": "マイナビウーマン",
-      "feedURL": "https://woman.mynavi.jp/feed/",
-      "siteURL": "https://woman.mynavi.jp/",
-      "category": "ライフスタイル",
-      "popular": false
     }
   ],
   "掲示板まとめ": [
@@ -755,18 +755,18 @@
       "popular": true
     },
     {
-      "name": "哲学ニュースnwk",
-      "feedURL": "https://nwknews.jp/index.rdf",
-      "siteURL": "https://nwknews.jp/",
-      "category": "掲示板まとめ",
-      "popular": false
-    },
-    {
       "name": "アルファルファモザイク",
       "feedURL": "https://alfalfalfa.com/index.rdf",
       "siteURL": "https://alfalfalfa.com/",
       "category": "掲示板まとめ",
       "popular": true
+    },
+    {
+      "name": "哲学ニュースnwk",
+      "feedURL": "https://nwknews.jp/index.rdf",
+      "siteURL": "https://nwknews.jp/",
+      "category": "掲示板まとめ",
+      "popular": false
     },
     {
       "name": "オレ的ゲーム速報",
