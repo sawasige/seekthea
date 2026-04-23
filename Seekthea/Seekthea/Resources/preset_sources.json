@@ -126,7 +126,7 @@
       "feedURL": "https://weekly.ascii.jp/rss/index.rdf",
       "siteURL": "https://weekly.ascii.jp/",
       "category": "テクノロジー",
-      "popular": true
+      "popular": false
     }
   ],
   "開発": [
@@ -198,7 +198,7 @@
       "feedURL": "https://dev.classmethod.jp/feed/",
       "siteURL": "https://dev.classmethod.jp/",
       "category": "開発",
-      "popular": true
+      "popular": false
     },
     {
       "name": "さくらのナレッジ",
@@ -270,7 +270,7 @@
       "feedURL": "https://xtech.nikkei.com/rss/index.rdf",
       "siteURL": "https://xtech.nikkei.com/",
       "category": "ビジネス",
-      "popular": true
+      "popular": false
     },
     {
       "name": "NewSphere",
@@ -365,7 +365,7 @@
       "feedURL": "https://natalie.mu/comic/feed/news",
       "siteURL": "https://natalie.mu/comic/",
       "category": "アニメ・漫画",
-      "popular": true
+      "popular": false
     }
   ],
   "サイエンス": [
@@ -773,7 +773,7 @@
       "feedURL": "https://jin115.com/index.rdf",
       "siteURL": "https://jin115.com/",
       "category": "掲示板まとめ",
-      "popular": true
+      "popular": false
     },
     {
       "name": "ガハろぐNewsヘッドライン",
