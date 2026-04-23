@@ -75,13 +75,21 @@ struct SourcesListView: View {
                         }
                     },
                     label: {
+                        let registered = registeredCount(in: presets)
+                        let hasAny = registered > 0
                         HStack {
-                            Text(category).font(.headline)
+                            Text(category)
+                                .font(.headline)
+                                .foregroundStyle(hasAny ? Color.accentColor : .primary)
                             Spacer()
-                            let registered = registeredCount(in: presets)
                             Text("\(registered)/\(presets.count)")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .font(.subheadline.weight(hasAny ? .semibold : .regular))
+                                .foregroundStyle(hasAny ? Color.white : Color.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(
+                                    Capsule().fill(hasAny ? Color.accentColor : Color.clear)
+                                )
                         }
                     }
                 )
