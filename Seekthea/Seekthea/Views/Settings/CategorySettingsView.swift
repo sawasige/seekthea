@@ -5,11 +5,31 @@ struct CategorySettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \UserCategory.order) private var categories: [UserCategory]
     @State private var showAddSheet = false
+    @AppStorage("categoryFilterSortMode") private var filterSortModeRaw: String = CategoryFilterSortMode.count.rawValue
+
+    private var filterSortMode: Binding<CategoryFilterSortMode> {
+        Binding(
+            get: { CategoryFilterSortMode(rawValue: filterSortModeRaw) ?? .count },
+            set: { filterSortModeRaw = $0.rawValue }
+        )
+    }
 
     static let defaultCategories = UserCategory.defaults
 
     var body: some View {
         List {
+            Section {
+                Picker("並び順", selection: filterSortMode) {
+                    ForEach(CategoryFilterSortMode.allCases, id: \.self) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+            } header: {
+                Text("フィードでの表示順")
+            } footer: {
+                Text("「カテゴリ管理の順」を選ぶと、下のリストの並びがそのままフィードのフィルタ順になります。")
+            }
+
             Section {
                 ForEach(categories) { category in
                     NavigationLink {

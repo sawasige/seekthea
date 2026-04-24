@@ -263,6 +263,7 @@ struct FeedView: View {
     @State private var scrollState = FeedScrollState()
     @AppStorage("useCompactLayout") private var useCompactLayout = false
     @AppStorage("lastFeedRefreshedAt") private var lastFeedRefreshedAt: Double = 0
+    @AppStorage("categoryFilterSortMode") private var filterSortModeRaw: String = CategoryFilterSortMode.count.rawValue
     @State private var hasNewSuggestions = false
     @State private var sourceFilter: SourceFilter? = nil
     @State private var sessionReadIDs: Set<UUID> = []
@@ -417,11 +418,22 @@ struct FeedView: View {
             }
         }
         cachedCategoryCounts = counts
-        sortedCategories = counts.sorted {
-            if $0.key == "その他" { return false }
-            if $1.key == "その他" { return true }
-            return $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key
-        }.map(\.key)
+        let mode = CategoryFilterSortMode(rawValue: filterSortModeRaw) ?? .count
+        let hasOther = counts["その他"] != nil
+        let nonOtherKeys = counts.keys.filter { $0 != "その他" }
+        let baseOrder: [String]
+        switch mode {
+        case .count:
+            baseOrder = nonOtherKeys.sorted { a, b in
+                let ac = counts[a] ?? 0
+                let bc = counts[b] ?? 0
+                return ac != bc ? ac > bc : a < b
+            }
+        case .configured:
+            // UserCategory の order に従う、ただし articles を持つもののみ
+            baseOrder = cachedUserCategories.filter { counts[$0] != nil }
+        }
+        sortedCategories = baseOrder + (hasOther ? ["その他"] : [])
 
         if let cat = selectedCategory, counts[cat] == nil {
             selectedCategory = nil
@@ -551,6 +563,9 @@ struct FeedView: View {
                         }
                     }
                 }
+                .onChange(of: filterSortModeRaw) {
+                    updateCachedData()
+                }
                 .navigationTitle("Seekthea")
                 #if !os(macOS)
                 .navigationBarTitleDisplayMode(.inline)
@@ -585,6 +600,11 @@ struct FeedView: View {
                                 } else {
                                     Label("発見", systemImage: "sparkle.magnifyingglass")
                                 }
+                            }
+                            NavigationLink {
+                                CategorySettingsView()
+                            } label: {
+                                Label("カテゴリ管理", systemImage: "square.grid.2x2")
                             }
                             NavigationLink {
                                 SettingsView()
@@ -1245,6 +1265,11 @@ private struct FloatingActionBar: View {
                 SourcesListView(modelContainer: modelContainer)
             } label: {
                 Label("ソース管理", systemImage: "plus.rectangle.on.rectangle")
+            }
+            NavigationLink {
+                CategorySettingsView()
+            } label: {
+                Label("カテゴリ管理", systemImage: "square.grid.2x2")
             }
             Divider()
             NavigationLink {
