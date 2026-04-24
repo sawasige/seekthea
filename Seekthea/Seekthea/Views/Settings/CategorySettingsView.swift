@@ -83,10 +83,39 @@ struct CategorySettingsView: View {
     }
 
     private func delete(at offsets: IndexSet) {
+        let deletedNames = Set(offsets.map { categories[$0].name })
         for index in offsets {
             modelContext.delete(categories[index])
         }
         try? modelContext.save()
+        // 削除したカテゴリを持つ記事を清掃 → AI 再分類トリガー
+        Task { await reclassifyAffected(removing: deletedNames) }
+    }
+
+    /// 削除したカテゴリ名を持つ記事の aiCategory を更新し、AI に再分類させる。
+    /// 複数カテゴリ持ちはそのカテゴリだけ取り除く。単一だった場合は nil にして再分類対象に。
+    private func reclassifyAffected(removing deleted: Set<String>) async {
+        guard !deleted.isEmpty else { return }
+        let lowercaseDeleted = Set(deleted.map { $0.lowercased() })
+        let articles = (try? modelContext.fetch(FetchDescriptor<Article>())) ?? []
+        var affected = false
+        for article in articles {
+            let cats = article.categories
+            guard !cats.isEmpty else { continue }
+            let remaining = cats.filter { !lowercaseDeleted.contains($0.lowercased()) }
+            if remaining.count == cats.count { continue }  // 影響なし
+            affected = true
+            if remaining.isEmpty {
+                article.aiCategory = nil  // 次の classifyBatch で再分類
+            } else {
+                article.aiCategory = remaining.joined(separator: ",")
+            }
+        }
+        guard affected else { return }
+        try? modelContext.save()
+        // AI 再分類をバックグラウンド起動
+        let processor = AIProcessor(modelContainer: modelContext.container)
+        await processor.classifyBatch()
     }
 
     private func move(from source: IndexSet, to destination: Int) {
