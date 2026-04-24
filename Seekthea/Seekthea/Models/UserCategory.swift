@@ -1,6 +1,21 @@
 import Foundation
 import SwiftData
 
+/// フィードヘッダーのカテゴリフィルタチップの並び順
+enum CategoryFilterSortMode: String, CaseIterable {
+    /// 記事が多いカテゴリから順に表示
+    case count
+    /// カテゴリ管理画面で設定した順
+    case configured
+
+    var label: String {
+        switch self {
+        case .count: return "記事が多い順"
+        case .configured: return "カテゴリ管理の順"
+        }
+    }
+}
+
 @Model
 class UserCategory {
     var id: UUID = UUID()
