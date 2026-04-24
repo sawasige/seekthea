@@ -1,11 +1,16 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var allArticles: [Article]
     @State private var toastMessage: String?
     @State private var showResetConfirm = false
+    @State private var isExportingBackup = false
+    @State private var backupDocument = SeektheaBackupDocument()
+    @State private var isImportingBackup = false
+    @State private var backupError: String?
 
     private var modelContainer: ModelContainer {
         modelContext.container
@@ -50,6 +55,19 @@ struct SettingsView: View {
                 }
             } header: {
                 Text("データ管理")
+            }
+
+            Section {
+                Button("バックアップを作成") {
+                    prepareExport()
+                }
+                Button("バックアップから復元") {
+                    isImportingBackup = true
+                }
+            } header: {
+                Text("バックアップ")
+            } footer: {
+                Text("ソース・カテゴリ・興味トピック・お気に入り／既読状態を JSONファイルにまとめて、iCloud Drive や Files に保存できます。復元時は既存データに統合されます（重複は追加されません）。記事本文はバックアップ対象外です。")
             }
 
             Section {
@@ -99,6 +117,63 @@ struct SettingsView: View {
             Button("キャンセル", role: .cancel) {}
         } message: {
             Text("ソース・記事・カテゴリ・興味トピックなどをすべて削除し、初期状態に戻します。iCloudで同期している他のデバイスからも削除されます。")
+        }
+        .fileExporter(
+            isPresented: $isExportingBackup,
+            document: backupDocument,
+            contentType: .json,
+            defaultFilename: Self.defaultBackupFilename()
+        ) { result in
+            switch result {
+            case .success: showToast("バックアップを保存しました")
+            case .failure(let err): backupError = err.localizedDescription
+            }
+        }
+        .fileImporter(
+            isPresented: $isImportingBackup,
+            allowedContentTypes: [.json]
+        ) { result in
+            switch result {
+            case .success(let url): importBackup(from: url)
+            case .failure(let err): backupError = err.localizedDescription
+            }
+        }
+        .alert("バックアップエラー", isPresented: Binding(
+            get: { backupError != nil },
+            set: { if !$0 { backupError = nil } }
+        )) {
+            Button("OK") { backupError = nil }
+        } message: {
+            Text(backupError ?? "")
+        }
+    }
+
+    private static func defaultBackupFilename() -> String {
+        let df = DateFormatter()
+        df.dateFormat = "yyyyMMdd-HHmm"
+        return "seekthea-backup-\(df.string(from: Date()))"
+    }
+
+    private func prepareExport() {
+        do {
+            let data = try SettingsBackup.export(context: modelContext)
+            backupDocument = SeektheaBackupDocument(data: data)
+            isExportingBackup = true
+        } catch {
+            backupError = error.localizedDescription
+        }
+    }
+
+    private func importBackup(from url: URL) {
+        // fileImporter の URL は security-scoped
+        let needsStop = url.startAccessingSecurityScopedResource()
+        defer { if needsStop { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let data = try Data(contentsOf: url)
+            let summary = try SettingsBackup.restore(from: data, context: modelContext)
+            showToast(summary.summaryText)
+        } catch {
+            backupError = error.localizedDescription
         }
     }
 
