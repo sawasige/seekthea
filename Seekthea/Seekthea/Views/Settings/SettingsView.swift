@@ -50,19 +50,24 @@ struct SettingsView: View {
                 Text("\(ArticleCleanupService.retentionDays)日以上前または\(ArticleCleanupService.maxArticleCount)件を超えた古い記事は自動削除されます。お気に入りは無期限保存。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Button("設定とお気に入りをバックアップ") {
-                    prepareExport()
-                }
-                Button("バックアップから復元") {
-                    isImportingBackup = true
-                }
                 Button("すべて初期化", role: .destructive) {
                     showResetConfirm = true
                 }
             } header: {
                 Text("データ管理")
+            }
+
+            Section {
+                Button("バックアップを作成") {
+                    prepareExport()
+                }
+                Button("バックアップから復元") {
+                    isImportingBackup = true
+                }
+            } header: {
+                Text("バックアップ")
             } footer: {
-                Text("バックアップはソース・カテゴリ・興味トピック・記事のお気に入り／既読状態を1つのJSONファイルにまとめ、iCloud DriveやFilesへ保存できます。復元時は既存データに統合されます（重複は追加されません）。")
+                Text("ソース・カテゴリ・興味トピック・お気に入り／既読状態を JSONファイルにまとめて、iCloud Drive や Files に保存できます。復元時は既存データに統合されます（重複は追加されません）。記事本文はバックアップ対象外です。")
             }
 
             Section {
