@@ -606,6 +606,7 @@ struct FeedView: View {
                             } label: {
                                 Label("カテゴリ管理", systemImage: "square.grid.2x2")
                             }
+                            Divider()
                             NavigationLink {
                                 SettingsView()
                             } label: {
@@ -1254,17 +1255,17 @@ private struct FloatingActionBar: View {
             }
             Divider()
             NavigationLink {
+                SourcesListView(modelContainer: modelContainer)
+            } label: {
+                Label("ソース管理", systemImage: "plus.rectangle.on.rectangle")
+            }
+            NavigationLink {
                 DiscoveryView(modelContainer: modelContainer)
             } label: {
                 Label(
                     hasNewSuggestions ? "発見（新着あり）" : "発見",
                     systemImage: "sparkle.magnifyingglass"
                 )
-            }
-            NavigationLink {
-                SourcesListView(modelContainer: modelContainer)
-            } label: {
-                Label("ソース管理", systemImage: "plus.rectangle.on.rectangle")
             }
             NavigationLink {
                 CategorySettingsView()
