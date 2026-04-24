@@ -568,17 +568,10 @@ struct FeedView: View {
                         .disabled(viewModel?.isLoading ?? false)
                     }
                     #endif
+                    #if os(macOS)
+                    // macOS は標準 toolbar を維持
                     ToolbarItem(placement: .automatic) {
                         Menu {
-                            #if !os(macOS)
-                            Button {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    useCompactLayout.toggle()
-                                }
-                            } label: {
-                                Label(useCompactLayout ? "大きいカード" : "コンパクト", systemImage: useCompactLayout ? "rectangle.grid.1x2" : "rectangle.grid.2x2")
-                            }
-                            #endif
                             NavigationLink {
                                 SourcesListView(modelContainer: modelContainer)
                             } label: {
@@ -610,6 +603,7 @@ struct FeedView: View {
                                 }
                         }
                     }
+                    #endif
                 }
                 .task {
                     if viewModel == nil {
@@ -684,21 +678,27 @@ struct FeedView: View {
                     let feedStatus = viewModel?.statusMessage
                     let discoveryStatus = DiscoveryManager.shared.statusMessage
                     let syncStatus = CloudSyncObserver.shared.statusMessage
+                    #if os(iOS)
+                    FeedFloatingFooter(
+                        scrollState: scrollState,
+                        feedStatus: feedStatus,
+                        discoveryStatus: discoveryStatus,
+                        syncStatus: syncStatus,
+                        hasNewSuggestions: hasNewSuggestions,
+                        modelContainer: modelContainer,
+                        useCompactLayout: $useCompactLayout
+                    )
+                    #else
                     if feedStatus != nil || discoveryStatus != nil || syncStatus != nil {
                         VStack(spacing: 4) {
-                            if let status = feedStatus {
-                                statusCapsule(status)
-                            }
-                            if let status = discoveryStatus {
-                                statusCapsule(status)
-                            }
-                            if let status = syncStatus {
-                                statusCapsule(status)
-                            }
+                            if let status = feedStatus { statusCapsule(status) }
+                            if let status = discoveryStatus { statusCapsule(status) }
+                            if let status = syncStatus { statusCapsule(status) }
                         }
                         .padding(.bottom, 20)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
+                    #endif
                 }
                 .animation(.easeInOut(duration: 0.3), value: viewModel?.statusMessage)
                 .animation(.easeInOut(duration: 0.3), value: DiscoveryManager.shared.statusMessage)
@@ -1081,6 +1081,194 @@ private struct ScrollAwareHeader: View {
             }
             .buttonStyle(.plain)
             Spacer()
+        }
+    }
+}
+
+// MARK: - StatusStackLayout
+
+/// ステータス capsule 複数 + action bar を底辺に配置する Custom Layout。
+/// 最後の subview を action bar として扱い、それ以外を status capsule として積み上げる。
+/// 各 capsule は通常は画面中央、action bar と Y 範囲が重なる capsule のみ、
+/// 衝突する分だけ左にシフトする（上段の capsule は Y 範囲が action bar より上にあるので中央のまま）。
+struct StatusStackLayout: Layout {
+    /// action bar の下方向オフセット（スクロールで隠す時用、0 で通常位置）
+    var actionBarOffsetY: CGFloat = 0
+    var verticalSpacing: CGFloat = 4
+    var horizontalSpacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? 0
+        let height = subviews.map { $0.sizeThatFits(.unspecified).height }.reduce(0, +)
+        return CGSize(width: width, height: max(height, 0))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard !subviews.isEmpty else { return }
+        let actionBar = subviews.last!
+        let actionSize = actionBar.sizeThatFits(.unspecified)
+        let actionX = bounds.maxX - actionSize.width
+        let actionY = bounds.maxY - actionSize.height + actionBarOffsetY
+
+        actionBar.place(
+            at: CGPoint(x: actionX, y: actionY),
+            anchor: .topLeading,
+            proposal: ProposedViewSize(actionSize)
+        )
+
+        let actionTop = actionY
+        let actionBottom = actionY + actionSize.height
+        let actionLeft = actionX - horizontalSpacing
+        // action bar が画面から半分以上はみ出していたら衝突判定から除外
+        let isActionEffectivelyVisible = actionBarOffsetY < actionSize.height * 0.5
+
+        let statuses = subviews.dropLast()
+        var currentBottom = bounds.maxY
+
+        for status in statuses.reversed() {
+            let statusSize = status.sizeThatFits(.unspecified)
+            let statusY = currentBottom - statusSize.height
+            let statusBottom = currentBottom
+
+            // この capsule が action bar の Y 範囲と重なるか
+            let yOverlap = isActionEffectivelyVisible && statusY < actionBottom && statusBottom > actionTop
+
+            var statusCenterX = bounds.midX
+            if yOverlap {
+                let rightIfCentered = statusCenterX + statusSize.width / 2
+                if rightIfCentered > actionLeft {
+                    statusCenterX -= (rightIfCentered - actionLeft)
+                }
+            }
+            // 画面左端でクランプ（capsule が画面幅より広くなることは想定しない）
+            statusCenterX = max(statusCenterX, bounds.minX + statusSize.width / 2)
+
+            let statusX = statusCenterX - statusSize.width / 2
+            status.place(
+                at: CGPoint(x: statusX, y: statusY),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(statusSize)
+            )
+            currentBottom = statusY - verticalSpacing
+        }
+    }
+}
+
+// MARK: - FeedFloatingFooter
+
+/// ステータス capsule と浮遊アクションバーをまとめて底辺に表示する overlay 用 View。
+/// scrollState を直接読むことで、スクロール中に FeedView.body の再評価を避ける。
+private struct FeedFloatingFooter: View {
+    let scrollState: FeedScrollState
+    let feedStatus: String?
+    let discoveryStatus: String?
+    let syncStatus: String?
+    let hasNewSuggestions: Bool
+    let modelContainer: ModelContainer
+    @Binding var useCompactLayout: Bool
+
+    /// スクロールで隠れる量からアクションバーの不透明度を算出。
+    /// fadeDistance（80pt）スライドで完全に透明になる。
+    private var actionBarOpacity: Double {
+        let hidden = max(0, -scrollState.hideAmount)
+        let fadeDistance: CGFloat = 80
+        return max(0, 1 - Double(hidden / fadeDistance))
+    }
+
+    var body: some View {
+        StatusStackLayout(actionBarOffsetY: max(0, -scrollState.hideAmount)) {
+            if let s = feedStatus { statusCapsule(s) }
+            if let s = discoveryStatus { statusCapsule(s) }
+            if let s = syncStatus { statusCapsule(s) }
+            FloatingActionBar(
+                modelContainer: modelContainer,
+                hasNewSuggestions: hasNewSuggestions,
+                useCompactLayout: $useCompactLayout
+            )
+            .opacity(actionBarOpacity)
+        }
+        .padding(.horizontal, 24)
+        .padding(.bottom, 8)
+        // Safari のように SafeArea の中（home indicator 領域）まで入り込ませる
+        .ignoresSafeArea(.container, edges: .bottom)
+    }
+
+    @ViewBuilder
+    private func statusCapsule(_ text: String) -> some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                #if !os(macOS)
+                .controlSize(.small)
+                #endif
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
+        .shadow(radius: 4)
+    }
+}
+
+// MARK: - FloatingActionBar
+
+/// 右下に浮遊表示する丸ボタン。Menu で コンパクト切替 / 発見 / ソース管理 / 設定 にアクセス。
+private struct FloatingActionBar: View {
+    let modelContainer: ModelContainer
+    let hasNewSuggestions: Bool
+    @Binding var useCompactLayout: Bool
+
+    var body: some View {
+        Menu {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    useCompactLayout.toggle()
+                }
+            } label: {
+                Label(
+                    useCompactLayout ? "大きいカード" : "コンパクト",
+                    systemImage: useCompactLayout ? "rectangle.grid.1x2" : "rectangle.grid.2x2"
+                )
+            }
+            Divider()
+            NavigationLink {
+                DiscoveryView(modelContainer: modelContainer)
+            } label: {
+                Label(
+                    hasNewSuggestions ? "発見（新着あり）" : "発見",
+                    systemImage: "sparkle.magnifyingglass"
+                )
+            }
+            NavigationLink {
+                SourcesListView(modelContainer: modelContainer)
+            } label: {
+                Label("ソース管理", systemImage: "plus.rectangle.on.rectangle")
+            }
+            Divider()
+            NavigationLink {
+                SettingsView()
+            } label: {
+                Label("設定", systemImage: "gear")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.title3)
+                .foregroundStyle(.primary)
+                .frame(width: 48, height: 48)
+                .background(.ultraThinMaterial, in: Circle())
+                .shadow(radius: 4)
+                .overlay(alignment: .topTrailing) {
+                    if hasNewSuggestions {
+                        Circle()
+                            .fill(.red)
+                            .frame(width: 10, height: 10)
+                            .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
+                            .offset(x: -2, y: 2)
+                            .allowsHitTesting(false)
+                    }
+                }
         }
     }
 }
