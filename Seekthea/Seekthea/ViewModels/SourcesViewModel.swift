@@ -124,42 +124,50 @@ class SourcesViewModel {
         switch feed {
         case .rss(let rss):
             return rss.items?.compactMap { item in
-                guard let title = item.title,
-                      let link = item.link,
-                      let url = URL(string: link) else { return nil }
-                let imageURL = item.enclosure?.attributes?.url.flatMap { URL(string: $0) }
-                    ?? item.media?.mediaThumbnails?.first?.attributes?.url.flatMap { URL(string: $0) }
+                // RSSのtitle/linkに改行や前後スペースが含まれる feed があるので必ずtrim
+                guard let title = item.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty,
+                      let link = item.link?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      let url = URL(string: link).map(FeedFetcher.upgradedToHTTPS) else { return nil }
+                let imageURL = item.enclosure?.attributes?.url
+                    .flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .flatMap { URL(string: $0) }
+                    ?? item.media?.mediaThumbnails?.first?.attributes?.url
+                        .flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .flatMap { URL(string: $0) }
+                    ?? FeedFetcher.firstImageURL(in: item.description)
                 return PreviewArticle(
                     title: title,
                     description: item.description?.strippingHTML(),
-                    imageURL: imageURL,
+                    imageURL: imageURL.map(FeedFetcher.upgradedToHTTPS),
                     publishedAt: item.pubDate,
                     link: url
                 )
             } ?? []
         case .atom(let atom):
             return atom.entries?.compactMap { entry in
-                guard let title = entry.title,
-                      let link = entry.links?.first?.attributes?.href,
-                      let url = URL(string: link) else { return nil }
+                guard let title = entry.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty,
+                      let link = entry.links?.first?.attributes?.href?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      let url = URL(string: link).map(FeedFetcher.upgradedToHTTPS) else { return nil }
                 return PreviewArticle(
                     title: title,
                     description: entry.summary?.value?.strippingHTML(),
-                    imageURL: nil,
+                    imageURL: FeedFetcher.firstImageURL(in: entry.summary?.value).map(FeedFetcher.upgradedToHTTPS),
                     publishedAt: entry.published ?? entry.updated,
                     link: url
                 )
             } ?? []
         case .json(let json):
             return json.items?.compactMap { item in
-                guard let title = item.title,
-                      let urlString = item.url,
-                      let url = URL(string: urlString) else { return nil }
-                let imageURL = item.image.flatMap { URL(string: $0) }
+                guard let title = item.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty,
+                      let urlString = item.url?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      let url = URL(string: urlString).map(FeedFetcher.upgradedToHTTPS) else { return nil }
+                let imageURL = item.image
+                    .flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .flatMap { URL(string: $0) }
                 return PreviewArticle(
                     title: title,
                     description: item.summary ?? item.contentText,
-                    imageURL: imageURL,
+                    imageURL: imageURL.map(FeedFetcher.upgradedToHTTPS),
                     publishedAt: item.datePublished,
                     link: url
                 )

@@ -149,49 +149,79 @@ class FeedFetcher {
         switch feed {
         case .rss(let rssFeed):
             return rssFeed.items?.compactMap { item -> FeedItem? in
-                guard let title = item.title,
-                      let link = item.link,
-                      let url = URL(string: link) else { return nil }
-                let imageURL = item.enclosure?.attributes?.url.flatMap { URL(string: $0) }
-                    ?? item.media?.mediaThumbnails?.first?.attributes?.url.flatMap { URL(string: $0) }
+                // RSSのtitle/linkに改行や前後スペースが含まれる feed があるので必ずtrim
+                // （日産ニュースルームなど）
+                guard let rawTitle = item.title?.trimmingCharacters(in: .whitespacesAndNewlines), !rawTitle.isEmpty,
+                      let rawLink = item.link?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      let url = URL(string: rawLink).map(Self.upgradedToHTTPS) else { return nil }
+                let imageURL = item.enclosure?.attributes?.url
+                    .flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .flatMap { URL(string: $0) }
+                    ?? item.media?.mediaThumbnails?.first?.attributes?.url
+                        .flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .flatMap { URL(string: $0) }
+                    ?? Self.firstImageURL(in: item.description)
                 return FeedItem(
-                    title: title,
+                    title: rawTitle,
                     url: url,
                     description: item.description?.strippingHTML(),
-                    imageURL: imageURL,
+                    imageURL: imageURL.map(Self.upgradedToHTTPS),
                     publishedAt: item.pubDate
                 )
             } ?? []
 
         case .atom(let atomFeed):
             return atomFeed.entries?.compactMap { entry -> FeedItem? in
-                guard let title = entry.title,
-                      let link = entry.links?.first?.attributes?.href,
-                      let url = URL(string: link) else { return nil }
+                guard let rawTitle = entry.title?.trimmingCharacters(in: .whitespacesAndNewlines), !rawTitle.isEmpty,
+                      let rawLink = entry.links?.first?.attributes?.href?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      let url = URL(string: rawLink).map(Self.upgradedToHTTPS) else { return nil }
                 return FeedItem(
-                    title: title,
+                    title: rawTitle,
                     url: url,
                     description: entry.summary?.value?.strippingHTML(),
-                    imageURL: nil,
+                    imageURL: Self.firstImageURL(in: entry.summary?.value).map(Self.upgradedToHTTPS),
                     publishedAt: entry.published ?? entry.updated
                 )
             } ?? []
 
         case .json(let jsonFeed):
             return jsonFeed.items?.compactMap { item -> FeedItem? in
-                guard let title = item.title,
-                      let urlString = item.url,
-                      let url = URL(string: urlString) else { return nil }
-                let imageURL = item.image.flatMap { URL(string: $0) }
+                guard let rawTitle = item.title?.trimmingCharacters(in: .whitespacesAndNewlines), !rawTitle.isEmpty,
+                      let rawLink = item.url?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      let url = URL(string: rawLink).map(Self.upgradedToHTTPS) else { return nil }
+                let imageURL = item.image
+                    .flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .flatMap { URL(string: $0) }
                 return FeedItem(
-                    title: title,
+                    title: rawTitle,
                     url: url,
                     description: item.summary ?? item.contentText,
-                    imageURL: imageURL,
+                    imageURL: imageURL.map(Self.upgradedToHTTPS),
                     publishedAt: item.datePublished
                 )
             } ?? []
         }
+    }
+
+    /// http URL を https に昇格する（iOS の ATS で http がブロックされるため）
+    static func upgradedToHTTPS(_ url: URL) -> URL {
+        guard url.scheme?.lowercased() == "http",
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url
+        }
+        components.scheme = "https"
+        return components.url ?? url
+    }
+
+    /// HTML文字列の最初の <img src="..."> を抜き出す
+    static func firstImageURL(in html: String?) -> URL? {
+        guard let html else { return nil }
+        let pattern = "<img[^>]+src\\s*=\\s*[\"']([^\"']+)[\"']"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
+              let range = Range(match.range(at: 1), in: html) else { return nil }
+        let src = String(html[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return URL(string: src)
     }
 }
 
