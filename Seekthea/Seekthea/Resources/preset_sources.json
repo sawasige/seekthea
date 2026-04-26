@@ -494,6 +494,55 @@
       "siteURL": "https://scienceportal.jst.go.jp/",
       "category": "サイエンス",
       "popular": false
+    },
+    {
+      "name": "NASA News (English)",
+      "feedURL": "https://www.nasa.gov/news-release/feed/",
+      "siteURL": "https://www.nasa.gov/news/",
+      "category": "サイエンス",
+      "popular": false
+    },
+    {
+      "name": "JAXA プレスリリース",
+      "feedURL": "https://www.jaxa.jp/rss/press_j.rdf",
+      "siteURL": "https://www.jaxa.jp/press/",
+      "category": "サイエンス",
+      "popular": false
+    },
+    {
+      "name": "ESA Space News (English)",
+      "feedURL": "https://www.esa.int/rssfeed/Our_Activities/Space_News",
+      "siteURL": "https://www.esa.int/Newsroom",
+      "category": "サイエンス",
+      "popular": false
+    },
+    {
+      "name": "理化学研究所 ニュース",
+      "feedURL": "https://www.riken.jp/feed/news_feed/",
+      "siteURL": "https://www.riken.jp/pr/news/",
+      "category": "サイエンス",
+      "popular": false
+    },
+    {
+      "name": "CERN News (English)",
+      "feedURL": "https://home.cern/api/news/news/feed.rss",
+      "siteURL": "https://home.cern/news",
+      "category": "サイエンス",
+      "popular": false
+    },
+    {
+      "name": "Science.org News (English)",
+      "feedURL": "https://www.science.org/rss/news_current.xml",
+      "siteURL": "https://www.science.org/news",
+      "category": "サイエンス",
+      "popular": false
+    },
+    {
+      "name": "Quanta Magazine (English)",
+      "feedURL": "https://www.quantamagazine.org/feed/",
+      "siteURL": "https://www.quantamagazine.org/",
+      "category": "サイエンス",
+      "popular": false
     }
   ],
   "ゲーム": [
