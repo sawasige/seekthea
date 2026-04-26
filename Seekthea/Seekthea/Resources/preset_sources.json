@@ -738,6 +738,13 @@
       "siteURL": "https://www.bikejin.jp/",
       "category": "クルマ・バイク",
       "popular": false
+    },
+    {
+      "name": "日産ニュースルーム",
+      "feedURL": "https://global.nissannews.com/ja-JP/rss",
+      "siteURL": "https://global.nissannews.com/ja-JP/",
+      "category": "クルマ・バイク",
+      "popular": false
     }
   ],
   "話題": [
