@@ -127,6 +127,41 @@
       "siteURL": "https://www.engadget.com/",
       "category": "テクノロジー",
       "popular": false
+    },
+    {
+      "name": "Apple Newsroom (日本)",
+      "feedURL": "https://www.apple.com/jp/newsroom/rss-feed.rss",
+      "siteURL": "https://www.apple.com/jp/newsroom/",
+      "category": "テクノロジー",
+      "popular": false
+    },
+    {
+      "name": "Google Blog (English)",
+      "feedURL": "https://blog.google/rss/",
+      "siteURL": "https://blog.google/",
+      "category": "テクノロジー",
+      "popular": false
+    },
+    {
+      "name": "Windows Blog 日本語",
+      "feedURL": "https://blogs.windows.com/japan/feed/",
+      "siteURL": "https://blogs.windows.com/japan/",
+      "category": "テクノロジー",
+      "popular": false
+    },
+    {
+      "name": "Meta Newsroom (English)",
+      "feedURL": "https://about.fb.com/news/feed/",
+      "siteURL": "https://about.fb.com/news/",
+      "category": "テクノロジー",
+      "popular": false
+    },
+    {
+      "name": "NVIDIA Blog (日本)",
+      "feedURL": "https://blogs.nvidia.co.jp/feed/",
+      "siteURL": "https://blogs.nvidia.co.jp/",
+      "category": "テクノロジー",
+      "popular": false
     }
   ],
   "開発": [
@@ -204,6 +239,62 @@
       "name": "Product Hunt (English)",
       "feedURL": "https://www.producthunt.com/feed",
       "siteURL": "https://www.producthunt.com/",
+      "category": "開発",
+      "popular": false
+    },
+    {
+      "name": "GitHub Blog (English)",
+      "feedURL": "https://github.blog/feed/",
+      "siteURL": "https://github.blog/",
+      "category": "開発",
+      "popular": false
+    },
+    {
+      "name": "AWS 日本ブログ",
+      "feedURL": "https://aws.amazon.com/jp/blogs/news/feed/",
+      "siteURL": "https://aws.amazon.com/jp/blogs/news/",
+      "category": "開発",
+      "popular": false
+    },
+    {
+      "name": "Microsoft Azure Blog (English)",
+      "feedURL": "https://azure.microsoft.com/en-us/blog/feed/",
+      "siteURL": "https://azure.microsoft.com/en-us/blog/",
+      "category": "開発",
+      "popular": false
+    },
+    {
+      "name": "Cloudflare Blog (English)",
+      "feedURL": "https://blog.cloudflare.com/rss/",
+      "siteURL": "https://blog.cloudflare.com/",
+      "category": "開発",
+      "popular": false
+    },
+    {
+      "name": "Docker Blog (English)",
+      "feedURL": "https://www.docker.com/blog/feed/",
+      "siteURL": "https://www.docker.com/blog/",
+      "category": "開発",
+      "popular": false
+    },
+    {
+      "name": "JetBrains Blog (English)",
+      "feedURL": "https://blog.jetbrains.com/feed/",
+      "siteURL": "https://blog.jetbrains.com/",
+      "category": "開発",
+      "popular": false
+    },
+    {
+      "name": "Swift.org Blog (English)",
+      "feedURL": "https://swift.org/atom.xml",
+      "siteURL": "https://swift.org/blog/",
+      "category": "開発",
+      "popular": false
+    },
+    {
+      "name": "Rust Blog (English)",
+      "feedURL": "https://blog.rust-lang.org/feed.xml",
+      "siteURL": "https://blog.rust-lang.org/",
       "category": "開発",
       "popular": false
     }
@@ -466,6 +557,13 @@
       "name": "PlayStation.Blog 日本語",
       "feedURL": "https://blog.ja.playstation.com/feed/",
       "siteURL": "https://blog.ja.playstation.com/",
+      "category": "ゲーム",
+      "popular": false
+    },
+    {
+      "name": "Xbox Wire (English)",
+      "feedURL": "https://news.xbox.com/en-us/feed/",
+      "siteURL": "https://news.xbox.com/en-us/",
       "category": "ゲーム",
       "popular": false
     }
