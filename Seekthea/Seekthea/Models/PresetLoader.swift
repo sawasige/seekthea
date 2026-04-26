@@ -33,6 +33,11 @@ struct PresetCatalog {
         Set(all.map(\.feedURL))
     }
 
+    /// feedURL に一致するプリセットを返す（表示名のライブ参照などに使う）
+    static func preset(for feedURL: URL) -> PresetSource? {
+        all.first { $0.feedURL == feedURL }
+    }
+
     /// カテゴリ順のキー配列（表示順を固定）
     static let categoryOrder = [
         "ニュース", "テクノロジー", "開発", "ビジネス", "エンタメ",

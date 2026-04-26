@@ -454,6 +454,20 @@
       "siteURL": "https://www.eurogamer.net/",
       "category": "ゲーム",
       "popular": false
+    },
+    {
+      "name": "任天堂トピックス",
+      "feedURL": "https://www.nintendo.com/jp/topics/c/feed/rss/",
+      "siteURL": "https://www.nintendo.com/jp/topics/",
+      "category": "ゲーム",
+      "popular": false
+    },
+    {
+      "name": "PlayStation.Blog 日本語",
+      "feedURL": "https://blog.ja.playstation.com/feed/",
+      "siteURL": "https://blog.ja.playstation.com/",
+      "category": "ゲーム",
+      "popular": false
     }
   ],
   "スポーツ": [

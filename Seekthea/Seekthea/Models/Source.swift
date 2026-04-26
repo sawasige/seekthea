@@ -38,4 +38,14 @@ class Source {
         self.isPreset = isPreset
         self.addedAt = Date()
     }
+
+    /// 表示名: プリセット由来なら PresetCatalog の最新名、無ければ name にフォールバック
+    var displayName: String {
+        PresetCatalog.preset(for: feedURL)?.name ?? name
+    }
+
+    /// プリセットカタログに含まれているか
+    var isFromPreset: Bool {
+        PresetCatalog.preset(for: feedURL) != nil
+    }
 }

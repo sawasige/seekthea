@@ -21,9 +21,19 @@ class FeedFetcher {
         let descriptor = FetchDescriptor<Source>(predicate: #Predicate { $0.isActive })
         guard let sources = try? context.fetch(descriptor) else { return }
 
-        var knownURLs = Set(
-            ((try? context.fetch(FetchDescriptor<Article>())) ?? []).map(\.articleURL)
-        )
+        // articleURL → 既存記事のマップ（孤児記事の再紐付けに使う）
+        let existingArticles = (try? context.fetch(FetchDescriptor<Article>())) ?? []
+        var articlesByURL: [URL: Article] = [:]
+        for article in existingArticles {
+            articlesByURL[article.articleURL] = article
+        }
+
+        // 30日より古い記事は取り込まない（cleanup と整合）
+        let publishedCutoff = Calendar.current.date(
+            byAdding: .day,
+            value: -ArticleCleanupService.retentionDays,
+            to: Date()
+        )!
 
         for (index, source) in sources.enumerated() {
             onProgress?("\(source.name) を取得中... (\(index + 1)/\(sources.count))")
@@ -35,8 +45,17 @@ class FeedFetcher {
 
             let items = extractItems(from: feed)
             for item in items {
-                guard !knownURLs.contains(item.url) else { continue }
-                knownURLs.insert(item.url)
+                if let existing = articlesByURL[item.url] {
+                    // 既存記事: 現ソースと feedURL/紐付けが食い違っていれば結び直す
+                    // （手動URL → プリセット昇格、ソース URL 変更、CloudKit ゴーストなどを救済）
+                    if existing.sourceFeedURL != source.feedURL {
+                        existing.source = source
+                        existing.sourceFeedURL = source.feedURL
+                        existing.sourceName = source.name
+                    }
+                    continue
+                }
+                if let pub = item.publishedAt, pub < publishedCutoff { continue }
 
                 let article = Article(
                     title: item.title,
@@ -47,6 +66,7 @@ class FeedFetcher {
                     source: source
                 )
                 context.insert(article)
+                articlesByURL[item.url] = article
                 source.articleCount += 1
             }
             source.lastFetchedAt = Date()
