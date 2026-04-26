@@ -745,6 +745,48 @@
       "siteURL": "https://global.nissannews.com/ja-JP/",
       "category": "クルマ・バイク",
       "popular": false
+    },
+    {
+      "name": "トヨタ自動車 グローバルニュースルーム",
+      "feedURL": "https://global.toyota/export/jp/allnews_rss.xml",
+      "siteURL": "https://global.toyota/jp/newsroom/",
+      "category": "クルマ・バイク",
+      "popular": false
+    },
+    {
+      "name": "Honda 新着情報（クルマ）",
+      "feedURL": "https://www.honda.co.jp/rss/auto.xml",
+      "siteURL": "https://www.honda.co.jp/news/",
+      "category": "クルマ・バイク",
+      "popular": false
+    },
+    {
+      "name": "Honda 新着情報（バイク）",
+      "feedURL": "https://www.honda.co.jp/rss/motor.xml",
+      "siteURL": "https://www.honda.co.jp/news/",
+      "category": "クルマ・バイク",
+      "popular": false
+    },
+    {
+      "name": "MAZDA NEWSROOM",
+      "feedURL": "https://newsroom.mazda.com/ja/rss/publicity_cms.xml",
+      "siteURL": "https://newsroom.mazda.com/ja/",
+      "category": "クルマ・バイク",
+      "popular": false
+    },
+    {
+      "name": "SUBARU プレスリリース",
+      "feedURL": "https://www.subaru.co.jp/press/news/feed/",
+      "siteURL": "https://www.subaru.co.jp/newsroom/",
+      "category": "クルマ・バイク",
+      "popular": false
+    },
+    {
+      "name": "ヤマハ発動機 ニュース",
+      "feedURL": "https://global.yamaha-motor.com/jp/rss/update.xml",
+      "siteURL": "https://global.yamaha-motor.com/jp/news/",
+      "category": "クルマ・バイク",
+      "popular": false
     }
   ],
   "話題": [

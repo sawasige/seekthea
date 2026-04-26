@@ -54,12 +54,17 @@ class FeedFetcher {
             let items = extractItems(from: feed)
             for item in items {
                 if let existing = articlesByURL[item.url] {
-                    // 既存記事: 現ソースと feedURL/紐付けが食い違っていれば結び直す
-                    // （手動URL → プリセット昇格、ソース URL 変更、CloudKit ゴーストなどを救済）
                     if existing.sourceFeedURL != source.feedURL {
                         existing.source = source
                         existing.sourceFeedURL = source.feedURL
                         existing.sourceName = source.name
+                    }
+                    // 過去のFeedFetcherバグ等で publishedAt/imageURL が欠けている既存記事を補完
+                    if existing.publishedAt == nil, let pub = item.publishedAt {
+                        existing.publishedAt = pub
+                    }
+                    if existing.imageURL == nil, let img = item.imageURL {
+                        existing.imageURL = img
                     }
                     continue
                 }
@@ -161,12 +166,14 @@ class FeedFetcher {
                         .flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                         .flatMap { URL(string: $0) }
                     ?? Self.firstImageURL(in: item.description)
+                    ?? Self.firstImageURL(in: item.content?.contentEncoded)
                 return FeedItem(
                     title: rawTitle,
                     url: url,
                     description: item.description?.strippingHTML(),
                     imageURL: imageURL.map(Self.upgradedToHTTPS),
-                    publishedAt: item.pubDate
+                    // RDF (RSS 1.0) は dc:date を使うため pubDate が nil になるのでフォールバック
+                    publishedAt: item.pubDate ?? item.dublinCore?.dcDate
                 )
             } ?? []
 

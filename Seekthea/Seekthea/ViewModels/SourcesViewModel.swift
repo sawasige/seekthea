@@ -135,11 +135,12 @@ class SourcesViewModel {
                         .flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                         .flatMap { URL(string: $0) }
                     ?? FeedFetcher.firstImageURL(in: item.description)
+                    ?? FeedFetcher.firstImageURL(in: item.content?.contentEncoded)
                 return PreviewArticle(
                     title: title,
                     description: item.description?.strippingHTML(),
                     imageURL: imageURL.map(FeedFetcher.upgradedToHTTPS),
-                    publishedAt: item.pubDate,
+                    publishedAt: item.pubDate ?? item.dublinCore?.dcDate,
                     link: url
                 )
             } ?? []
