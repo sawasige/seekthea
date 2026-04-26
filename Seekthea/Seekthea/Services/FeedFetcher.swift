@@ -25,6 +25,13 @@ class FeedFetcher {
             ((try? context.fetch(FetchDescriptor<Article>())) ?? []).map(\.articleURL)
         )
 
+        // 30日より古い記事は取り込まない（cleanup と整合）
+        let publishedCutoff = Calendar.current.date(
+            byAdding: .day,
+            value: -ArticleCleanupService.retentionDays,
+            to: Date()
+        )!
+
         for (index, source) in sources.enumerated() {
             onProgress?("\(source.name) を取得中... (\(index + 1)/\(sources.count))")
             let feedURL = source.feedURL
@@ -36,6 +43,7 @@ class FeedFetcher {
             let items = extractItems(from: feed)
             for item in items {
                 guard !knownURLs.contains(item.url) else { continue }
+                if let pub = item.publishedAt, pub < publishedCutoff { continue }
                 knownURLs.insert(item.url)
 
                 let article = Article(
