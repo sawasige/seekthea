@@ -12,17 +12,12 @@ struct SourcesListView: View {
 
     let modelContainer: ModelContainer
 
-    /// 手動追加（現プリセット外）ソース（検索フィルタ済み）。
-    /// 「現 PresetCatalog に feedURL が無い Source」を手動扱いとする。
-    /// Source.isPreset フラグは見ない（過去の preset 削除/改名で orphan 化した
-    /// Source も自動的に手動扱いとして UI に表示される）。
-    private var manualSources: [Source] {
-        let presetURLs = PresetCatalog.allFeedURLs
-        let all = sources.filter { !presetURLs.contains($0.feedURL) }
+    /// 登録済みソース一覧（プリセット由来・手動の両方、検索フィルタ済み）
+    private var registeredSources: [Source] {
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !query.isEmpty else { return all }
-        return all.filter {
-            $0.name.lowercased().contains(query)
+        guard !query.isEmpty else { return sources }
+        return sources.filter {
+            $0.displayName.lowercased().contains(query)
                 || ($0.siteURL.host()?.lowercased().contains(query) ?? false)
         }
     }
@@ -47,14 +42,14 @@ struct SourcesListView: View {
 
     var body: some View {
         List {
-            // 手動追加ソースセクション
-            if !manualSources.isEmpty {
-                Section("手動追加") {
-                    ForEach(manualSources, id: \.id) { source in
+            // 登録済みソースセクション（プリセット由来・手動の両方）
+            if !registeredSources.isEmpty {
+                Section("登録済み") {
+                    ForEach(registeredSources, id: \.id) { source in
                         Button {
                             previewItem = PreviewItem(mode: .registered(source))
                         } label: {
-                            manualSourceRow(source)
+                            registeredSourceRow(source)
                         }
                         .buttonStyle(.plain)
                     }
@@ -134,7 +129,11 @@ struct SourcesListView: View {
             }
         } message: {
             if let source = deleteTarget {
-                Text("\(source.name) を削除しますか？手動追加したソースは再登録にURLの入力が必要です。")
+                if source.isFromPreset {
+                    Text("\(source.displayName) を削除しますか？プリセットからいつでも再追加できます。")
+                } else {
+                    Text("\(source.displayName) を削除しますか？手動追加したソースは再登録にURLの入力が必要です。")
+                }
             }
         }
         .task {
@@ -148,16 +147,27 @@ struct SourcesListView: View {
         }
     }
 
-    // MARK: - 手動追加ソース行
+    // MARK: - 登録済みソース行
 
-    private func manualSourceRow(_ source: Source) -> some View {
+    private func registeredSourceRow(_ source: Source) -> some View {
         HStack(spacing: 12) {
             SourceThumbnailView(siteURL: source.siteURL, ogImageURL: source.ogImageURL, size: 44)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(source.name)
-                    .font(.subheadline.weight(.medium))
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(source.displayName)
+                        .font(.subheadline.weight(.medium))
+                        .lineLimit(1)
+                    if !source.isFromPreset {
+                        Text("手動")
+                            .font(.caption2)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(.secondary.opacity(0.15))
+                            .foregroundStyle(.secondary)
+                            .clipShape(Capsule())
+                    }
+                }
                 Text(source.siteURL.host() ?? "")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
