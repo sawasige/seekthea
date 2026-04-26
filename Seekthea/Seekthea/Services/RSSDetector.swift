@@ -36,19 +36,43 @@ struct RSSDetector {
             .map { $0 }
     }
 
-    /// フィードURLからタイトルを取得（RSSでなければnil）
-    static func feedTitle(from url: URL) async -> String? {
+    struct FeedMetadata {
+        let title: String?
+        /// channel/atom alternate link / json homePageURL から取得したサイトURL
+        let siteURL: URL?
+    }
+
+    /// フィードURLからタイトルとサイトURLを取得（RSSでなければnil）
+    static func feedMetadata(from url: URL) async -> FeedMetadata? {
         guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
         let parser = FeedKit.FeedParser(data: data)
         guard case .success(let feed) = parser.parse() else { return nil }
-        let raw: String?
+
+        let rawTitle: String?
+        let rawSiteURL: String?
         switch feed {
-        case .rss(let rss): raw = rss.title
-        case .atom(let atom): raw = atom.title
-        case .json(let json): raw = json.title
+        case .rss(let rss):
+            rawTitle = rss.title
+            rawSiteURL = rss.link
+        case .atom(let atom):
+            rawTitle = atom.title
+            // alternate（または rel未指定）リンクを優先
+            rawSiteURL = atom.links?.first(where: { ($0.attributes?.rel ?? "alternate") == "alternate" })?.attributes?.href
+                ?? atom.links?.first?.attributes?.href
+        case .json(let json):
+            rawTitle = json.title
+            rawSiteURL = json.homePageURL
         }
-        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (trimmed?.isEmpty == false) ? trimmed : nil
+
+        let trimmedTitle = rawTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = (trimmedTitle?.isEmpty == false) ? trimmedTitle : nil
+        let siteURL = rawSiteURL.flatMap { URL(string: $0) }
+        return FeedMetadata(title: title, siteURL: siteURL)
+    }
+
+    /// フィードURLからタイトルを取得（RSSでなければnil）
+    static func feedTitle(from url: URL) async -> String? {
+        await feedMetadata(from: url)?.title
     }
 
     // MARK: - Private

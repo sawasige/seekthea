@@ -43,6 +43,14 @@ class FeedFetcher {
             let parser = FeedParser(data: data)
             guard case .success(let feed) = parser.parse() else { continue }
 
+            // 既存ソースの siteURL が feedURL と同じなら（手動でRSS直入力した過去ソース）、
+            // フィードの channel link で更新する（マイグレーション）
+            if source.siteURL == source.feedURL,
+               let channelLink = Self.channelLink(from: feed),
+               channelLink != source.feedURL {
+                source.siteURL = channelLink
+            }
+
             let items = extractItems(from: feed)
             for item in items {
                 if let existing = articlesByURL[item.url] {
@@ -113,6 +121,21 @@ class FeedFetcher {
     }
 
     // MARK: - Private
+
+    /// パース済みフィードからチャンネルリンク（サイトURL）を取り出す
+    private static func channelLink(from feed: Feed) -> URL? {
+        let raw: String?
+        switch feed {
+        case .rss(let rss):
+            raw = rss.link
+        case .atom(let atom):
+            raw = atom.links?.first(where: { ($0.attributes?.rel ?? "alternate") == "alternate" })?.attributes?.href
+                ?? atom.links?.first?.attributes?.href
+        case .json(let json):
+            raw = json.homePageURL
+        }
+        return raw.flatMap { URL(string: $0) }
+    }
 
     private struct FeedItem {
         let title: String
