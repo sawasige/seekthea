@@ -79,13 +79,13 @@ class SourcesViewModel {
 
         // 入力URLが直接RSSフィードか、サイトURLからRSSを検出
         let feedURL: URL
-        let feedTitle: String?
-        if let title = await RSSDetector.feedTitle(from: url) {
+        let metadata: RSSDetector.FeedMetadata?
+        if let m = await RSSDetector.feedMetadata(from: url) {
             feedURL = url
-            feedTitle = title
+            metadata = m
         } else if let detected = await RSSDetector.detectFeed(from: url) {
             feedURL = detected
-            feedTitle = await RSSDetector.feedTitle(from: detected)
+            metadata = await RSSDetector.feedMetadata(from: detected)
         } else {
             addingError = "RSSフィードが見つかりませんでした。サイトのトップページのURLを試すか、RSSのURLを直接入力してください。"
             return
@@ -96,12 +96,15 @@ class SourcesViewModel {
             return
         }
 
-        let name = feedTitle ?? url.host() ?? url.absoluteString
+        let name = metadata?.title ?? url.host() ?? url.absoluteString
+        // RSS の channel link をサイトURLとして使う。無ければ入力URLにフォールバック
+        // （RSS URLを直接入力した場合に siteURL = RSS URL になって SafariでXMLが開く問題を回避）
+        let resolvedSiteURL = metadata?.siteURL ?? url
         let context = modelContainer.mainContext
         let source = Source(
             name: name,
             feedURL: feedURL,
-            siteURL: url,
+            siteURL: resolvedSiteURL,
             category: ""
         )
         context.insert(source)

@@ -14,13 +14,21 @@ struct SourcePreviewView: View {
     @State private var viewModel: SourcesViewModel?
     @State private var articles: [PreviewArticle] = []
     @State private var isLoading = true
+    @State private var draftName: String = ""
+    @FocusState private var nameFieldFocused: Bool
 
     private var sourceName: String {
         switch mode {
         case .preset(let p): return p.name
-        case .registered(let s): return s.name
+        case .registered(let s): return s.displayName
         case .discovered(let d): return d.feedTitle ?? d.domain
         }
+    }
+
+    /// 名前を編集可能な手動ソース（プリセット由来は displayName が PresetCatalog 参照なので編集対象外）
+    private var editableSource: Source? {
+        if case .registered(let s) = mode, !s.isFromPreset { return s }
+        return nil
     }
 
     private var sourceCategory: String {
@@ -63,8 +71,22 @@ struct SourcePreviewView: View {
                     HStack(spacing: 12) {
                         SourceThumbnailView(siteURL: siteURL, size: 64)
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(sourceName)
-                                .font(.title3.weight(.semibold))
+                            if let source = editableSource {
+                                HStack(spacing: 6) {
+                                    TextField("ソース名", text: $draftName)
+                                        .font(.title3.weight(.semibold))
+                                        .textFieldStyle(.plain)
+                                        .focused($nameFieldFocused)
+                                        .submitLabel(.done)
+                                        .onSubmit { commitName(for: source) }
+                                    Image(systemName: "pencil")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } else {
+                                Text(sourceName)
+                                    .font(.title3.weight(.semibold))
+                            }
                             if !sourceCategory.isEmpty {
                                 Text(sourceCategory)
                                     .font(.caption)
@@ -122,10 +144,34 @@ struct SourcePreviewView: View {
                 if viewModel == nil {
                     viewModel = SourcesViewModel(modelContainer: modelContainer)
                 }
+                if let source = editableSource {
+                    draftName = source.name
+                }
                 articles = await viewModel?.previewFeed(url: feedURL) ?? []
                 isLoading = false
             }
+            .onChange(of: nameFieldFocused) { _, focused in
+                if !focused, let source = editableSource {
+                    commitName(for: source)
+                }
+            }
+            .onDisappear {
+                if let source = editableSource {
+                    commitName(for: source)
+                }
+            }
         }
+    }
+
+    private func commitName(for source: Source) {
+        let trimmed = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            draftName = source.name
+            return
+        }
+        guard trimmed != source.name else { return }
+        source.name = trimmed
+        try? modelContainer.mainContext.save()
     }
 
     @ViewBuilder
