@@ -1341,7 +1341,7 @@ private struct FloatingActionBar: View {
 // MARK: - FeedModePill
 
 /// 浮遊バーに置く現モード表示ピル。タップで頻用ペア (おすすめ ⇄ 新着) をトグル、
-/// それ以外のモードからは「おすすめ」へ戻る。
+/// それ以外のモードからは「おすすめ」へ戻る。長押しで4モードから選択可能。
 private struct FeedModePill: View {
     @Binding var feedMode: FeedMode
 
@@ -1370,6 +1370,15 @@ private struct FeedModePill: View {
         }
         .buttonStyle(.plain)
         .contentTransition(.opacity)
+        .contextMenu {
+            Picker(selection: $feedMode) {
+                ForEach(FeedMode.allCases, id: \.self) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            } label: {
+                Text("モード")
+            }
+        }
     }
 
     private func nextMode(from current: FeedMode) -> FeedMode {
