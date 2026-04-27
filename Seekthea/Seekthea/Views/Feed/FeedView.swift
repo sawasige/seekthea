@@ -258,6 +258,9 @@ struct FeedView: View {
     @State private var isSwiping: Bool = false
     @State private var swipeProgress: CGFloat = 0
     @State private var swipeDirection: CGFloat = 0  // -1: left, 1: right
+    /// スワイプ確定後、selectedCategory が実際に更新されるまでボーダープレビューを保持する候補ID。
+    /// (""=「全て」、それ以外はカテゴリ名、nil=保持なし)
+    @State private var pendingPreviewID: String? = nil
     /// スクロール tracking 専用 state。@Observable 参照なので
     /// 読むビュー（ScrollAwareHeader）だけが invalidate される
     @State private var scrollState = FeedScrollState()
@@ -486,11 +489,16 @@ struct FeedView: View {
         let next = current + direction
         guard next >= 0, next < options.count else { return }
 
+        // selectedCategory 更新までの 120ms、候補チップのボーダープレビューを保持し、
+        // 切り替わり時にボーダー→塗りつぶしへ同フレームで遷移させる。
+        pendingPreviewID = options[next] ?? ""
+
         withAnimation(.easeOut(duration: 0.12)) {
             gridOpacity = 0
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
             selectedCategory = options[next]
+            pendingPreviewID = nil
             scrollProxy?.scrollTo("scrollTop", anchor: .top)
             withAnimation(.easeIn(duration: 0.15)) {
                 gridOpacity = 1
@@ -823,11 +831,32 @@ struct FeedView: View {
             totalCount: cachedModeArticles.count,
             categoryCounts: cachedCategoryCounts,
             categoryOrder: sortedCategories,
+            categoryPreviewID: categoryPreviewID,
+            categoryPreviewProgress: categoryPreviewProgress,
             headerHeight: headerHeight,
             sourceFilter: sourceFilter,
             excludeSummary: excludeSummary,
             onClearSourceFilter: { changeSourceFilter(to: nil) }
         )
+    }
+
+    /// スワイプ中／確定後切り替わるまでの間ハイライトする候補カテゴリの識別子。
+    /// ""=「全て」、それ以外はカテゴリ名、nil=候補なし。
+    private var categoryPreviewID: String? {
+        if isSwiping && swipeProgress > 0 {
+            // swipeDirection -1 (visual left) → 次のカテゴリ (+1)、+1 (visual right) → 前のカテゴリ (-1)
+            let dir = swipeDirection < 0 ? 1 : -1
+            let target = selectedCategoryIndex + dir
+            guard target >= 0, target < allCategoryOptions.count else { return nil }
+            return allCategoryOptions[target] ?? ""
+        }
+        return pendingPreviewID
+    }
+
+    /// プレビューボーダーの濃さ。スワイプ中は progress、確定〜selectedCategory 更新までは 1。
+    private var categoryPreviewProgress: CGFloat {
+        if isSwiping && swipeProgress > 0 { return swipeProgress }
+        return pendingPreviewID != nil ? 1 : 0
     }
 
     private func openArticle(_ article: Article) {
@@ -1037,6 +1066,8 @@ private struct ScrollAwareHeader: View {
     let totalCount: Int
     let categoryCounts: [String: Int]
     let categoryOrder: [String]
+    let categoryPreviewID: String?
+    let categoryPreviewProgress: CGFloat
     let headerHeight: CGFloat
     let sourceFilter: SourceFilter?
     let excludeSummary: ([Source]) -> String
@@ -1053,8 +1084,15 @@ private struct ScrollAwareHeader: View {
             .padding(.horizontal)
             .padding(.top, 4)
 
-            CategoryFilterView(selectedCategory: $selectedCategory, totalCount: totalCount, categoryCounts: categoryCounts, categoryOrder: categoryOrder)
-                .padding(.vertical, 6)
+            CategoryFilterView(
+                selectedCategory: $selectedCategory,
+                totalCount: totalCount,
+                categoryCounts: categoryCounts,
+                categoryOrder: categoryOrder,
+                previewID: categoryPreviewID,
+                previewProgress: categoryPreviewProgress
+            )
+            .padding(.vertical, 6)
 
             if let filter = sourceFilter {
                 sourceFilterChip(filter)

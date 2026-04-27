@@ -5,6 +5,10 @@ struct CategoryFilterView: View {
     var totalCount: Int = 0
     var categoryCounts: [String: Int] = [:]
     var categoryOrder: [String] = []
+    /// スワイプ中にハイライトする候補チップの識別子。nil=プレビューなし、""=「全て」、それ以外はカテゴリ名。
+    var previewID: String? = nil
+    /// プレビューの濃さ (0..1)。
+    var previewProgress: CGFloat = 0
 
     private var sortedCategories: [(name: String, count: Int)] {
         categoryOrder.compactMap { name in
@@ -17,13 +21,23 @@ struct CategoryFilterView: View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    FilterChip(title: "全て", count: totalCount, isSelected: selectedCategory == nil) {
+                    FilterChip(
+                        title: "全て",
+                        count: totalCount,
+                        isSelected: selectedCategory == nil,
+                        previewProgress: previewID == "" ? previewProgress : 0
+                    ) {
                         selectedCategory = nil
                     }
                     .id("chip_all")
 
                     ForEach(sortedCategories, id: \.name) { item in
-                        FilterChip(title: item.name, count: item.count, isSelected: selectedCategory == item.name) {
+                        FilterChip(
+                            title: item.name,
+                            count: item.count,
+                            isSelected: selectedCategory == item.name,
+                            previewProgress: previewID == item.name ? previewProgress : 0
+                        ) {
                             selectedCategory = (selectedCategory == item.name) ? nil : item.name
                         }
                         .id("chip_\(item.name)")
@@ -48,6 +62,7 @@ private struct FilterChip: View {
     let title: String
     var count: Int = 0
     let isSelected: Bool
+    var previewProgress: CGFloat = 0
     let action: () -> Void
 
     var body: some View {
@@ -66,6 +81,13 @@ private struct FilterChip: View {
             .background(isSelected ? Color.accentColor : Color.gray.opacity(0.2))
             .foregroundStyle(isSelected ? .white : .primary)
             .clipShape(Capsule())
+            .overlay {
+                if !isSelected && previewProgress > 0 {
+                    Capsule()
+                        .strokeBorder(Color.accentColor, lineWidth: 2)
+                        .opacity(Double(previewProgress))
+                }
+            }
         }
         .buttonStyle(.plain)
     }
