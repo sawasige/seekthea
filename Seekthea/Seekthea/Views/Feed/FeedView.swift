@@ -248,7 +248,7 @@ struct FeedView: View {
     @State private var allArticles: [Article] = []
     @State private var navigationPath = NavigationPath()
     @State private var viewModel: FeedViewModel?
-    @State private var feedMode: FeedMode = .forYou
+    @AppStorage("feedMode") private var feedMode: FeedMode = .forYou
     @State private var selectedCategory: String? = nil
     @State private var cachedModeArticles: [Article] = []
     @State private var cachedCategoryCounts: [String: Int] = [:]
