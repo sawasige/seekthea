@@ -823,11 +823,23 @@ struct FeedView: View {
             totalCount: cachedModeArticles.count,
             categoryCounts: cachedCategoryCounts,
             categoryOrder: sortedCategories,
+            categoryPreviewID: categoryPreviewID,
+            categoryPreviewProgress: isSwiping ? swipeProgress : 0,
             headerHeight: headerHeight,
             sourceFilter: sourceFilter,
             excludeSummary: excludeSummary,
             onClearSourceFilter: { changeSourceFilter(to: nil) }
         )
+    }
+
+    /// スワイプ中に切り替わる候補カテゴリの識別子。""=「全て」、それ以外はカテゴリ名、nil=候補なし。
+    private var categoryPreviewID: String? {
+        guard isSwiping, swipeProgress > 0 else { return nil }
+        // swipeDirection -1 (visual left) → 次のカテゴリ (+1)、+1 (visual right) → 前のカテゴリ (-1)
+        let dir = swipeDirection < 0 ? 1 : -1
+        let target = selectedCategoryIndex + dir
+        guard target >= 0, target < allCategoryOptions.count else { return nil }
+        return allCategoryOptions[target] ?? ""
     }
 
     private func openArticle(_ article: Article) {
@@ -1037,6 +1049,8 @@ private struct ScrollAwareHeader: View {
     let totalCount: Int
     let categoryCounts: [String: Int]
     let categoryOrder: [String]
+    let categoryPreviewID: String?
+    let categoryPreviewProgress: CGFloat
     let headerHeight: CGFloat
     let sourceFilter: SourceFilter?
     let excludeSummary: ([Source]) -> String
@@ -1053,8 +1067,15 @@ private struct ScrollAwareHeader: View {
             .padding(.horizontal)
             .padding(.top, 4)
 
-            CategoryFilterView(selectedCategory: $selectedCategory, totalCount: totalCount, categoryCounts: categoryCounts, categoryOrder: categoryOrder)
-                .padding(.vertical, 6)
+            CategoryFilterView(
+                selectedCategory: $selectedCategory,
+                totalCount: totalCount,
+                categoryCounts: categoryCounts,
+                categoryOrder: categoryOrder,
+                previewID: categoryPreviewID,
+                previewProgress: categoryPreviewProgress
+            )
+            .padding(.vertical, 6)
 
             if let filter = sourceFilter {
                 sourceFilterChip(filter)
