@@ -286,7 +286,11 @@ struct FeedView: View {
     let modelContainer: ModelContainer
 
     private var headerHeight: CGFloat {
+        #if os(iOS)
+        sourceFilter != nil ? 95 : 55
+        #else
         sourceFilter != nil ? 130 : 90
+        #endif
     }
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -1076,6 +1080,7 @@ private struct ScrollAwareHeader: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            #if !os(iOS)
             Picker("モード", selection: $feedMode) {
                 ForEach(FeedMode.allCases, id: \.self) { mode in
                     Text(mode.rawValue).tag(mode)
@@ -1084,6 +1089,7 @@ private struct ScrollAwareHeader: View {
             .pickerStyle(.segmented)
             .padding(.horizontal)
             .padding(.top, 4)
+            #endif
 
             CategoryFilterView(
                 selectedCategory: $selectedCategory,
@@ -1340,18 +1346,18 @@ private struct FloatingActionBar: View {
 
 // MARK: - FeedModePill
 
-/// 浮遊バーに置く現モード表示ピル。タップで頻用ペア (おすすめ ⇄ 新着) をトグル、
-/// それ以外のモードからは「おすすめ」へ戻る。長押しで4モードから選択可能。
+/// 浮遊バーに置く現モードピル。タップで4モードのメニューが開く。
 private struct FeedModePill: View {
     @Binding var feedMode: FeedMode
 
     var body: some View {
-        Button {
-            #if os(iOS)
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            #endif
-            withAnimation(.easeInOut(duration: 0.15)) {
-                feedMode = nextMode(from: feedMode)
+        Menu {
+            Picker(selection: $feedMode) {
+                ForEach(FeedMode.allCases, id: \.self) { mode in
+                    Label(mode.rawValue, systemImage: iconName(for: mode)).tag(mode)
+                }
+            } label: {
+                Text("モード")
             }
         } label: {
             HStack(spacing: 6) {
@@ -1362,7 +1368,7 @@ private struct FeedModePill: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .lineLimit(1)
-                Image(systemName: "chevron.up.chevron.down")
+                Image(systemName: "chevron.down")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -1371,25 +1377,8 @@ private struct FeedModePill: View {
             .background(.ultraThinMaterial, in: Capsule())
             .shadow(radius: 4)
         }
+        .menuStyle(.button)
         .buttonStyle(.plain)
-        .contentTransition(.opacity)
-        .contextMenu {
-            Picker(selection: $feedMode) {
-                ForEach(FeedMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
-            } label: {
-                Text("モード")
-            }
-        }
-    }
-
-    private func nextMode(from current: FeedMode) -> FeedMode {
-        switch current {
-        case .forYou: return .latest
-        case .latest: return .forYou
-        case .favorites, .history: return .forYou
-        }
     }
 
     private func iconName(for mode: FeedMode) -> String {
