@@ -618,8 +618,8 @@ struct FeedView: View {
                         .disabled(viewModel?.isLoading ?? false)
                     }
                     #endif
-                    #if os(macOS)
-                    // macOS は標準 toolbar を維持
+                    #if !os(iOS)
+                    // macOS / visionOS は標準 toolbar を使う (iOS は浮遊バー)
                     ToolbarItem(placement: .automatic) {
                         Menu {
                             NavigationLink {
