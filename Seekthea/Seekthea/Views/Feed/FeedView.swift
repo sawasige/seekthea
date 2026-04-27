@@ -1363,18 +1363,12 @@ private struct FeedModePill: View {
                 Text("モード")
             }
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: iconName(for: feedMode))
-                    .font(.subheadline)
-                    .foregroundStyle(.tint)
-                Text(feedMode.rawValue)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 14)
-            .frame(height: 48)
-            .contentShape(Rectangle())
+            Image(systemName: iconName(for: feedMode))
+                .font(.title3)
+                .foregroundStyle(.tint)
+                .frame(width: 48, height: 48)
+                .contentShape(Rectangle())
+                .accessibilityLabel("モード: \(feedMode.rawValue)")
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
