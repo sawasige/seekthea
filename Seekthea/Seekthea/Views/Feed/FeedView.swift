@@ -606,7 +606,7 @@ struct FeedView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
                 .toolbar {
-                    #if os(macOS)
+                    #if !os(iOS)
                     ToolbarItem(placement: .automatic) {
                         Button {
                             sessionReadIDs.removeAll()
