@@ -1377,7 +1377,7 @@ private struct FeedModePill: View {
     private func iconName(for mode: FeedMode) -> String {
         switch mode {
         case .forYou: return "sparkles"
-        case .latest: return "clock"
+        case .latest: return "bolt.badge.clock.fill"
         case .favorites: return "star.fill"
         case .history: return "clock.arrow.circlepath"
         }
