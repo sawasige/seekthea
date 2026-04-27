@@ -618,8 +618,8 @@ struct FeedView: View {
                         .disabled(viewModel?.isLoading ?? false)
                     }
                     #endif
-                    #if os(macOS)
-                    // macOS は標準 toolbar を維持
+                    #if !os(iOS)
+                    // macOS / visionOS は標準 toolbar を使う (iOS は浮遊バー)
                     ToolbarItem(placement: .automatic) {
                         Menu {
                             NavigationLink {
@@ -1231,8 +1231,10 @@ struct StatusStackLayout: Layout {
 
 // MARK: - FeedFloatingFooter
 
+#if os(iOS)
 /// ステータス capsule と浮遊アクションバーをまとめて底辺に表示する overlay 用 View。
 /// scrollState を直接読むことで、スクロール中に FeedView.body の再評価を避ける。
+/// glassEffect が iOS 限定のため、構造体ごと iOS 専用にしている。
 private struct FeedFloatingFooter: View {
     let scrollState: FeedScrollState
     let feedStatus: String?
@@ -1295,6 +1297,7 @@ private struct FeedFloatingFooter: View {
         .shadow(radius: 4)
     }
 }
+#endif
 
 // MARK: - FloatingActionBar
 
