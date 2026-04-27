@@ -8,6 +8,17 @@ enum FeedMode: String, CaseIterable {
     case latest = "新着"
     case favorites = "お気に入り"
     case history = "閲覧履歴"
+
+    /// UI 表示用の名前。お気に入り/履歴は集合のフィルタ、おすすめ/新着は同じ集合の並び順
+    /// であることを「順」サフィックスで表す。rawValue は @AppStorage 互換のため固定。
+    var displayName: String {
+        switch self {
+        case .forYou: return "おすすめ順"
+        case .latest: return "新着順"
+        case .favorites: return "お気に入り"
+        case .history: return "閲覧履歴"
+        }
+    }
 }
 
 enum SourceFilter: Equatable {
@@ -1083,7 +1094,7 @@ private struct ScrollAwareHeader: View {
             #if !os(iOS)
             Picker("モード", selection: $feedMode) {
                 ForEach(FeedMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
+                    Text(mode.displayName).tag(mode)
                 }
             }
             .pickerStyle(.segmented)
@@ -1358,7 +1369,7 @@ private struct FeedModePill: View {
         Menu {
             Picker(selection: $feedMode) {
                 ForEach(FeedMode.allCases, id: \.self) { mode in
-                    Label(mode.rawValue, systemImage: iconName(for: mode)).tag(mode)
+                    Label(mode.displayName, systemImage: iconName(for: mode)).tag(mode)
                 }
             } label: {
                 Text("モード")
@@ -1369,7 +1380,7 @@ private struct FeedModePill: View {
                 .foregroundStyle(.tint)
                 .frame(width: 48, height: 48)
                 .contentShape(Rectangle())
-                .accessibilityLabel("モード: \(feedMode.rawValue)")
+                .accessibilityLabel("モード: \(feedMode.displayName)")
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
