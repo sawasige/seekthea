@@ -88,8 +88,57 @@ class FeedFetcher {
         }
         onProgress?("フィードを更新中...")
 
+        // RSS で画像が取れなかった新規記事の OG画像をプリフェッチ
+        // （カード表示時の .task に頼ると一斉表示時に並列フェッチが集中して
+        //  失敗しがちなので、ここで並列度を絞ってまとめて取りに行く）
+        await prefetchOGImages(context: context, onProgress: onProgress)
+
         // 記事が増えた後に毎回クリーンアップ（status は同じonProgressに流す）
         await ArticleCleanupService.shared.run(modelContainer: modelContainer, onProgress: onProgress)
+    }
+
+    /// 画像URLが空の記事に対して OG 画像を並列度を絞って先取りする
+    private func prefetchOGImages(context: ModelContext, onProgress: ((String?) -> Void)?) async {
+        let descriptor = FetchDescriptor<Article>(
+            predicate: #Predicate<Article> { $0.imageURL == nil && $0.ogImageURL == nil },
+            sortBy: [SortDescriptor(\Article.fetchedAt, order: .reverse)]
+        )
+        var fetched = (try? context.fetch(descriptor)) ?? []
+        // 直近の取り込み分のみ対象（古いものはユーザーが見るときに .task で取得）
+        let maxTargets = 20
+        if fetched.count > maxTargets { fetched = Array(fetched.prefix(maxTargets)) }
+        guard !fetched.isEmpty else { return }
+
+        onProgress?("画像を取得中...")
+
+        // SwiftData @Model は Sendable でないので、TaskGroup には id+url のみ渡す
+        let targets: [(id: UUID, url: URL)] = fetched.map { ($0.id, $0.articleURL) }
+        let lookup = Dictionary(uniqueKeysWithValues: fetched.map { ($0.id, $0) })
+        let maxConcurrent = 4
+
+        await withTaskGroup(of: (UUID, URL?).self) { group in
+            var iter = targets.makeIterator()
+            for _ in 0..<maxConcurrent {
+                guard let item = iter.next() else { break }
+                group.addTask {
+                    let og = await FeedFetcher.fetchOGImage(from: item.url)
+                    return (item.id, og)
+                }
+            }
+            while let (id, og) = await group.next() {
+                if let og, let article = lookup[id] {
+                    article.ogImageURL = og
+                }
+                if let item = iter.next() {
+                    group.addTask {
+                        let og = await FeedFetcher.fetchOGImage(from: item.url)
+                        return (item.id, og)
+                    }
+                }
+            }
+        }
+        try? context.save()
+        NotificationCenter.default.post(name: .articleEnrichmentCompleted, object: nil)
     }
 
     static func fetchOGImage(from url: URL) async -> URL? {
@@ -230,6 +279,11 @@ class FeedFetcher {
         let src = String(html[range]).trimmingCharacters(in: .whitespacesAndNewlines)
         return URL(string: src)
     }
+}
+
+extension Notification.Name {
+    /// FeedFetcher が記事の OG画像プリフェッチを完了したときに投げる
+    static let articleEnrichmentCompleted = Notification.Name("articleEnrichmentCompleted")
 }
 
 // MARK: - String Extension

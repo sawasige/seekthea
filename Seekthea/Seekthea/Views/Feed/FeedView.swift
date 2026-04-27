@@ -354,6 +354,16 @@ struct FeedView: View {
         allArticles = viewModel?.fetchArticles() ?? []
     }
 
+    /// CloudKit同期や OG画像プリフェッチ完了時にフィードを再読み込みするトリガ
+    private var reloadTriggerPublisher: AnyPublisher<Notification, Never> {
+        Publishers.Merge(
+            NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange),
+            NotificationCenter.default.publisher(for: .articleEnrichmentCompleted)
+        )
+        .receive(on: DispatchQueue.main)
+        .eraseToAnyPublisher()
+    }
+
     private func updateCachedData() {
         let activeFeedURLs = viewModel?.activeSourceFeedURLs() ?? []
 
@@ -648,8 +658,9 @@ struct FeedView: View {
                 .onReceive(NotificationCenter.default.publisher(for: .discoveryCompleted)) { _ in
                     hasNewSuggestions = DiscoveryManager.shared.hasUncheckedSuggestions(in: modelContext)
                 }
-                .onReceive(NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange).receive(on: DispatchQueue.main)) { _ in
+                .onReceive(reloadTriggerPublisher) { _ in
                     reloadArticles()
+                    updateCachedData()
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .background {
@@ -762,9 +773,9 @@ struct FeedView: View {
                                 }
                             } label: {
                                 if useCompactLayout {
-                                    CompactArticleCardView(article: article, showScore: feedMode == .forYou)
+                                    CompactArticleCardView(article: article, displayImageURL: article.displayImageURL, showScore: feedMode == .forYou)
                                 } else {
-                                    ArticleCardView(article: article, showScore: feedMode == .forYou)
+                                    ArticleCardView(article: article, displayImageURL: article.displayImageURL, showScore: feedMode == .forYou)
                                 }
                             }
                             .buttonStyle(.plain)
