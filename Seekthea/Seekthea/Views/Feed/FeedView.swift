@@ -8,6 +8,17 @@ enum FeedMode: String, CaseIterable {
     case latest = "新着"
     case favorites = "お気に入り"
     case history = "閲覧履歴"
+
+    /// UI 表示用の名前。お気に入り/履歴は集合のフィルタ、おすすめ/新着は同じ集合の並び順
+    /// であることを「順」サフィックスで表す。rawValue は @AppStorage 互換のため固定。
+    var displayName: String {
+        switch self {
+        case .forYou: return "おすすめ順"
+        case .latest: return "新着順"
+        case .favorites: return "お気に入り"
+        case .history: return "閲覧履歴"
+        }
+    }
 }
 
 enum SourceFilter: Equatable {
@@ -286,7 +297,11 @@ struct FeedView: View {
     let modelContainer: ModelContainer
 
     private var headerHeight: CGFloat {
+        #if os(iOS)
+        sourceFilter != nil ? 95 : 55
+        #else
         sourceFilter != nil ? 130 : 90
+        #endif
     }
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -560,7 +575,9 @@ struct FeedView: View {
                     flushImpressions()
                     scrollState.hideAmount = 0
                     scrollProxy?.scrollTo("scrollTop", anchor: .top)
-                    updateCachedData()
+                    withAnimation(.easeInOut(duration: 0.35)) {
+                        updateCachedData()
+                    }
                 }
                 .onChange(of: selectedCategory) {
                     flushImpressions()
@@ -726,7 +743,8 @@ struct FeedView: View {
                         syncStatus: syncStatus,
                         hasNewSuggestions: hasNewSuggestions,
                         modelContainer: modelContainer,
-                        useCompactLayout: $useCompactLayout
+                        useCompactLayout: $useCompactLayout,
+                        feedMode: $feedMode
                     )
                     #else
                     if feedStatus != nil || discoveryStatus != nil || syncStatus != nil {
@@ -1075,14 +1093,16 @@ private struct ScrollAwareHeader: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            #if !os(iOS)
             Picker("モード", selection: $feedMode) {
                 ForEach(FeedMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
+                    Text(mode.displayName).tag(mode)
                 }
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
             .padding(.top, 4)
+            #endif
 
             CategoryFilterView(
                 selectedCategory: $selectedCategory,
@@ -1159,13 +1179,12 @@ private struct ScrollAwareHeader: View {
 
 /// ステータス capsule 複数 + action bar を底辺に配置する Custom Layout。
 /// 最後の subview を action bar として扱い、それ以外を status capsule として積み上げる。
-/// 各 capsule は通常は画面中央、action bar と Y 範囲が重なる capsule のみ、
-/// 衝突する分だけ左にシフトする（上段の capsule は Y 範囲が action bar より上にあるので中央のまま）。
+/// action bar は最下段に専有させ、status capsule はその上にセンター配置で順次積む。
+/// action bar がスクロールで半分以上隠れた時のみ、status は底辺まで降りてくる。
 struct StatusStackLayout: Layout {
     /// action bar の下方向オフセット（スクロールで隠す時用、0 で通常位置）
     var actionBarOffsetY: CGFloat = 0
     var verticalSpacing: CGFloat = 4
-    var horizontalSpacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? 0
@@ -1186,31 +1205,17 @@ struct StatusStackLayout: Layout {
             proposal: ProposedViewSize(actionSize)
         )
 
-        let actionTop = actionY
-        let actionBottom = actionY + actionSize.height
-        let actionLeft = actionX - horizontalSpacing
-        // action bar が画面から半分以上はみ出していたら衝突判定から除外
         let isActionEffectivelyVisible = actionBarOffsetY < actionSize.height * 0.5
-
         let statuses = subviews.dropLast()
-        var currentBottom = bounds.maxY
+        var currentBottom = isActionEffectivelyVisible
+            ? actionY - verticalSpacing
+            : bounds.maxY
 
         for status in statuses.reversed() {
             let statusSize = status.sizeThatFits(.unspecified)
             let statusY = currentBottom - statusSize.height
-            let statusBottom = currentBottom
-
-            // この capsule が action bar の Y 範囲と重なるか
-            let yOverlap = isActionEffectivelyVisible && statusY < actionBottom && statusBottom > actionTop
 
             var statusCenterX = bounds.midX
-            if yOverlap {
-                let rightIfCentered = statusCenterX + statusSize.width / 2
-                if rightIfCentered > actionLeft {
-                    statusCenterX -= (rightIfCentered - actionLeft)
-                }
-            }
-            // 画面左端でクランプ（capsule が画面幅より広くなることは想定しない）
             statusCenterX = max(statusCenterX, bounds.minX + statusSize.width / 2)
 
             let statusX = statusCenterX - statusSize.width / 2
@@ -1236,12 +1241,14 @@ private struct FeedFloatingFooter: View {
     let hasNewSuggestions: Bool
     let modelContainer: ModelContainer
     @Binding var useCompactLayout: Bool
+    @Binding var feedMode: FeedMode
 
     /// スクロールで隠れる量からアクションバーの不透明度を算出。
-    /// fadeDistance（80pt）スライドで完全に透明になる。
+    /// fadeDistance スライドで完全に透明になる。iOS のヘッダー高 (~55) より短く
+    /// 設定しないと、最大 hide 時点でも完全には消えない。
     private var actionBarOpacity: Double {
         let hidden = max(0, -scrollState.hideAmount)
-        let fadeDistance: CGFloat = 80
+        let fadeDistance: CGFloat = 45
         return max(0, 1 - Double(hidden / fadeDistance))
     }
 
@@ -1250,11 +1257,18 @@ private struct FeedFloatingFooter: View {
             if let s = feedStatus { statusCapsule(s) }
             if let s = discoveryStatus { statusCapsule(s) }
             if let s = syncStatus { statusCapsule(s) }
-            FloatingActionBar(
-                modelContainer: modelContainer,
-                hasNewSuggestions: hasNewSuggestions,
-                useCompactLayout: $useCompactLayout
-            )
+            HStack(spacing: 0) {
+                FeedModePill(feedMode: $feedMode)
+                Divider()
+                    .frame(height: 22)
+                FloatingActionBar(
+                    modelContainer: modelContainer,
+                    hasNewSuggestions: hasNewSuggestions,
+                    useCompactLayout: $useCompactLayout
+                )
+            }
+            .glassEffect(.regular, in: Capsule())
+            .shadow(radius: 4)
             .opacity(actionBarOpacity)
         }
         .padding(.horizontal, 24)
@@ -1332,18 +1346,54 @@ private struct FloatingActionBar: View {
                 .font(.title3)
                 .foregroundStyle(.primary)
                 .frame(width: 48, height: 48)
-                .background(.ultraThinMaterial, in: Circle())
-                .shadow(radius: 4)
+                .contentShape(Rectangle())
                 .overlay(alignment: .topTrailing) {
                     if hasNewSuggestions {
                         Circle()
                             .fill(.red)
                             .frame(width: 10, height: 10)
                             .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
-                            .offset(x: -2, y: 2)
+                            .offset(x: 4, y: 6)
                             .allowsHitTesting(false)
                     }
                 }
+        }
+    }
+}
+
+// MARK: - FeedModePill
+
+/// 浮遊バーに置く現モードピル。タップで4モードのメニューが開く。
+private struct FeedModePill: View {
+    @Binding var feedMode: FeedMode
+
+    var body: some View {
+        Menu {
+            Picker(selection: $feedMode) {
+                ForEach(FeedMode.allCases, id: \.self) { mode in
+                    Label(mode.displayName, systemImage: iconName(for: mode)).tag(mode)
+                }
+            } label: {
+                Text("モード")
+            }
+        } label: {
+            Image(systemName: iconName(for: feedMode))
+                .font(.title3)
+                .foregroundStyle(.tint)
+                .frame(width: 48, height: 48)
+                .contentShape(Rectangle())
+                .accessibilityLabel("モード: \(feedMode.displayName)")
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+    }
+
+    private func iconName(for mode: FeedMode) -> String {
+        switch mode {
+        case .forYou: return "sparkles"
+        case .latest: return "bolt.badge.clock.fill"
+        case .favorites: return "star.fill"
+        case .history: return "clock.arrow.circlepath"
         }
     }
 }

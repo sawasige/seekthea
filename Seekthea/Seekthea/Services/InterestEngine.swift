@@ -28,7 +28,7 @@ class InterestEngine {
     }
 
     /// 表示回数ペナルティの計算
-    /// - 最初の2回は免除（急激な初期減衰を防ぐ）
+    /// - 最初の2回は免除’（急激な初期減衰を防ぐ）
     /// - 上限8カウントで下げ止まり（永遠に下がる問題を防ぐ）
     /// - 例: count=0..2 → ×1.00, count=3 → ×0.87, count=10 → ×0.45 (floor)
     static func impressionPenalty(count: Int) -> Double {
