@@ -19,6 +19,15 @@ enum FeedMode: String, CaseIterable {
         case .history: return "閲覧履歴"
         }
     }
+
+    var systemImage: String {
+        switch self {
+        case .forYou: return "sparkles"
+        case .latest: return "bolt.badge.clock.fill"
+        case .favorites: return "star.fill"
+        case .history: return "clock.arrow.circlepath"
+        }
+    }
 }
 
 enum SourceFilter: Equatable {
@@ -269,9 +278,8 @@ struct FeedView: View {
     @State private var isSwiping: Bool = false
     @State private var swipeProgress: CGFloat = 0
     @State private var swipeDirection: CGFloat = 0  // -1: left, 1: right
-    /// スワイプ確定後、selectedCategory が実際に更新されるまでボーダープレビューを保持する候補ID。
-    /// (""=「全て」、それ以外はカテゴリ名、nil=保持なし)
-    @State private var pendingPreviewID: String? = nil
+    /// スワイプ確定後、selectedCategory が実際に更新されるまでボーダープレビューを保持する候補。
+    @State private var pendingPreview: CategoryChipPreview? = nil
     /// スクロール tracking 専用 state。@Observable 参照なので
     /// 読むビュー（ScrollAwareHeader）だけが invalidate される
     @State private var scrollState = FeedScrollState()
@@ -506,14 +514,14 @@ struct FeedView: View {
 
         // selectedCategory 更新までの 120ms、候補チップのボーダープレビューを保持し、
         // 切り替わり時にボーダー→塗りつぶしへ同フレームで遷移させる。
-        pendingPreviewID = options[next] ?? ""
+        pendingPreview = options[next].map { .named($0) } ?? .all
 
         withAnimation(.easeOut(duration: 0.12)) {
             gridOpacity = 0
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
             selectedCategory = options[next]
-            pendingPreviewID = nil
+            pendingPreview = nil
             scrollProxy?.scrollTo("scrollTop", anchor: .top)
             withAnimation(.easeIn(duration: 0.15)) {
                 gridOpacity = 1
@@ -622,31 +630,10 @@ struct FeedView: View {
                     // macOS / visionOS は標準 toolbar を使う (iOS は浮遊バー)
                     ToolbarItem(placement: .automatic) {
                         Menu {
-                            NavigationLink {
-                                SourcesListView(modelContainer: modelContainer)
-                            } label: {
-                                Label("ソース管理", systemImage: "plus.rectangle.on.rectangle")
-                            }
-                            NavigationLink {
-                                DiscoveryView(modelContainer: modelContainer)
-                            } label: {
-                                if hasNewSuggestions {
-                                    Label("発見（新着あり）", systemImage: "sparkle.magnifyingglass")
-                                } else {
-                                    Label("発見", systemImage: "sparkle.magnifyingglass")
-                                }
-                            }
-                            NavigationLink {
-                                CategorySettingsView()
-                            } label: {
-                                Label("カテゴリ管理", systemImage: "square.grid.2x2")
-                            }
-                            Divider()
-                            NavigationLink {
-                                SettingsView()
-                            } label: {
-                                Label("設定", systemImage: "gear")
-                            }
+                            feedNavigationMenuItems(
+                                modelContainer: modelContainer,
+                                hasNewSuggestions: hasNewSuggestions
+                            )
                         } label: {
                             Image(systemName: "ellipsis")
                                 .overlay(alignment: .topTrailing) {
@@ -749,9 +736,9 @@ struct FeedView: View {
                     #else
                     if feedStatus != nil || discoveryStatus != nil || syncStatus != nil {
                         VStack(spacing: 4) {
-                            if let status = feedStatus { statusCapsule(status) }
-                            if let status = discoveryStatus { statusCapsule(status) }
-                            if let status = syncStatus { statusCapsule(status) }
+                            if let status = feedStatus { StatusProgressCapsule(text: status) }
+                            if let status = discoveryStatus { StatusProgressCapsule(text: status) }
+                            if let status = syncStatus { StatusProgressCapsule(text: status) }
                         }
                         .padding(.bottom, 20)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -849,7 +836,7 @@ struct FeedView: View {
             totalCount: cachedModeArticles.count,
             categoryCounts: cachedCategoryCounts,
             categoryOrder: sortedCategories,
-            categoryPreviewID: categoryPreviewID,
+            categoryPreview: categoryPreview,
             categoryPreviewProgress: categoryPreviewProgress,
             headerHeight: headerHeight,
             sourceFilter: sourceFilter,
@@ -858,23 +845,22 @@ struct FeedView: View {
         )
     }
 
-    /// スワイプ中／確定後切り替わるまでの間ハイライトする候補カテゴリの識別子。
-    /// ""=「全て」、それ以外はカテゴリ名、nil=候補なし。
-    private var categoryPreviewID: String? {
+    /// スワイプ中／確定後切り替わるまでの間ハイライトする候補チップ。
+    private var categoryPreview: CategoryChipPreview? {
         if isSwiping && swipeProgress > 0 {
             // swipeDirection -1 (visual left) → 次のカテゴリ (+1)、+1 (visual right) → 前のカテゴリ (-1)
             let dir = swipeDirection < 0 ? 1 : -1
             let target = selectedCategoryIndex + dir
             guard target >= 0, target < allCategoryOptions.count else { return nil }
-            return allCategoryOptions[target] ?? ""
+            return allCategoryOptions[target].map { .named($0) } ?? .all
         }
-        return pendingPreviewID
+        return pendingPreview
     }
 
     /// プレビューボーダーの濃さ。スワイプ中は progress、確定〜selectedCategory 更新までは 1。
     private var categoryPreviewProgress: CGFloat {
         if isSwiping && swipeProgress > 0 { return swipeProgress }
-        return pendingPreviewID != nil ? 1 : 0
+        return pendingPreview != nil ? 1 : 0
     }
 
     private func openArticle(_ article: Article) {
@@ -1023,23 +1009,6 @@ struct FeedView: View {
         return "\(sources[0].name) +\(sources.count - 1)"
     }
 
-    private func statusCapsule(_ text: String) -> some View {
-        HStack(spacing: 8) {
-            ProgressView()
-                #if !os(macOS)
-                .controlSize(.small)
-                #endif
-            Text(text)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial)
-        .clipShape(Capsule())
-        .shadow(radius: 4)
-    }
-
     private func refreshAll() async {
         if !hasActiveSource {
             viewModel?.cancelClassification()
@@ -1084,7 +1053,7 @@ private struct ScrollAwareHeader: View {
     let totalCount: Int
     let categoryCounts: [String: Int]
     let categoryOrder: [String]
-    let categoryPreviewID: String?
+    let categoryPreview: CategoryChipPreview?
     let categoryPreviewProgress: CGFloat
     let headerHeight: CGFloat
     let sourceFilter: SourceFilter?
@@ -1109,7 +1078,7 @@ private struct ScrollAwareHeader: View {
                 totalCount: totalCount,
                 categoryCounts: categoryCounts,
                 categoryOrder: categoryOrder,
-                previewID: categoryPreviewID,
+                preview: categoryPreview,
                 previewProgress: categoryPreviewProgress
             )
             .padding(.vertical, 6)
@@ -1256,9 +1225,9 @@ private struct FeedFloatingFooter: View {
 
     var body: some View {
         StatusStackLayout(actionBarOffsetY: max(0, -scrollState.hideAmount)) {
-            if let s = feedStatus { statusCapsule(s) }
-            if let s = discoveryStatus { statusCapsule(s) }
-            if let s = syncStatus { statusCapsule(s) }
+            if let s = feedStatus { StatusProgressCapsule(text: s) }
+            if let s = discoveryStatus { StatusProgressCapsule(text: s) }
+            if let s = syncStatus { StatusProgressCapsule(text: s) }
             HStack(spacing: 0) {
                 FeedModePill(feedMode: $feedMode)
                 Divider()
@@ -1279,8 +1248,45 @@ private struct FeedFloatingFooter: View {
         .ignoresSafeArea(.container, edges: .bottom)
     }
 
-    @ViewBuilder
-    private func statusCapsule(_ text: String) -> some View {
+}
+#endif
+
+/// FeedView の浮遊メニュー (iOS) と toolbar メニュー (macOS / visionOS) で共通の遷移項目。
+/// iOS 側は先頭に「コンパクト切替」を別途追加する。
+@ViewBuilder
+private func feedNavigationMenuItems(modelContainer: ModelContainer, hasNewSuggestions: Bool) -> some View {
+    NavigationLink {
+        SourcesListView(modelContainer: modelContainer)
+    } label: {
+        Label("ソース管理", systemImage: "plus.rectangle.on.rectangle")
+    }
+    NavigationLink {
+        DiscoveryView(modelContainer: modelContainer)
+    } label: {
+        Label(
+            hasNewSuggestions ? "発見（新着あり）" : "発見",
+            systemImage: "sparkle.magnifyingglass"
+        )
+    }
+    NavigationLink {
+        CategorySettingsView()
+    } label: {
+        Label("カテゴリ管理", systemImage: "square.grid.2x2")
+    }
+    Divider()
+    NavigationLink {
+        SettingsView()
+    } label: {
+        Label("設定", systemImage: "gear")
+    }
+}
+
+/// 浮遊するステータス capsule (進行中インジケータ + テキスト)。
+/// FeedFloatingFooter (iOS) と mainContent の非iOSフォールバック両方で使う。
+private struct StatusProgressCapsule: View {
+    let text: String
+
+    var body: some View {
         HStack(spacing: 8) {
             ProgressView()
                 #if !os(macOS)
@@ -1297,7 +1303,6 @@ private struct FeedFloatingFooter: View {
         .shadow(radius: 4)
     }
 }
-#endif
 
 // MARK: - FloatingActionBar
 
@@ -1320,30 +1325,10 @@ private struct FloatingActionBar: View {
                 )
             }
             Divider()
-            NavigationLink {
-                SourcesListView(modelContainer: modelContainer)
-            } label: {
-                Label("ソース管理", systemImage: "plus.rectangle.on.rectangle")
-            }
-            NavigationLink {
-                DiscoveryView(modelContainer: modelContainer)
-            } label: {
-                Label(
-                    hasNewSuggestions ? "発見（新着あり）" : "発見",
-                    systemImage: "sparkle.magnifyingglass"
-                )
-            }
-            NavigationLink {
-                CategorySettingsView()
-            } label: {
-                Label("カテゴリ管理", systemImage: "square.grid.2x2")
-            }
-            Divider()
-            NavigationLink {
-                SettingsView()
-            } label: {
-                Label("設定", systemImage: "gear")
-            }
+            feedNavigationMenuItems(
+                modelContainer: modelContainer,
+                hasNewSuggestions: hasNewSuggestions
+            )
         } label: {
             Image(systemName: "ellipsis")
                 .font(.title3)
@@ -1374,13 +1359,13 @@ private struct FeedModePill: View {
         Menu {
             Picker(selection: $feedMode) {
                 ForEach(FeedMode.allCases, id: \.self) { mode in
-                    Label(mode.displayName, systemImage: iconName(for: mode)).tag(mode)
+                    Label(mode.displayName, systemImage: mode.systemImage).tag(mode)
                 }
             } label: {
                 Text("モード")
             }
         } label: {
-            Image(systemName: iconName(for: feedMode))
+            Image(systemName: feedMode.systemImage)
                 .font(.title3)
                 .foregroundStyle(.tint)
                 .frame(width: 48, height: 48)
@@ -1389,14 +1374,5 @@ private struct FeedModePill: View {
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
-    }
-
-    private func iconName(for mode: FeedMode) -> String {
-        switch mode {
-        case .forYou: return "sparkles"
-        case .latest: return "bolt.badge.clock.fill"
-        case .favorites: return "star.fill"
-        case .history: return "clock.arrow.circlepath"
-        }
     }
 }

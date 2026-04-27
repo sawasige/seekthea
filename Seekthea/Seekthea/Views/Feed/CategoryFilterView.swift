@@ -1,12 +1,18 @@
 import SwiftUI
 
+/// カテゴリフィルタチップのプレビュー対象 (スワイプ中にボーダー表示するチップ)。
+enum CategoryChipPreview: Equatable {
+    case all
+    case named(String)
+}
+
 struct CategoryFilterView: View {
     @Binding var selectedCategory: String?
     var totalCount: Int = 0
     var categoryCounts: [String: Int] = [:]
     var categoryOrder: [String] = []
-    /// スワイプ中にハイライトする候補チップの識別子。nil=プレビューなし、""=「全て」、それ以外はカテゴリ名。
-    var previewID: String? = nil
+    /// スワイプ中にハイライトする候補チップ。nil=プレビューなし。
+    var preview: CategoryChipPreview? = nil
     /// プレビューの濃さ (0..1)。
     var previewProgress: CGFloat = 0
 
@@ -25,7 +31,7 @@ struct CategoryFilterView: View {
                         title: "全て",
                         count: totalCount,
                         isSelected: selectedCategory == nil,
-                        previewProgress: previewID == "" ? previewProgress : 0
+                        previewProgress: preview == .all ? previewProgress : 0
                     ) {
                         selectedCategory = nil
                     }
@@ -36,7 +42,7 @@ struct CategoryFilterView: View {
                             title: item.name,
                             count: item.count,
                             isSelected: selectedCategory == item.name,
-                            previewProgress: previewID == item.name ? previewProgress : 0
+                            previewProgress: preview == .named(item.name) ? previewProgress : 0
                         ) {
                             selectedCategory = (selectedCategory == item.name) ? nil : item.name
                         }
