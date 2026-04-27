@@ -1231,10 +1231,11 @@ private struct FeedFloatingFooter: View {
     @Binding var feedMode: FeedMode
 
     /// スクロールで隠れる量からアクションバーの不透明度を算出。
-    /// fadeDistance（80pt）スライドで完全に透明になる。
+    /// fadeDistance スライドで完全に透明になる。iOS のヘッダー高 (~55) より短く
+    /// 設定しないと、最大 hide 時点でも完全には消えない。
     private var actionBarOpacity: Double {
         let hidden = max(0, -scrollState.hideAmount)
-        let fadeDistance: CGFloat = 80
+        let fadeDistance: CGFloat = 45
         return max(0, 1 - Double(hidden / fadeDistance))
     }
 
