@@ -1354,7 +1354,10 @@ private struct FeedModePill: View {
                 feedMode = nextMode(from: feedMode)
             }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: iconName(for: feedMode))
+                    .font(.subheadline)
+                    .foregroundStyle(.tint)
                 Text(feedMode.rawValue)
                     .font(.subheadline)
                     .fontWeight(.medium)
@@ -1386,6 +1389,15 @@ private struct FeedModePill: View {
         case .forYou: return .latest
         case .latest: return .forYou
         case .favorites, .history: return .forYou
+        }
+    }
+
+    private func iconName(for mode: FeedMode) -> String {
+        switch mode {
+        case .forYou: return "sparkles"
+        case .latest: return "clock"
+        case .favorites: return "heart.fill"
+        case .history: return "book.closed"
         }
     }
 }
