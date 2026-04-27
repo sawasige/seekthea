@@ -1253,7 +1253,7 @@ private struct FeedFloatingFooter: View {
                     useCompactLayout: $useCompactLayout
                 )
             }
-            .background(.ultraThinMaterial, in: Capsule())
+            .glassEffect(.regular, in: Capsule())
             .shadow(radius: 4)
             .opacity(actionBarOpacity)
         }
