@@ -1075,14 +1075,9 @@ private struct ScrollAwareHeader: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("モード", selection: $feedMode) {
-                ForEach(FeedMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.top, 4)
+            FeedModeChipRow(feedMode: $feedMode)
+                .padding(.top, 6)
+                .padding(.bottom, 2)
 
             CategoryFilterView(
                 selectedCategory: $selectedCategory,
@@ -1345,5 +1340,45 @@ private struct FloatingActionBar: View {
                     }
                 }
         }
+    }
+}
+
+// MARK: - Mode Chips
+
+private struct FeedModeChipRow: View {
+    @Binding var feedMode: FeedMode
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(FeedMode.allCases, id: \.self) { mode in
+                FeedModeChip(title: mode.rawValue, isSelected: feedMode == mode) {
+                    feedMode = mode
+                }
+            }
+        }
+        .padding(.horizontal)
+        .animation(.easeInOut(duration: 0.15), value: feedMode)
+    }
+}
+
+private struct FeedModeChip: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(isSelected ? .semibold : .regular)
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
+                .background(isSelected ? Color.accentColor : Color.gray.opacity(0.2))
+                .foregroundStyle(isSelected ? .white : .primary)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }
