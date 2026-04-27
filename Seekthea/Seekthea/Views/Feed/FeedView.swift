@@ -575,7 +575,9 @@ struct FeedView: View {
                     flushImpressions()
                     scrollState.hideAmount = 0
                     scrollProxy?.scrollTo("scrollTop", anchor: .top)
-                    updateCachedData()
+                    withAnimation(.easeInOut(duration: 0.35)) {
+                        updateCachedData()
+                    }
                 }
                 .onChange(of: selectedCategory) {
                     flushImpressions()
