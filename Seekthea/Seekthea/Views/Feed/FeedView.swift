@@ -1243,14 +1243,18 @@ private struct FeedFloatingFooter: View {
             if let s = feedStatus { statusCapsule(s) }
             if let s = discoveryStatus { statusCapsule(s) }
             if let s = syncStatus { statusCapsule(s) }
-            HStack(spacing: 8) {
+            HStack(spacing: 0) {
                 FeedModePill(feedMode: $feedMode)
+                Divider()
+                    .frame(height: 22)
                 FloatingActionBar(
                     modelContainer: modelContainer,
                     hasNewSuggestions: hasNewSuggestions,
                     useCompactLayout: $useCompactLayout
                 )
             }
+            .background(.ultraThinMaterial, in: Capsule())
+            .shadow(radius: 4)
             .opacity(actionBarOpacity)
         }
         .padding(.horizontal, 24)
@@ -1328,15 +1332,14 @@ private struct FloatingActionBar: View {
                 .font(.title3)
                 .foregroundStyle(.primary)
                 .frame(width: 48, height: 48)
-                .background(.ultraThinMaterial, in: Circle())
-                .shadow(radius: 4)
+                .contentShape(Rectangle())
                 .overlay(alignment: .topTrailing) {
                     if hasNewSuggestions {
                         Circle()
                             .fill(.red)
                             .frame(width: 10, height: 10)
                             .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
-                            .offset(x: -2, y: 2)
+                            .offset(x: 4, y: 6)
                             .allowsHitTesting(false)
                     }
                 }
@@ -1372,10 +1375,10 @@ private struct FeedModePill: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 14)
+            .padding(.leading, 14)
+            .padding(.trailing, 10)
             .frame(height: 48)
-            .background(.ultraThinMaterial, in: Capsule())
-            .shadow(radius: 4)
+            .contentShape(Rectangle())
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
