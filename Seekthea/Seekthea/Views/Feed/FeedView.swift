@@ -1385,8 +1385,8 @@ private struct FeedModePill: View {
         switch mode {
         case .forYou: return "sparkles"
         case .latest: return "clock"
-        case .favorites: return "heart.fill"
-        case .history: return "book.closed"
+        case .favorites: return "star.fill"
+        case .history: return "clock.arrow.circlepath"
         }
     }
 }
