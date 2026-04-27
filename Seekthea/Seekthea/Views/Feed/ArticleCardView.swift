@@ -2,6 +2,9 @@ import SwiftUI
 
 struct ArticleCardView: View {
     let article: Article
+    /// 親で article.displayImageURL を読むことで Observation を確実に親に走らせる
+    /// （reused view 内部での observation が伝わらないケースの保険）
+    let displayImageURL: URL?
     var showScore: Bool = false
 
     #if os(macOS)
@@ -23,7 +26,7 @@ struct ArticleCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // サムネイル画像（URLがある場合のみ）
-            if let imageURL = article.displayImageURL {
+            if let imageURL = displayImageURL {
                 ArticleImageView(url: imageURL, height: imageHeight)
             }
 
@@ -107,7 +110,7 @@ struct ArticleCardView: View {
             }
         }
         .task {
-            if article.displayImageURL == nil {
+            if displayImageURL == nil {
                 if let ogImage = await FeedFetcher.fetchOGImage(from: article.articleURL) {
                     article.ogImageURL = ogImage
                 }
@@ -132,6 +135,7 @@ struct ArticleCardView: View {
 private struct ArticleImageView: View {
     let url: URL
     let height: CGFloat
+    @State private var image: PlatformImage?
     @State private var failed = false
 
     var body: some View {
@@ -142,19 +146,18 @@ private struct ArticleImageView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: height)
                 .overlay {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image.resizable()
-                                .aspectRatio(contentMode: .fill)
-                        case .failure:
-                            Color.clear.onAppear { failed = true }
-                        default:
-                            Color.gray.opacity(0.1)
-                        }
+                    if let image {
+                        Image(platformImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } else {
+                        Color.gray.opacity(0.1)
                     }
                 }
                 .clipped()
+                .task(id: url) {
+                    image = await RemoteImageLoader.load(from: url, onFail: { failed = true })
+                }
         }
     }
 }
