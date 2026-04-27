@@ -1371,12 +1371,8 @@ private struct FeedModePill: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             }
-            .padding(.leading, 14)
-            .padding(.trailing, 10)
+            .padding(.horizontal, 14)
             .frame(height: 48)
             .contentShape(Rectangle())
         }
