@@ -726,7 +726,8 @@ struct FeedView: View {
                         syncStatus: syncStatus,
                         hasNewSuggestions: hasNewSuggestions,
                         modelContainer: modelContainer,
-                        useCompactLayout: $useCompactLayout
+                        useCompactLayout: $useCompactLayout,
+                        feedMode: $feedMode
                     )
                     #else
                     if feedStatus != nil || discoveryStatus != nil || syncStatus != nil {
@@ -1159,13 +1160,12 @@ private struct ScrollAwareHeader: View {
 
 /// ステータス capsule 複数 + action bar を底辺に配置する Custom Layout。
 /// 最後の subview を action bar として扱い、それ以外を status capsule として積み上げる。
-/// 各 capsule は通常は画面中央、action bar と Y 範囲が重なる capsule のみ、
-/// 衝突する分だけ左にシフトする（上段の capsule は Y 範囲が action bar より上にあるので中央のまま）。
+/// action bar は最下段に専有させ、status capsule はその上にセンター配置で順次積む。
+/// action bar がスクロールで半分以上隠れた時のみ、status は底辺まで降りてくる。
 struct StatusStackLayout: Layout {
     /// action bar の下方向オフセット（スクロールで隠す時用、0 で通常位置）
     var actionBarOffsetY: CGFloat = 0
     var verticalSpacing: CGFloat = 4
-    var horizontalSpacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? 0
@@ -1186,31 +1186,17 @@ struct StatusStackLayout: Layout {
             proposal: ProposedViewSize(actionSize)
         )
 
-        let actionTop = actionY
-        let actionBottom = actionY + actionSize.height
-        let actionLeft = actionX - horizontalSpacing
-        // action bar が画面から半分以上はみ出していたら衝突判定から除外
         let isActionEffectivelyVisible = actionBarOffsetY < actionSize.height * 0.5
-
         let statuses = subviews.dropLast()
-        var currentBottom = bounds.maxY
+        var currentBottom = isActionEffectivelyVisible
+            ? actionY - verticalSpacing
+            : bounds.maxY
 
         for status in statuses.reversed() {
             let statusSize = status.sizeThatFits(.unspecified)
             let statusY = currentBottom - statusSize.height
-            let statusBottom = currentBottom
-
-            // この capsule が action bar の Y 範囲と重なるか
-            let yOverlap = isActionEffectivelyVisible && statusY < actionBottom && statusBottom > actionTop
 
             var statusCenterX = bounds.midX
-            if yOverlap {
-                let rightIfCentered = statusCenterX + statusSize.width / 2
-                if rightIfCentered > actionLeft {
-                    statusCenterX -= (rightIfCentered - actionLeft)
-                }
-            }
-            // 画面左端でクランプ（capsule が画面幅より広くなることは想定しない）
             statusCenterX = max(statusCenterX, bounds.minX + statusSize.width / 2)
 
             let statusX = statusCenterX - statusSize.width / 2
@@ -1236,6 +1222,7 @@ private struct FeedFloatingFooter: View {
     let hasNewSuggestions: Bool
     let modelContainer: ModelContainer
     @Binding var useCompactLayout: Bool
+    @Binding var feedMode: FeedMode
 
     /// スクロールで隠れる量からアクションバーの不透明度を算出。
     /// fadeDistance（80pt）スライドで完全に透明になる。
@@ -1250,11 +1237,14 @@ private struct FeedFloatingFooter: View {
             if let s = feedStatus { statusCapsule(s) }
             if let s = discoveryStatus { statusCapsule(s) }
             if let s = syncStatus { statusCapsule(s) }
-            FloatingActionBar(
-                modelContainer: modelContainer,
-                hasNewSuggestions: hasNewSuggestions,
-                useCompactLayout: $useCompactLayout
-            )
+            HStack(spacing: 8) {
+                FeedModePill(feedMode: $feedMode)
+                FloatingActionBar(
+                    modelContainer: modelContainer,
+                    hasNewSuggestions: hasNewSuggestions,
+                    useCompactLayout: $useCompactLayout
+                )
+            }
             .opacity(actionBarOpacity)
         }
         .padding(.horizontal, 24)
@@ -1344,6 +1334,49 @@ private struct FloatingActionBar: View {
                             .allowsHitTesting(false)
                     }
                 }
+        }
+    }
+}
+
+// MARK: - FeedModePill
+
+/// 浮遊バーに置く現モード表示ピル。タップで頻用ペア (おすすめ ⇄ 新着) をトグル、
+/// それ以外のモードからは「おすすめ」へ戻る。
+private struct FeedModePill: View {
+    @Binding var feedMode: FeedMode
+
+    var body: some View {
+        Button {
+            #if os(iOS)
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            #endif
+            withAnimation(.easeInOut(duration: 0.15)) {
+                feedMode = nextMode(from: feedMode)
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(feedMode.rawValue)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 48)
+            .background(.ultraThinMaterial, in: Capsule())
+            .shadow(radius: 4)
+        }
+        .buttonStyle(.plain)
+        .contentTransition(.opacity)
+    }
+
+    private func nextMode(from current: FeedMode) -> FeedMode {
+        switch current {
+        case .forYou: return .latest
+        case .latest: return .forYou
+        case .favorites, .history: return .forYou
         }
     }
 }
