@@ -101,7 +101,7 @@ struct DiscoveryView: View {
         .frame(maxWidth: 600)
         .frame(maxWidth: .infinity)
         #endif
-        .navigationTitle("発見")
+        .navigationTitle("ソース発見")
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 Button {
