@@ -866,10 +866,12 @@ private struct ReaderView: View {
     }
 
     /// Readability が落としがちな OG 画像を、本文に同じ URL が含まれていなければ先頭に補う。
+    /// 画像のロードに失敗した場合（Qiita 等で OG URL が 404 を返すケース）はプレースホルダを
+    /// 出さず非表示にする。
     private func heroImageHTML() -> String {
         guard let url = article.ogImageURL?.absoluteString, !url.isEmpty else { return "" }
         if extracted.content.range(of: url, options: .caseInsensitive) != nil { return "" }
-        return "<img class=\"hero\" src=\"\(escapeHTML(url))\">"
+        return "<img class=\"hero\" src=\"\(escapeHTML(url))\" onerror=\"this.style.display='none'\">"
     }
 
     private func escapeHTML(_ text: String) -> String {
