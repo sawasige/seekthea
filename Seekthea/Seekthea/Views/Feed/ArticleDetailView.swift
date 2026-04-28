@@ -826,6 +826,10 @@ private struct ReaderView: View {
             max-width: 100%; height: auto;
             border-radius: 8px; margin: 16px 0; display: block;
         }
+        .content img.hero {
+            margin-top: 0;
+            margin-bottom: 24px;
+        }
         .content p { margin: 0 0 18px; }
         .content h2 { font-size: 20px; margin: 32px 0 12px; }
         .content h3 { font-size: 18px; margin: 28px 0 10px; }
@@ -855,10 +859,17 @@ private struct ReaderView: View {
             <h1>\(title)</h1>
             <div class="meta">\(escapeHTML(sourceName))\(byline)　\(escapeHTML(dateStr))</div>
             <hr>
-            <div class="content">\(extracted.content)</div>
+            <div class="content">\(heroImageHTML())\(extracted.content)</div>
         </body>
         </html>
         """
+    }
+
+    /// Readability が落としがちな OG 画像を、本文に同じ URL が含まれていなければ先頭に補う。
+    private func heroImageHTML() -> String {
+        guard let url = article.ogImageURL?.absoluteString, !url.isEmpty else { return "" }
+        if extracted.content.range(of: url, options: .caseInsensitive) != nil { return "" }
+        return "<img class=\"hero\" src=\"\(escapeHTML(url))\">"
     }
 
     private func escapeHTML(_ text: String) -> String {
