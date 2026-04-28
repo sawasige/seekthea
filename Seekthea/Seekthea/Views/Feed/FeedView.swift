@@ -1423,6 +1423,8 @@ struct ReviewPromptAlert: ViewModifier {
                     openURL(url)
                 }
             }
+        } message: {
+            Text("いつも使ってくれてありがとうございます。よかったら App Store でひと言いただけると、今後の励みになります。")
         }
     }
 }
