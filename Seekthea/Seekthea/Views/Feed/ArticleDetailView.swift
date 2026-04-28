@@ -860,6 +860,14 @@ private struct ReaderView: View {
             <div class="meta">\(escapeHTML(sourceName))\(byline)　\(escapeHTML(dateStr))</div>
             <hr>
             <div class="content">\(heroImageHTML())\(extracted.content)</div>
+            <script>
+            // 読み込みに失敗した画像はプレースホルダを出さず非表示にする
+            // (404 / 認証必須 / CORS ブロック等の broken image 対策)
+            document.querySelectorAll('.content img').forEach(function(img) {
+                img.addEventListener('error', function() { img.style.display = 'none'; });
+                if (img.complete && img.naturalWidth === 0) img.style.display = 'none';
+            });
+            </script>
         </body>
         </html>
         """
