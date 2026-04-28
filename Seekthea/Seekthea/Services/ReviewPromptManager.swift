@@ -68,8 +68,6 @@ enum ReviewPromptManager {
     }
 
     #if DEBUG
-    static let debugTriggerNotification = Notification.Name("ReviewPromptManager.debugTrigger")
-
     struct DebugSnapshot {
         let firstLaunchDate: Date?
         let lastShownVersion: String?

@@ -1383,8 +1383,6 @@ private struct FeedModePill: View {
 private struct ReviewPromptModifier: ViewModifier {
     let navigationPathCount: Int
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.requestReview) private var requestReview
-    @Environment(\.openURL) private var openURL
     @State private var lastCount = 0
     @State private var isPresented = false
 
@@ -1403,22 +1401,28 @@ private struct ReviewPromptModifier: ViewModifier {
                     isPresented = true
                 }
             }
-            .alert("Seekthea を使ってみていかがですか？", isPresented: $isPresented) {
-                Button("気に入っています") {
-                    ReviewPromptManager.markShown()
-                    requestReview()
-                }
-                Button("もう少しかな", role: .cancel) {
-                    ReviewPromptManager.markDeclined()
-                    if let url = URL(string: "https://sawasige.github.io/seekthea/support.html") {
-                        openURL(url)
-                    }
+            .modifier(ReviewPromptAlert(isPresented: $isPresented))
+    }
+}
+
+/// レビュー依頼アラートの本体。Debug 用ボタンと本番トリガーで共有する。
+struct ReviewPromptAlert: ViewModifier {
+    @Binding var isPresented: Bool
+    @Environment(\.requestReview) private var requestReview
+    @Environment(\.openURL) private var openURL
+
+    func body(content: Content) -> some View {
+        content.alert("Seekthea を使ってみていかがですか？", isPresented: $isPresented) {
+            Button("気に入っています") {
+                ReviewPromptManager.markShown()
+                requestReview()
+            }
+            Button("もう少しかな", role: .cancel) {
+                ReviewPromptManager.markDeclined()
+                if let url = URL(string: "https://sawasige.github.io/seekthea/support.html") {
+                    openURL(url)
                 }
             }
-            #if DEBUG
-            .onReceive(NotificationCenter.default.publisher(for: ReviewPromptManager.debugTriggerNotification)) { _ in
-                isPresented = true
-            }
-            #endif
+        }
     }
 }

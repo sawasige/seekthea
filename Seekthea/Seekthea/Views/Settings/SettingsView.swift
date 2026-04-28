@@ -235,6 +235,7 @@ private struct ReviewPromptDebugSection: View {
     @Environment(\.modelContext) private var modelContext
     @State private var snapshot = ReviewPromptManager.debugSnapshot()
     @State private var readCount: Int = 0
+    @State private var showPrompt = false
     let showToast: (String) -> Void
 
     var body: some View {
@@ -245,7 +246,7 @@ private struct ReviewPromptDebugSection: View {
             LabeledContent("前回表示バージョン", value: snapshot.lastShownVersion ?? "—")
             LabeledContent("前回拒否", value: format(snapshot.lastDeclinedDate))
             Button("今すぐ表示") {
-                NotificationCenter.default.post(name: ReviewPromptManager.debugTriggerNotification, object: nil)
+                showPrompt = true
             }
             Button("条件をリセット", role: .destructive) {
                 ReviewPromptManager.debugReset()
@@ -256,6 +257,7 @@ private struct ReviewPromptDebugSection: View {
             Text("レビュー依頼 (Debug)")
         }
         .onAppear { refresh() }
+        .modifier(ReviewPromptAlert(isPresented: $showPrompt))
     }
 
     private func refresh() {
