@@ -17,6 +17,7 @@ struct ContentView: View {
     var body: some View {
         FeedView(modelContainer: modelContainer)
             .task {
+                ReviewPromptManager.recordFirstLaunchIfNeeded()
                 CloudSyncObserver.shared.setup(modelContainer: modelContainer)
                 await DataDeduplicator.run(in: modelContext)
                 await checkSyncAndSeed()
