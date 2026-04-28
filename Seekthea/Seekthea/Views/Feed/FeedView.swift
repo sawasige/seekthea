@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import CoreData
 import Combine
+import StoreKit
 
 enum FeedMode: String, CaseIterable {
     case forYou = "おすすめ"
@@ -296,6 +297,10 @@ struct FeedView: View {
     @State private var pendingImpressions: [UUID: Int] = [:]
     @State private var impressionTimers: [UUID: Task<Void, Never>] = [:]
     @State private var sessionImpressed: Set<UUID> = []
+    @State private var lastNavigationPathCount = 0
+    @State private var showReviewPrompt = false
+    @Environment(\.requestReview) private var requestReview
+    @Environment(\.openURL) private var openURL
     @Namespace private var zoomNamespace
 
     private let impressionDwellSeconds: Double = 1.0
@@ -748,6 +753,31 @@ struct FeedView: View {
                 .animation(.easeInOut(duration: 0.3), value: viewModel?.statusMessage)
                 .animation(.easeInOut(duration: 0.3), value: DiscoveryManager.shared.statusMessage)
                 .animation(.easeInOut(duration: 0.3), value: CloudSyncObserver.shared.statusMessage)
+                .onChange(of: navigationPath.count) { _, newCount in
+                    let returnedToFeed = newCount == 0 && lastNavigationPathCount > 0
+                    lastNavigationPathCount = newCount
+                    guard returnedToFeed else { return }
+                    let readCount = (try? modelContext.fetchCount(
+                        FetchDescriptor<Article>(predicate: #Predicate { $0.isRead })
+                    )) ?? 0
+                    guard ReviewPromptManager.shouldShowPrompt(readCount: readCount) else { return }
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(600))
+                        showReviewPrompt = true
+                    }
+                }
+                .alert("Seekthea を使ってみていかがですか？", isPresented: $showReviewPrompt) {
+                    Button("気に入っています") {
+                        ReviewPromptManager.markShown()
+                        requestReview()
+                    }
+                    Button("もう少しかな", role: .cancel) {
+                        ReviewPromptManager.markDeclined()
+                        if let url = URL(string: "https://sawasige.github.io/seekthea/support.html") {
+                            openURL(url)
+                        }
+                    }
+                }
         }
     }
 
