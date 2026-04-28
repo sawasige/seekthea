@@ -66,4 +66,33 @@ enum ReviewPromptManager {
     private static var appVersion: String {
         (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "unknown"
     }
+
+    #if DEBUG
+    static let debugTriggerNotification = Notification.Name("ReviewPromptManager.debugTrigger")
+
+    struct DebugSnapshot {
+        let firstLaunchDate: Date?
+        let lastShownVersion: String?
+        let lastShownDate: Date?
+        let lastDeclinedDate: Date?
+    }
+
+    static func debugSnapshot() -> DebugSnapshot {
+        let defaults = UserDefaults.standard
+        return DebugSnapshot(
+            firstLaunchDate: defaults.double(forKey: Keys.firstLaunchDate) > 0 ? Date(timeIntervalSince1970: defaults.double(forKey: Keys.firstLaunchDate)) : nil,
+            lastShownVersion: defaults.string(forKey: Keys.lastShownVersion),
+            lastShownDate: defaults.double(forKey: Keys.lastShownDate) > 0 ? Date(timeIntervalSince1970: defaults.double(forKey: Keys.lastShownDate)) : nil,
+            lastDeclinedDate: defaults.double(forKey: Keys.lastDeclinedDate) > 0 ? Date(timeIntervalSince1970: defaults.double(forKey: Keys.lastDeclinedDate)) : nil
+        )
+    }
+
+    static func debugReset() {
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: Keys.firstLaunchDate)
+        defaults.removeObject(forKey: Keys.lastShownVersion)
+        defaults.removeObject(forKey: Keys.lastShownDate)
+        defaults.removeObject(forKey: Keys.lastDeclinedDate)
+    }
+    #endif
 }

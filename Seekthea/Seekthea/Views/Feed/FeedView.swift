@@ -298,9 +298,6 @@ struct FeedView: View {
     @State private var impressionTimers: [UUID: Task<Void, Never>] = [:]
     @State private var sessionImpressed: Set<UUID> = []
     @State private var lastNavigationPathCount = 0
-    @State private var showReviewPrompt = false
-    @Environment(\.requestReview) private var requestReview
-    @Environment(\.openURL) private var openURL
     @Namespace private var zoomNamespace
 
     private let impressionDwellSeconds: Double = 1.0
@@ -753,31 +750,7 @@ struct FeedView: View {
                 .animation(.easeInOut(duration: 0.3), value: viewModel?.statusMessage)
                 .animation(.easeInOut(duration: 0.3), value: DiscoveryManager.shared.statusMessage)
                 .animation(.easeInOut(duration: 0.3), value: CloudSyncObserver.shared.statusMessage)
-                .onChange(of: navigationPath.count) { _, newCount in
-                    let returnedToFeed = newCount == 0 && lastNavigationPathCount > 0
-                    lastNavigationPathCount = newCount
-                    guard returnedToFeed else { return }
-                    let readCount = (try? modelContext.fetchCount(
-                        FetchDescriptor<Article>(predicate: #Predicate { $0.isRead })
-                    )) ?? 0
-                    guard ReviewPromptManager.shouldShowPrompt(readCount: readCount) else { return }
-                    Task {
-                        try? await Task.sleep(for: .milliseconds(600))
-                        showReviewPrompt = true
-                    }
-                }
-                .alert("Seekthea を使ってみていかがですか？", isPresented: $showReviewPrompt) {
-                    Button("気に入っています") {
-                        ReviewPromptManager.markShown()
-                        requestReview()
-                    }
-                    Button("もう少しかな", role: .cancel) {
-                        ReviewPromptManager.markDeclined()
-                        if let url = URL(string: "https://sawasige.github.io/seekthea/support.html") {
-                            openURL(url)
-                        }
-                    }
-                }
+                .modifier(ReviewPromptModifier(navigationPathCount: navigationPath.count))
         }
     }
 
@@ -1404,5 +1377,48 @@ private struct FeedModePill: View {
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
+    }
+}
+
+private struct ReviewPromptModifier: ViewModifier {
+    let navigationPathCount: Int
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.requestReview) private var requestReview
+    @Environment(\.openURL) private var openURL
+    @State private var lastCount = 0
+    @State private var isPresented = false
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: navigationPathCount) { _, newCount in
+                let returnedToFeed = newCount == 0 && lastCount > 0
+                lastCount = newCount
+                guard returnedToFeed else { return }
+                let readCount = (try? modelContext.fetchCount(
+                    FetchDescriptor<Article>(predicate: #Predicate { $0.isRead })
+                )) ?? 0
+                guard ReviewPromptManager.shouldShowPrompt(readCount: readCount) else { return }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(600))
+                    isPresented = true
+                }
+            }
+            .alert("Seekthea を使ってみていかがですか？", isPresented: $isPresented) {
+                Button("気に入っています") {
+                    ReviewPromptManager.markShown()
+                    requestReview()
+                }
+                Button("もう少しかな", role: .cancel) {
+                    ReviewPromptManager.markDeclined()
+                    if let url = URL(string: "https://sawasige.github.io/seekthea/support.html") {
+                        openURL(url)
+                    }
+                }
+            }
+            #if DEBUG
+            .onReceive(NotificationCenter.default.publisher(for: ReviewPromptManager.debugTriggerNotification)) { _ in
+                isPresented = true
+            }
+            #endif
     }
 }

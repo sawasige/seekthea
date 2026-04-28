@@ -88,6 +88,10 @@ struct SettingsView: View {
                 Link("プライバシーポリシー", destination: URL(string: "https://sawasige.github.io/seekthea/privacy.html")!)
                 Link("サポート", destination: URL(string: "https://sawasige.github.io/seekthea/support.html")!)
             }
+
+            #if DEBUG
+            ReviewPromptDebugSection(showToast: showToast)
+            #endif
         }
         #if os(macOS)
         .formStyle(.grouped)
@@ -196,6 +200,12 @@ struct SettingsView: View {
         }
     }
 
+    static let debugDateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd HH:mm"
+        return df
+    }()
+
     private func resetAllData() {
         do {
             try modelContext.delete(model: Article.self)
@@ -219,3 +229,44 @@ struct SettingsView: View {
         }
     }
 }
+
+#if DEBUG
+private struct ReviewPromptDebugSection: View {
+    @Environment(\.modelContext) private var modelContext
+    @State private var snapshot = ReviewPromptManager.debugSnapshot()
+    @State private var readCount: Int = 0
+    let showToast: (String) -> Void
+
+    var body: some View {
+        Section {
+            LabeledContent("初回起動", value: format(snapshot.firstLaunchDate))
+            LabeledContent("既読件数", value: "\(readCount)")
+            LabeledContent("前回表示", value: format(snapshot.lastShownDate))
+            LabeledContent("前回表示バージョン", value: snapshot.lastShownVersion ?? "—")
+            LabeledContent("前回拒否", value: format(snapshot.lastDeclinedDate))
+            Button("今すぐ表示") {
+                NotificationCenter.default.post(name: ReviewPromptManager.debugTriggerNotification, object: nil)
+            }
+            Button("条件をリセット", role: .destructive) {
+                ReviewPromptManager.debugReset()
+                refresh()
+                showToast("レビュー依頼の条件をリセットしました")
+            }
+        } header: {
+            Text("レビュー依頼 (Debug)")
+        }
+        .onAppear { refresh() }
+    }
+
+    private func refresh() {
+        snapshot = ReviewPromptManager.debugSnapshot()
+        let descriptor = FetchDescriptor<Article>(predicate: #Predicate { $0.isRead })
+        readCount = (try? modelContext.fetchCount(descriptor)) ?? 0
+    }
+
+    private func format(_ date: Date?) -> String {
+        guard let date else { return "—" }
+        return SettingsView.debugDateFormatter.string(from: date)
+    }
+}
+#endif
