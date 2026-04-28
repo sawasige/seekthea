@@ -20,6 +20,8 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
     private var timeoutTask: Task<Void, Never>?
     private var readabilityJS: String?
     private var onProgress: ((String) -> Void)?
+    /// 「本文を見る」等で1段だけ follow したかを記録。連鎖 follow を防ぐ。
+    private var hasFollowed: Bool = false
 
     /// URLから記事を抽出
     func extract(from url: URL, onProgress: ((String) -> Void)? = nil) async -> Article? {
@@ -30,6 +32,7 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
         guard readabilityJS != nil else { return nil }
 
         self.onProgress = onProgress
+        self.hasFollowed = false
         onProgress?("記事ページを取得中...")
 
         return await withCheckedContinuation { continuation in
@@ -125,12 +128,66 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
             } catch(e) { /* セレクタ失敗は無視して続行 */ }
         }
 
+        // 抽出結果が要約っぽくて短い場合に、本文ページへのリンクを探す。
+        // 同一ホスト + アンカーテキスト whitelist + トラッカー除外で誤爆を防ぐ。
+        function __seekthea_findFollowLink(articleHTML) {
+            var FOLLOW_PATTERNS = [
+                '本文を見る', '本文を読む', '本文表示', '本文へ',
+                '全文を読む', '全文表示', '全文を見る',
+                '続きを読む', '記事を読む', '記事の続き', '記事の続きを読む',
+                'もっと読む', '元記事を読む', '詳細を読む', '詳細はこちら'
+            ];
+            var TRACKER_PATTERN = /[?&](utm_|gclid=|fbclid=|affid=|mc_|s_kwcid=)/;
+            var origin = location.hostname;
+
+            var container = document.createElement('div');
+            container.innerHTML = articleHTML;
+            var links = container.querySelectorAll('a[href]');
+
+            for (var i = 0; i < links.length; i++) {
+                var link = links[i];
+                var text = (link.textContent || '').trim();
+                var href = link.href;
+                if (!href || href.indexOf('http') !== 0) continue;
+                if (href === location.href) continue;
+
+                var matched = false;
+                for (var j = 0; j < FOLLOW_PATTERNS.length; j++) {
+                    if (text.indexOf(FOLLOW_PATTERNS[j]) !== -1) { matched = true; break; }
+                }
+                if (!matched) continue;
+
+                try {
+                    var url = new URL(href);
+                    if (url.hostname !== origin) continue;
+                } catch(e) { continue; }
+
+                if (TRACKER_PATTERN.test(href)) continue;
+
+                return href;
+            }
+            return null;
+        }
+
         function __seekthea_extract() {
             try {
                 var documentClone = document.cloneNode(true);
                 __seekthea_cleanDOM(documentClone);
                 var reader = new Readability(documentClone);
                 var article = reader.parse();
+
+                // 本文が極端に短く、本文ページへの誘導リンクがあれば redirect 要求
+                if (article && article.textContent.length < 300) {
+                    var followURL = __seekthea_findFollowLink(article.content);
+                    if (followURL) {
+                        window.webkit.messageHandlers.readabilityResult.postMessage({
+                            success: false,
+                            redirect: followURL
+                        });
+                        return;
+                    }
+                }
+
                 if (article) {
                     window.webkit.messageHandlers.readabilityResult.postMessage({
                         success: true,
@@ -190,6 +247,22 @@ extension ReadabilityExtractor: WKScriptMessageHandler {
             guard let dict = messageBody as? [String: Any] else {
                 print("[Reader] Message body is not a dictionary")
                 self.finish(nil)
+                return
+            }
+
+            // 「本文を見る」誘導の follow 要求 (1段だけ許可、無限ループ防止)
+            if let redirectStr = dict["redirect"] as? String,
+               let redirectURL = URL(string: redirectStr),
+               !self.hasFollowed,
+               redirectURL != self.webView?.url {
+                self.hasFollowed = true
+                self.onProgress?("本文ページへ移動中...")
+                self.timeoutTask?.cancel()
+                self.timeoutTask = Task {
+                    try? await Task.sleep(for: .seconds(8))
+                    await MainActor.run { self.finish(nil) }
+                }
+                self.webView?.load(URLRequest(url: redirectURL, timeoutInterval: 15))
                 return
             }
 
