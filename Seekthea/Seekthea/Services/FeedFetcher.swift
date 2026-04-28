@@ -178,34 +178,13 @@ class FeedFetcher {
     /// 例: Qiita の og:image は imgix の署名付き URL でクエリ区切りが `&amp;` で書かれており、
     /// このまま fetch すると `?w=1200&amp;fm=jpg&amp;s=...` がパラメータ名 `amp;fm` 等に化けて
     /// 署名検証に失敗し imgix が 403 を返す。
-    static func decodeHTMLEntities(_ text: String) -> String {
+    private static func decodeHTMLEntities(_ text: String) -> String {
         text.replacingOccurrences(of: "&amp;", with: "&")
             .replacingOccurrences(of: "&lt;", with: "<")
             .replacingOccurrences(of: "&gt;", with: ">")
             .replacingOccurrences(of: "&quot;", with: "\"")
             .replacingOccurrences(of: "&#39;", with: "'")
             .replacingOccurrences(of: "&#x27;", with: "'")
-    }
-
-    /// 既存の Article.ogImageURL / Source.ogImageURL に HTML エンティティが残っていれば
-    /// 実体に書き戻す。decodeHTMLEntities 修正前に保存された URL を救済するためのマイグレーション。
-    @MainActor
-    static func fixupBrokenOGImageURLs(context: ModelContext) {
-        let articles = (try? context.fetch(FetchDescriptor<Article>())) ?? []
-        for article in articles {
-            guard let url = article.ogImageURL,
-                  url.absoluteString.contains("&amp;") else { continue }
-            let fixed = decodeHTMLEntities(url.absoluteString)
-            article.ogImageURL = URL(string: fixed)
-        }
-        let sources = (try? context.fetch(FetchDescriptor<Source>())) ?? []
-        for source in sources {
-            guard let url = source.ogImageURL,
-                  url.absoluteString.contains("&amp;") else { continue }
-            let fixed = decodeHTMLEntities(url.absoluteString)
-            source.ogImageURL = URL(string: fixed)
-        }
-        try? context.save()
     }
 
     // MARK: - Private

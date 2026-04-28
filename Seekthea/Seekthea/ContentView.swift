@@ -20,7 +20,6 @@ struct ContentView: View {
                 ReviewPromptManager.recordFirstLaunchIfNeeded()
                 CloudSyncObserver.shared.setup(modelContainer: modelContainer)
                 await DataDeduplicator.run(in: modelContext)
-                FeedFetcher.fixupBrokenOGImageURLs(context: modelContext)
                 await checkSyncAndSeed()
             }
             .modifier(OnboardingPresenter(
