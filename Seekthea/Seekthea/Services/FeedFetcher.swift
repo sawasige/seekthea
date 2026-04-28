@@ -167,11 +167,24 @@ class FeedFetcher {
             if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
                let match = regex.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
                let range = Range(match.range(at: 1), in: html) {
-                return URL(string: String(html[range]))
+                return URL(string: decodeHTMLEntities(String(html[range])))
             }
         }
 
         return nil
+    }
+
+    /// HTML 属性中によく出る基本エンティティを実体に戻す。
+    /// 例: Qiita の og:image は imgix の署名付き URL でクエリ区切りが `&amp;` で書かれており、
+    /// このまま fetch すると `?w=1200&amp;fm=jpg&amp;s=...` がパラメータ名 `amp;fm` 等に化けて
+    /// 署名検証に失敗し imgix が 403 を返す。
+    private static func decodeHTMLEntities(_ text: String) -> String {
+        text.replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&#x27;", with: "'")
     }
 
     // MARK: - Private
