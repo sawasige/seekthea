@@ -128,21 +128,17 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
             } catch(e) { /* セレクタ失敗は無視して続行 */ }
         }
 
-        // 抽出結果が要約っぽくて短い場合に、本文ページへのリンクを探す。
+        // 「本文を見る」等の誘導リンクを探す。
         // 同一ホスト + アンカーテキスト whitelist + トラッカー除外で誤爆を防ぐ。
-        function __seekthea_findFollowLink(articleHTML) {
+        function __seekthea_findFollowLinkIn(links) {
             var FOLLOW_PATTERNS = [
                 '本文を見る', '本文を読む', '本文表示', '本文へ',
-                '全文を読む', '全文表示', '全文を見る',
+                '全文を読む', '全文表示', '全文を見る', '記事全文',
                 '続きを読む', '記事を読む', '記事の続き', '記事の続きを読む',
                 'もっと読む', '元記事を読む', '詳細を読む', '詳細はこちら'
             ];
             var TRACKER_PATTERN = /[?&](utm_|gclid=|fbclid=|affid=|mc_|s_kwcid=)/;
             var origin = location.hostname;
-
-            var container = document.createElement('div');
-            container.innerHTML = articleHTML;
-            var links = container.querySelectorAll('a[href]');
 
             for (var i = 0; i < links.length; i++) {
                 var link = links[i];
@@ -169,6 +165,27 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
             return null;
         }
 
+        // 抽出本文 → ダメなら main/article 領域から follow リンクを探す。
+        // Readability が CTA ボタンを本文外として除外することがあるため2段で探す。
+        function __seekthea_findFollowLink(articleHTML) {
+            try {
+                var container = document.createElement('div');
+                container.innerHTML = articleHTML;
+                var inExtracted = __seekthea_findFollowLinkIn(container.querySelectorAll('a[href]'));
+                if (inExtracted) return inExtracted;
+            } catch(e) { /* ignore */ }
+
+            try {
+                var roots = document.querySelectorAll('main, article, [role="main"]');
+                for (var i = 0; i < roots.length; i++) {
+                    var found = __seekthea_findFollowLinkIn(roots[i].querySelectorAll('a[href]'));
+                    if (found) return found;
+                }
+            } catch(e) { /* ignore */ }
+
+            return null;
+        }
+
         function __seekthea_extract() {
             try {
                 var documentClone = document.cloneNode(true);
@@ -176,8 +193,8 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
                 var reader = new Readability(documentClone);
                 var article = reader.parse();
 
-                // 本文が極端に短く、本文ページへの誘導リンクがあれば redirect 要求
-                if (article && article.textContent.length < 300) {
+                // 本文が短い（要約ページの可能性）かつ本文ページへの誘導リンクがあれば redirect 要求
+                if (article && article.textContent.length < 1500) {
                     var followURL = __seekthea_findFollowLink(article.content);
                     if (followURL) {
                         window.webkit.messageHandlers.readabilityResult.postMessage({
