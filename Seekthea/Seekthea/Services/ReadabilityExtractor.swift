@@ -193,8 +193,10 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
                 var reader = new Readability(documentClone);
                 var article = reader.parse();
 
-                // 本文が短い（要約ページの可能性）かつ本文ページへの誘導リンクがあれば redirect 要求
-                if (article && article.textContent.length < 1500) {
+                // 本文ページへの誘導リンク（「記事全文を読む」等）が見つかれば redirect 要求。
+                // 本文長さは見ない: 要約ページが要約だけで長いケース (Yahoo など) を取りこぼさないため。
+                // 同一ホスト + アンカーテキスト whitelist + トラッカー除外で誤爆を防いでいる。
+                if (article) {
                     var followURL = __seekthea_findFollowLink(article.content);
                     if (followURL) {
                         window.webkit.messageHandlers.readabilityResult.postMessage({
