@@ -186,7 +186,7 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
             return null;
         }
 
-        function __seekthea_extract() {
+        function __seekthea_extract(alreadyFollowed) {
             try {
                 var documentClone = document.cloneNode(true);
                 __seekthea_cleanDOM(documentClone);
@@ -196,7 +196,8 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
                 // 本文ページへの誘導リンク（「記事全文を読む」等）が見つかれば redirect 要求。
                 // 本文長さは見ない: 要約ページが要約だけで長いケース (Yahoo など) を取りこぼさないため。
                 // 同一ホスト + アンカーテキスト whitelist + トラッカー除外で誤爆を防いでいる。
-                if (article) {
+                // 既に1段 follow 済みの場合は再 follow しない (連鎖防止)。
+                if (article && !alreadyFollowed) {
                     var followURL = __seekthea_findFollowLink(article.content);
                     if (followURL) {
                         window.webkit.messageHandlers.readabilityResult.postMessage({
@@ -233,7 +234,8 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
     }
 
     private func runReadability() {
-        webView?.evaluateJavaScript("__seekthea_extract()") { _, error in
+        let alreadyFollowed = hasFollowed ? "true" : "false"
+        webView?.evaluateJavaScript("__seekthea_extract(\(alreadyFollowed))") { _, error in
             if error != nil {
                 Task { @MainActor in self.finish(nil) }
             }
