@@ -22,6 +22,8 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
     private var onProgress: ((String) -> Void)?
     /// 「本文を見る」等で1段だけ follow したかを記録。連鎖 follow を防ぐ。
     private var hasFollowed: Bool = false
+    /// follow 前の抽出結果。follow 先で抽出に失敗したら元の結果を返す。
+    private var fallbackArticle: Article?
 
     /// URLから記事を抽出
     func extract(from url: URL, onProgress: ((String) -> Void)? = nil) async -> Article? {
@@ -33,6 +35,7 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
 
         self.onProgress = onProgress
         self.hasFollowed = false
+        self.fallbackArticle = nil
         onProgress?("記事ページを取得中...")
 
         return await withCheckedContinuation { continuation in
@@ -73,7 +76,9 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
         // （遅延ロードコンテンツの完了を待つ）
         Task { @MainActor in
             self.onProgress?("本文を抽出中...")
-            try? await Task.sleep(for: .milliseconds(800))
+            // follow 後は対象が SPA で重いケースが多いので待ち時間を倍にする
+            let delay: Duration = self.hasFollowed ? .milliseconds(1800) : .milliseconds(800)
+            try? await Task.sleep(for: delay)
             self.runReadability()
         }
     }
@@ -200,9 +205,18 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
                 if (article && !alreadyFollowed) {
                     var followURL = __seekthea_findFollowLink(article.content);
                     if (followURL) {
+                        // follow 先で抽出が失敗したときに戻れるよう、現在の抽出結果を fallback として送る
                         window.webkit.messageHandlers.readabilityResult.postMessage({
                             success: false,
-                            redirect: followURL
+                            redirect: followURL,
+                            fallback: {
+                                title: article.title || '',
+                                content: article.content || '',
+                                textContent: article.textContent || '',
+                                excerpt: article.excerpt || '',
+                                byline: article.byline || '',
+                                siteName: article.siteName || ''
+                            }
                         });
                         return;
                     }
@@ -277,11 +291,15 @@ extension ReadabilityExtractor: WKScriptMessageHandler {
                !self.hasFollowed,
                redirectURL != self.webView?.url {
                 self.hasFollowed = true
+                // follow 先で抽出に失敗した場合に戻れるよう、現状の抽出結果を fallback として保持
+                if let fallback = dict["fallback"] as? [String: Any] {
+                    self.fallbackArticle = self.makeArticle(from: fallback)
+                }
                 self.onProgress?("本文ページへ移動中...")
                 self.timeoutTask?.cancel()
                 self.timeoutTask = Task {
-                    try? await Task.sleep(for: .seconds(8))
-                    await MainActor.run { self.finish(nil) }
+                    try? await Task.sleep(for: .seconds(12))
+                    await MainActor.run { self.finish(self.fallbackArticle) }
                 }
                 self.webView?.load(URLRequest(url: redirectURL, timeoutInterval: 15))
                 return
@@ -291,27 +309,30 @@ extension ReadabilityExtractor: WKScriptMessageHandler {
             guard success else {
                 let error = dict["error"] as? String ?? "unknown"
                 print("[Reader] Readability.js failed: \(error)")
-                self.finish(nil)
+                self.finish(self.fallbackArticle)
                 return
             }
 
-            let article = Article(
-                title: dict["title"] as? String ?? "",
-                content: dict["content"] as? String ?? "",
-                textContent: dict["textContent"] as? String ?? "",
-                excerpt: dict["excerpt"] as? String ?? "",
-                byline: (dict["byline"] as? String).flatMap { $0.isEmpty ? nil : $0 },
-                siteName: (dict["siteName"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-            )
+            let article = self.makeArticle(from: dict)
 
-            if article.textContent.count < 100 {
-                self.finish(nil)
-            } else if self.looksLikeConsentPage(article.textContent) {
-                self.finish(nil)
+            if article.textContent.count < 100 || self.looksLikeConsentPage(article.textContent) {
+                // follow 先での抽出が貧弱なら fallback (= follow 前の抽出結果) を返す
+                self.finish(self.fallbackArticle ?? nil)
             } else {
                 self.finish(article)
             }
         }
+    }
+
+    private func makeArticle(from dict: [String: Any]) -> Article {
+        Article(
+            title: dict["title"] as? String ?? "",
+            content: dict["content"] as? String ?? "",
+            textContent: dict["textContent"] as? String ?? "",
+            excerpt: dict["excerpt"] as? String ?? "",
+            byline: (dict["byline"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+            siteName: (dict["siteName"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        )
     }
 
     private func looksLikeConsentPage(_ text: String) -> Bool {
