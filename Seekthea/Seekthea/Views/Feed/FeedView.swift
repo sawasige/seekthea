@@ -1267,7 +1267,7 @@ private func feedNavigationMenuItems(modelContainer: ModelContainer, hasNewSugge
         DiscoveryView(modelContainer: modelContainer)
     } label: {
         Label(
-            hasNewSuggestions ? "発見（新着あり）" : "発見",
+            hasNewSuggestions ? "ソース発見（新着あり）" : "ソース発見",
             systemImage: "sparkle.magnifyingglass"
         )
     }
@@ -1275,6 +1275,11 @@ private func feedNavigationMenuItems(modelContainer: ModelContainer, hasNewSugge
         CategorySettingsView()
     } label: {
         Label("カテゴリ管理", systemImage: "square.grid.2x2")
+    }
+    NavigationLink {
+        InterestSettingsView()
+    } label: {
+        Label("興味トピック", systemImage: "tag.fill")
     }
     Divider()
     NavigationLink {
