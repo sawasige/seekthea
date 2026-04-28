@@ -860,16 +860,26 @@ private struct ReaderView: View {
             <div class="meta">\(escapeHTML(sourceName))\(byline)　\(escapeHTML(dateStr))</div>
             <hr>
             <div class="content">\(heroImageHTML())\(extracted.content)</div>
+            <script>
+            // 読み込みに失敗した画像はプレースホルダを出さず非表示にする
+            // (404 / 認証必須 / CORS ブロック等の broken image 対策)
+            document.querySelectorAll('.content img').forEach(function(img) {
+                img.addEventListener('error', function() { img.style.display = 'none'; });
+                if (img.complete && img.naturalWidth === 0) img.style.display = 'none';
+            });
+            </script>
         </body>
         </html>
         """
     }
 
     /// Readability が落としがちな OG 画像を、本文に同じ URL が含まれていなければ先頭に補う。
+    /// 画像のロードに失敗した場合（Qiita 等で OG URL が 404 を返すケース）はプレースホルダを
+    /// 出さず非表示にする。
     private func heroImageHTML() -> String {
         guard let url = article.ogImageURL?.absoluteString, !url.isEmpty else { return "" }
         if extracted.content.range(of: url, options: .caseInsensitive) != nil { return "" }
-        return "<img class=\"hero\" src=\"\(escapeHTML(url))\">"
+        return "<img class=\"hero\" src=\"\(escapeHTML(url))\" onerror=\"this.style.display='none'\">"
     }
 
     private func escapeHTML(_ text: String) -> String {
