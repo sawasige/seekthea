@@ -97,14 +97,38 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
     }
 
     private func buildExtractionScript() -> String {
-        // Readability.jsを注入 + parse実行 + 結果をネイティブに送信
+        // Readability.jsを注入 + DOM 前処理 + parse実行 + 結果をネイティブに送信
         guard let js = readabilityJS else { return "" }
         return """
         \(js)
 
+        // Readability に渡す前に明らかなノイズ要素を取り除く。
+        // サイドバー / ナビ / 関連記事 / 広告 / シェアボタンなどが本文として
+        // 誤判定されるのを防ぐ。<header> は記事ヘッダにも使われるので除外しない。
+        function __seekthea_cleanDOM(doc) {
+            var selectors = [
+                'aside', 'nav', 'footer',
+                '[role="complementary"]', '[role="navigation"]', '[role="banner"]', '[role="contentinfo"]',
+                '.sidebar', '.side-bar', '.side',
+                '.related', '.related-articles', '.recommend', '.recommended', '.recommendation',
+                '.ranking', '.popular', '.trending',
+                '.ad', '.ads', '.advertisement', '.adsbygoogle', '[class*="-ad"]', '[id^="ad-"]',
+                '.share', '.shares', '.social', '.sns',
+                '.comments', '.comment-list',
+                '.breadcrumb', '.breadcrumbs',
+                '.newsletter', '.subscribe'
+            ];
+            try {
+                doc.querySelectorAll(selectors.join(',')).forEach(function(el) {
+                    if (el.parentNode) el.parentNode.removeChild(el);
+                });
+            } catch(e) { /* セレクタ失敗は無視して続行 */ }
+        }
+
         function __seekthea_extract() {
             try {
                 var documentClone = document.cloneNode(true);
+                __seekthea_cleanDOM(documentClone);
                 var reader = new Readability(documentClone);
                 var article = reader.parse();
                 if (article) {
