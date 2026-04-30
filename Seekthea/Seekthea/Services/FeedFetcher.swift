@@ -36,7 +36,7 @@ class FeedFetcher {
         )!
 
         for (index, source) in sources.enumerated() {
-            onProgress?("\(source.name) を取得中... (\(index + 1)/\(sources.count))")
+            onProgress?("(\(index + 1)/\(sources.count)) \(source.name) を取得中...")
             let feedURL = source.feedURL
             guard let (data, _) = try? await URLSession.shared.data(from: feedURL) else { continue }
 
@@ -83,7 +83,7 @@ class FeedFetcher {
                 source.articleCount += 1
             }
             source.lastFetchedAt = Date()
-            onProgress?("\(source.name) を保存中... (\(index + 1)/\(sources.count))")
+            onProgress?("(\(index + 1)/\(sources.count)) \(source.name) を保存中...")
             try? context.save()
         }
         onProgress?("フィードを更新中...")
