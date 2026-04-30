@@ -231,7 +231,7 @@
             gap: 48px;
         }
 
-        .feature-detail:nth-child(even) .feature-detail-inner {
+        .feature-detail-inner.reversed {
             flex-direction: row-reverse;
         }
 
@@ -269,14 +269,17 @@
 
         @media (max-width: 600px) {
             .feature-detail-inner,
-            .feature-detail:nth-child(even) .feature-detail-inner {
+            .feature-detail-inner.reversed {
                 flex-direction: column;
+                align-items: stretch;
+                gap: 24px;
             }
 
             .feature-detail-image {
                 flex: none;
                 width: 100%;
-                max-width: 300px;
+                max-width: 240px;
+                margin: 0 auto;
             }
 
             .feature-detail {
@@ -590,7 +593,7 @@
         <button class="scroll-arrow left hidden" aria-label="前へ" type="button">‹</button>
         <section class="screenshots">
             <img src="assets/screenshot1.png" alt="フィード">
-            <img src="assets/screenshot2.png" alt="AI要約">
+            <img src="assets/screenshot2.png" alt="リーダー">
             <img src="assets/screenshot3.png" alt="興味トピック">
             <img src="assets/screenshot4.png" alt="ソース管理">
             <img src="assets/screenshot5.png" alt="オンボーディング">
@@ -617,7 +620,7 @@
 
     <!-- 興味の高い記事が、上に -->
     <section class="feature-detail" style="background:var(--card-bg);">
-        <div class="feature-detail-inner" style="max-width:900px;margin:0 auto;flex-direction:row-reverse;">
+        <div class="feature-detail-inner reversed" style="max-width:900px;margin:0 auto;">
             <div class="feature-detail-text">
                 <h2>興味の高い記事が、上に。</h2>
                 <p><span class="accent">AIが各記事のキーワードを自動抽出</span>。読んだ記事・お気に入りから好みを学習し、興味の高い記事から順に表示する。画像つきのカードフィードで、ブラウズもしやすい。</p>
