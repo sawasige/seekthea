@@ -7,7 +7,17 @@
     <meta name="description" content="ニュース・テック・ソーシャルのトレンドをRSSで収集し、Apple IntelligenceがAI要約。アカウント不要、完全無料のニュースアプリ。">
     <meta property="og:title" content="Seekthea — パーソナルトレンドアグリゲーター">
     <meta property="og:description" content="ウェブ全体のトレンドを見通して、探し出すアプリ。">
-    <meta property="og:image" content="assets/screenshot1.png">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://sawasige.github.io/seekthea/">
+    <meta property="og:locale" content="ja_JP">
+    <meta property="og:image" content="https://sawasige.github.io/seekthea/assets/og-image.png">
+    <meta property="og:image:width" content="1729">
+    <meta property="og:image:height" content="910">
+    <meta property="og:image:alt" content="Seekthea — ウェブ全体のトレンドを見通して、探し出すアプリ">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Seekthea — パーソナルトレンドアグリゲーター">
+    <meta name="twitter:description" content="ウェブ全体のトレンドを見通して、探し出すアプリ。">
+    <meta name="twitter:image" content="https://sawasige.github.io/seekthea/assets/og-image.png">
     <link rel="icon" type="image/png" href="assets/logo.png">
     <style>
         * {
@@ -23,6 +33,9 @@
             --text: #1a1a1a;
             --text-muted: #666;
             --card-bg: #fff;
+            --navy: #1a2540;
+            --navy-deep: #0d1628;
+            --gold: #c9a961;
         }
 
         body {
@@ -35,14 +48,23 @@
         /* Hero */
         .hero {
             text-align: center;
-            padding: 80px 20px 60px;
+            padding: 40px 20px 60px;
             background: linear-gradient(180deg, #fff 0%, var(--bg) 100%);
         }
 
+        .hero-banner {
+            display: block;
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto 32px;
+            border-radius: 16px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+        }
+
         .logo {
-            width: 128px;
-            height: 128px;
-            border-radius: 28px;
+            width: 96px;
+            height: 96px;
+            border-radius: 22px;
             box-shadow: 0 12px 40px rgba(0,0,0,0.12);
         }
 
@@ -51,13 +73,14 @@
             font-weight: 800;
             margin: 24px 0 12px;
             letter-spacing: -0.02em;
+            color: var(--navy);
         }
 
         .hero .subtitle {
             font-size: 1.4rem;
             color: var(--accent);
             font-weight: 600;
-            margin-bottom: 12px;
+            margin-bottom: 24px;
         }
 
         .hero .tagline {
@@ -148,29 +171,6 @@
             }
         }
 
-        /* Intro */
-        .intro {
-            max-width: 700px;
-            margin: 0 auto;
-            padding: 60px 20px;
-            text-align: center;
-        }
-
-        .intro h2 {
-            font-size: 1.8rem;
-            margin-bottom: 20px;
-        }
-
-        .intro p {
-            font-size: 1.1rem;
-            color: var(--text-muted);
-        }
-
-        .intro .highlight {
-            color: var(--accent);
-            font-weight: 600;
-        }
-
         /* Features */
         .features {
             max-width: 900px;
@@ -182,6 +182,7 @@
             text-align: center;
             font-size: 1.8rem;
             margin-bottom: 48px;
+            color: var(--navy);
         }
 
         .feature-grid {
@@ -205,6 +206,7 @@
         .feature h3 {
             font-size: 1.15rem;
             margin-bottom: 8px;
+            color: var(--navy);
         }
 
         .feature p {
@@ -238,8 +240,9 @@
         }
 
         .feature-detail-text h2 {
-            font-size: 1.6rem;
+            font-size: 1.8rem;
             margin-bottom: 16px;
+            color: var(--navy);
         }
 
         .feature-detail-text p {
@@ -294,8 +297,9 @@
         }
 
         .highlights h2 {
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             margin-bottom: 24px;
+            color: var(--navy);
         }
 
         .pill-list {
@@ -322,8 +326,9 @@
 
         .target h2 {
             text-align: center;
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             margin-bottom: 32px;
+            color: var(--navy);
         }
 
         .target-list {
@@ -349,6 +354,101 @@
             font-size: 1rem;
         }
 
+        /* Platforms */
+        .platforms {
+            background: linear-gradient(180deg, var(--card-bg) 0%, var(--bg) 100%);
+            padding: 80px 20px;
+            text-align: center;
+        }
+
+        .platforms-inner {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        .platforms h2 {
+            font-size: 1.8rem;
+            margin-bottom: 16px;
+            color: var(--navy);
+        }
+
+        .platforms-lead {
+            font-size: 1.15rem;
+            color: var(--text);
+            font-weight: 500;
+            margin-bottom: 12px;
+        }
+
+        .platforms-body {
+            color: var(--text-muted);
+            line-height: 1.8;
+            margin-bottom: 32px;
+        }
+
+        .platforms-body .accent {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .platforms-list {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .platforms-device {
+            background: var(--card-bg);
+            color: var(--navy);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            border: 1px solid rgba(201, 169, 97, 0.5);
+        }
+
+        /* Brand intro */
+        .brand-intro {
+            text-align: center;
+            padding: 80px 20px 60px;
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        .brand-intro h1 {
+            font-size: 2.6rem;
+            font-weight: 800;
+            margin-bottom: 12px;
+            letter-spacing: -0.02em;
+            color: var(--navy);
+        }
+
+        .brand-intro .name-origin {
+            color: var(--gold);
+            font-weight: 500;
+            font-size: 0.95rem;
+            letter-spacing: 0.02em;
+            margin-bottom: 28px;
+            display: block;
+        }
+
+        .brand-intro .lead {
+            font-size: 1.15rem;
+            color: var(--text);
+            font-weight: 500;
+            margin-bottom: 16px;
+        }
+
+        .brand-intro .body {
+            font-size: 1rem;
+            color: var(--text-muted);
+            line-height: 1.9;
+        }
+
+        .brand-intro .highlight {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
         /* CTA */
         .cta {
             text-align: center;
@@ -359,6 +459,7 @@
         .cta h2 {
             font-size: 1.8rem;
             margin-bottom: 12px;
+            color: var(--navy);
         }
 
         .cta p {
@@ -366,28 +467,53 @@
             margin-bottom: 28px;
         }
 
+        .cta .meta {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-top: 24px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            flex-wrap: wrap;
+        }
+
+        .cta .meta span::before {
+            content: '✓ ';
+            color: var(--accent);
+            font-weight: 700;
+        }
+
         /* Footer */
         footer {
             text-align: center;
-            padding: 40px 20px;
+            padding: 48px 20px 40px;
             font-size: 0.9rem;
-            color: var(--text-muted);
-            background: var(--card-bg);
+            color: rgba(255,255,255,0.6);
+            background: var(--navy-deep);
         }
 
         footer a {
-            color: var(--text-muted);
+            color: rgba(255,255,255,0.7);
             text-decoration: none;
             margin: 0 12px;
             transition: color 0.2s;
         }
 
         footer a:hover {
-            color: var(--accent);
+            color: var(--gold);
         }
 
         .footer-links {
             margin-bottom: 16px;
+        }
+
+        .footer-logo {
+            width: 56px;
+            height: 56px;
+            border-radius: 13px;
+            margin: 0 auto 16px;
+            display: block;
+            opacity: 0.95;
         }
 
         /* Responsive */
@@ -446,13 +572,18 @@
 </head>
 <body>
     <section class="hero">
-        <img src="assets/logo.png" alt="Seekthea" class="logo">
-        <h1>Seekthea</h1>
-        <p class="subtitle">ウェブ全体のトレンドを、あなたの手に。</p>
-        <p class="tagline">ニュース・テック・ソーシャルのトレンドをまとめて収集。Apple IntelligenceのAI要約で、記事のポイントが一瞬でわかる。</p>
+        <img src="assets/og-image.png" alt="Seekthea — ウェブ全体のトレンドを見通して、探し出すアプリ" class="hero-banner">
+        <p class="subtitle">好奇心に、電光石火。</p>
         <a href="https://apps.apple.com/app/id6762122200">
             <img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/ja-jp?size=250x83" alt="App Storeからダウンロード" class="app-store-badge">
         </a>
+    </section>
+
+    <section class="brand-intro">
+        <h1>Seekthea</h1>
+        <span class="name-origin">Seek（探し求める）+ Thea（θέα: ギリシャ神話の視覚の女神）</span>
+        <p class="lead">すぐ始まる、すぐ並ぶ、すぐ読める。</p>
+        <p class="body">まずは気になるカテゴリを選ぶだけ。AIが記事を分類し、読んだ記事やお気に入りから好みを学習。<span class="highlight">興味の高い記事が、上位に並ぶ。</span>記事を開けば、広告のない本文へ直行。</p>
     </section>
 
     <div class="screenshots-wrap">
@@ -470,53 +601,13 @@
         <button class="scroll-arrow right" aria-label="次へ" type="button">›</button>
     </div>
 
-    <section class="intro">
-        <h2>自分だけのトレンドフィードを作ろう</h2>
-        <p>100以上のプリセットから好きなソースを選ぶだけ。<span class="highlight">AI要約で記事のポイントが一瞬でわかる。</span><br>RSSだから、アカウント登録もアルゴリズムの偏りもなし。あなたが選んだソースの、ありのままのトレンドを。</p>
-    </section>
-
-    <section class="features">
-        <h2>主な機能</h2>
-        <div class="feature-grid">
-            <div class="feature">
-                <div class="feature-icon">&#x1F680;</div>
-                <h3>すぐに始められる</h3>
-                <p>14カテゴリ100以上のプリセットから興味のあるものを選ぶだけ。RSSの知識は不要です。</p>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">&#x1F4D6;</div>
-                <h3>3つの読み方</h3>
-                <p>リーダー表示で広告を除去、AI要約で要点を即把握、Webで原文確認。記事ごとに切り替えられます。</p>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">&#x1F9E0;</div>
-                <h3>使うほど賢くなる</h3>
-                <p>読んだ記事やお気に入りから興味を学習。おすすめの精度が上がり、興味度スコアで記事の関連度が一目でわかります。</p>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">&#x1F50D;</div>
-                <h3>ソース自動発見</h3>
-                <p>Google Newsのトレンドから新しいソースを自動的に発見して提案。自分では見つけられなかったソースが増えていきます。</p>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">&#x2601;&#xFE0F;</div>
-                <h3>iCloud同期</h3>
-                <p>お気に入り・既読状態・ソース設定がiPhone・iPad・Mac・Vision Proで自動同期されます。</p>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">&#x1F3AF;</div>
-                <h3>特定ソースで絞り込み</h3>
-                <p>気になるソース1つだけを表示したり、不要なソースを除外して読めます。スコアの内訳画面で「なぜこの記事？」も確認できます。</p>
-            </div>
-        </div>
-    </section>
-
+    <!-- 選ぶだけで、始まる -->
     <section class="feature-detail">
         <div class="feature-detail-inner" style="max-width:900px;margin:0 auto;">
             <div class="feature-detail-text">
-                <h2>選ぶだけで、すぐ始まる</h2>
-                <p>RSSリーダーはフィードURLを登録するのがハードル。Seektheaでは<span class="accent">14カテゴリのプリセットから興味のあるものを選ぶだけ</span>で、100以上のソースからニュースが届き始めます。</p>
-                <p>さらに、Google Newsのトレンドを監視して新しいソースを自動発見。自分では見つけられなかったサイトが勝手に増えていきます。</p>
+                <h2>選ぶだけで、始まる。</h2>
+                <p>興味のあるカテゴリを選ぶだけで、人気のサイトが自動で追加される。<span class="accent">RSS の知識は不要、登録の手間もなし。</span></p>
+                <p>さらに Google News のトレンドから<span class="accent">新しいソースを自動発見</span>。取り込んだ記事は<span class="accent">AIが自動でカテゴリ分類</span>するので、フィルタもそのまま機能する。</p>
             </div>
             <div class="feature-detail-image">
                 <img src="assets/screenshot5.png" alt="オンボーディング">
@@ -524,29 +615,77 @@
         </div>
     </section>
 
+    <!-- 興味の高い記事が、上に -->
     <section class="feature-detail" style="background:var(--card-bg);">
         <div class="feature-detail-inner" style="max-width:900px;margin:0 auto;flex-direction:row-reverse;">
             <div class="feature-detail-text">
-                <h2>3つの読み方で、記事に集中</h2>
-                <p><span class="accent">リーダー</span> — 広告やナビゲーションを除外して本文だけを表示。記事の内容に集中できます。</p>
-                <p><span class="accent">AI要約</span> — Apple Intelligenceが記事を要約。長い記事でも要点がすぐわかります。英語の記事も日本語で要約されることがあります。</p>
-                <p><span class="accent">Web</span> — 元のサイトをそのまま表示。原文を確認したいときに。</p>
+                <h2>興味の高い記事が、上に。</h2>
+                <p><span class="accent">AIが各記事のキーワードを自動抽出</span>。読んだ記事・お気に入りから好みを学習し、興味の高い記事から順に表示する。画像つきのカードフィードで、ブラウズもしやすい。</p>
+                <p>記事ごとに <span class="accent">0〜100% の興味度スコア</span>が見える。内訳画面で「なぜこの記事が上位に？」まで確認できるので、アルゴリズムをブラックボックスにしない。</p>
             </div>
             <div class="feature-detail-image">
-                <img src="assets/screenshot2.png" alt="AI要約">
+                <img src="assets/screenshot1.png" alt="興味度スコア付きフィード">
             </div>
         </div>
     </section>
 
+    <!-- 本文だけが、目に入る -->
     <section class="feature-detail">
         <div class="feature-detail-inner" style="max-width:900px;margin:0 auto;">
             <div class="feature-detail-text">
-                <h2>使うほど、あなた好みに</h2>
-                <p>読んだ記事やお気に入りから興味を自動で学習。「おすすめ」モードでは<span class="accent">記事ごとに0〜100%の興味度スコア</span>が表示され、関連度が一目でわかります。</p>
-                <p>設定画面では、アプリが学習した興味傾向をランキングで確認できます。自分がどんなトピックをよく読んでいるか、意外な発見があるかもしれません。</p>
+                <h2>本文だけが、目に入る。</h2>
+                <p>記事を開けば、<span class="accent">広告やナビを除いた本文だけ</span>が最初から表示される。リーダーモードがデフォルトだから、開いた瞬間に読書スタート。</p>
+                <p>必要に応じて<span class="accent">AI要約</span>で要点を一望、または<span class="accent">Web原文</span>を確認。記事ごとに切り替えできる。</p>
             </div>
             <div class="feature-detail-image">
-                <img src="assets/screenshot3.png" alt="興味トピック">
+                <img src="assets/screenshot2.png" alt="リーダー・AI要約・Web原文">
+            </div>
+        </div>
+    </section>
+
+    <!-- 独立プラットフォームセクション（"続きから"の体験） -->
+    <section class="platforms">
+        <div class="platforms-inner">
+            <h2>どこでも、続きから。</h2>
+            <p class="platforms-lead">iPhone・iPad・Mac・Apple Vision Pro 全プラットフォーム対応。</p>
+            <p class="platforms-body">お気に入り・既読・ソース設定・興味トピックは <span class="accent">iCloud で自動同期</span>。電車で読み始めて、家で続きを読める。</p>
+            <div class="platforms-list" style="justify-content:center;">
+                <span class="platforms-device">iPhone</span>
+                <span class="platforms-device">iPad</span>
+                <span class="platforms-device">Mac</span>
+                <span class="platforms-device">Vision Pro</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- その他の機能 -->
+    <section class="features">
+        <h2>その他の機能</h2>
+        <div class="feature-grid">
+            <div class="feature">
+                <div class="feature-icon">&#x1F3AF;</div>
+                <h3>ソース絞り込み・除外</h3>
+                <p>気になるソースだけ表示、不要なソースを除外。複数除外スタックも可能。</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">&#x1F517;</div>
+                <h3>手動でRSS追加</h3>
+                <p>プリセット以外も自由に追加。サイトURLを入れるだけで、RSSフィードを自動検出します。</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">&#x1F5C2;&#xFE0F;</div>
+                <h3>分類カテゴリを編集</h3>
+                <p>AIが記事を分類するカテゴリ（政治・テクノロジー・スポーツ等）を自由に編集。フィルタの切り口を、自分の興味分野に合わせられます。</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">&#x1F3F7;&#xFE0F;</div>
+                <h3>興味トピックの手動設定</h3>
+                <p>AI学習に加えて、自分でも興味キーワードを登録してスコアを調整できます。</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">&#x1F9E0;</div>
+                <h3>Apple Intelligence 採用</h3>
+                <p>記事分類などの AI 処理は、すべて端末内で動作します。</p>
             </div>
         </div>
     </section>
@@ -582,7 +721,7 @@
             </div>
             <div class="target-item">
                 <span class="icon">&#x1F50E;</span>
-                <p>アルゴリズムに左右されず、自分でソースを選びたい方</p>
+                <p>好きなサイトをまとめてチェックしたい方</p>
             </div>
             <div class="target-item">
                 <span class="icon">&#x1F916;</span>
@@ -596,14 +735,14 @@
     </section>
 
     <section class="cta">
-        <h2>トレンドを、見通そう。</h2>
-        <p>Seek（探し求める）+ Thea（θέα: ギリシャ神話の視覚の女神）。ウェブ全体のトレンドを見通して、探し出すアプリ。</p>
+        <h2>好奇心を、解き放とう。</h2>
         <a href="https://apps.apple.com/app/id6762122200">
             <img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/ja-jp?size=250x83" alt="App Storeからダウンロード" class="app-store-badge">
         </a>
     </section>
 
     <footer>
+        <img src="assets/logo.png" alt="Seekthea" class="footer-logo">
         <div class="footer-links">
             <a href="privacy.html">プライバシーポリシー</a>
             <a href="terms.html">利用規約</a>
