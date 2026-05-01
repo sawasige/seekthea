@@ -393,6 +393,11 @@ struct FeedView: View {
     }
 
     private func updateCachedData() {
+        // @AppStorage の wrappedValue は struct のため、[self] キャプチャしたクロージャから
+        // 呼ぶと（classifyInBackground のコールバック等）キャプチャ時点の値で固定されてしまう。
+        // UserDefaults から直接読んで最新値を取得する。
+        let feedMode = (UserDefaults.standard.string(forKey: "feedMode")
+                        .flatMap(FeedMode.init(rawValue:))) ?? self.feedMode
         let activeFeedURLs = viewModel?.activeSourceFeedURLs() ?? []
 
         var modeFiltered = allArticles.filter { article in
