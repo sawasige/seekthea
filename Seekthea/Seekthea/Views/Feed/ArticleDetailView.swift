@@ -769,7 +769,11 @@ private struct ReaderView: View {
     var body: some View {
         WebView(page)
             .task {
-                page.load(html: buildReaderHTML(), baseURL: URL(string: "about:blank")!)
+                // baseURL に元記事の URL を渡すことで、相対リンク／画像の解決と
+                // 埋め込み iframe（YouTube 等）の origin チェック通過に必要な
+                // 親ページ origin を提供する。about:blank だと YouTube の embed が
+                // エラー 153（プレーヤー設定エラー）で再生できない。
+                page.load(html: buildReaderHTML(), baseURL: article.articleURL)
             }
             #if !os(macOS)
             .webViewOnScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { oldY, newY in
