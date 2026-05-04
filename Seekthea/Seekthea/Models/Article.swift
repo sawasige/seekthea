@@ -36,6 +36,7 @@ class Article: Identifiable {
 
     // ユーザー操作
     var isRead: Bool = false
+    var readAt: Date? = nil
     var isFavorite: Bool = false
 
     var source: Source? = nil

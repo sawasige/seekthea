@@ -80,10 +80,15 @@ struct ArticleDetailView: View {
         .onAppear {
             if !article.isRead {
                 article.isRead = true
+                article.readAt = Date()
                 try? modelContext.save()
                 // 既読化でペナルティが解除されるためスコアを再計算
                 let engine = InterestEngine(modelContainer: modelContext.container)
                 engine.rescore(article: article)
+            } else if article.readAt == nil {
+                // 旧データ（readAt 追加前に既読化された記事）に閲覧時刻を補完
+                article.readAt = Date()
+                try? modelContext.save()
             }
         }
     }
