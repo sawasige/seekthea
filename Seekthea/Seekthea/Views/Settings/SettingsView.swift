@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var backupDocument = SeektheaBackupDocument()
     @State private var isImportingBackup = false
     @State private var backupError: String?
+    @State private var newDiscoveryCount: Int = 0
 
     private var modelContainer: ModelContainer {
         modelContext.container
@@ -27,9 +28,12 @@ struct SettingsView: View {
                 NavigationLink("ソース管理") {
                     SourcesListView(modelContainer: modelContainer)
                 }
-                NavigationLink("ソース発見") {
+                NavigationLink {
                     DiscoveryView(modelContainer: modelContainer)
+                } label: {
+                    Text("ソース発見")
                 }
+                .badge(newDiscoveryCount)
                 Button("スキップしたソースを復元") {
                     restoreRejectedDomains()
                     showToast("スキップしたソースを復元しました")
@@ -99,6 +103,9 @@ struct SettingsView: View {
         .frame(maxWidth: .infinity)
         #endif
         .navigationTitle("設定")
+        .onAppear {
+            newDiscoveryCount = DiscoveryManager.shared.uncheckedSuggestionCount(in: modelContext)
+        }
         .overlay(alignment: .bottom) {
             if let message = toastMessage {
                 Text(message)

@@ -20,11 +20,16 @@ class DiscoveryManager {
 
     /// 未確認の候補があるか
     func hasUncheckedSuggestions(in context: ModelContext) -> Bool {
+        uncheckedSuggestionCount(in: context) > 0
+    }
+
+    /// 未確認の候補数
+    func uncheckedSuggestionCount(in context: ModelContext) -> Int {
         let checkedAt = Date(timeIntervalSince1970: lastCheckedTimestamp)
         let predicate = #Predicate<DiscoveredDomain> {
             $0.isSuggested && !$0.isRejected && $0.detectedFeedURL != nil && $0.lastSeenAt > checkedAt
         }
-        return ((try? context.fetchCount(FetchDescriptor(predicate: predicate))) ?? 0) > 0
+        return (try? context.fetchCount(FetchDescriptor(predicate: predicate))) ?? 0
     }
 
     /// 発見画面を確認済みにする

@@ -287,7 +287,7 @@ struct FeedView: View {
     @AppStorage("useCompactLayout") private var useCompactLayout = false
     @AppStorage("lastFeedRefreshedAt") private var lastFeedRefreshedAt: Double = 0
     @AppStorage("categoryFilterSortMode") private var filterSortModeRaw: String = CategoryFilterSortMode.count.rawValue
-    @State private var hasNewSuggestions = false
+    @State private var newSuggestionCount = 0
     @State private var sourceFilter: SourceFilter? = nil
     @State private var sessionReadIDs: Set<UUID> = []
     @State private var lockedSortKeys: [UUID: Double] = [:]
@@ -648,12 +648,12 @@ struct FeedView: View {
                         Menu {
                             feedNavigationMenuItems(
                                 modelContainer: modelContainer,
-                                hasNewSuggestions: hasNewSuggestions
+                                newSuggestionCount: newSuggestionCount
                             )
                         } label: {
                             Image(systemName: "ellipsis")
                                 .overlay(alignment: .topTrailing) {
-                                    if hasNewSuggestions {
+                                    if newSuggestionCount > 0 {
                                         Circle()
                                             .fill(.red)
                                             .frame(width: 8, height: 8)
@@ -678,13 +678,13 @@ struct FeedView: View {
                         reloadArticles()
                         updateCachedData()
                     }
-                    hasNewSuggestions = DiscoveryManager.shared.hasUncheckedSuggestions(in: modelContext)
+                    newSuggestionCount = DiscoveryManager.shared.uncheckedSuggestionCount(in: modelContext)
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .onboardingCompleted)) { _ in
                     Task { await refreshAll() }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .discoveryCompleted)) { _ in
-                    hasNewSuggestions = DiscoveryManager.shared.hasUncheckedSuggestions(in: modelContext)
+                    newSuggestionCount = DiscoveryManager.shared.uncheckedSuggestionCount(in: modelContext)
                 }
                 .onReceive(reloadTriggerPublisher) { _ in
                     reloadArticles()
@@ -745,7 +745,7 @@ struct FeedView: View {
                         feedStatus: feedStatus,
                         discoveryStatus: discoveryStatus,
                         syncStatus: syncStatus,
-                        hasNewSuggestions: hasNewSuggestions,
+                        newSuggestionCount: newSuggestionCount,
                         modelContainer: modelContainer,
                         useCompactLayout: $useCompactLayout,
                         feedMode: $feedMode
@@ -1055,7 +1055,7 @@ struct FeedView: View {
                 viewModel?.statusMessage = nil
                 reloadArticles()
                 updateCachedData()
-                hasNewSuggestions = DiscoveryManager.shared.hasUncheckedSuggestions(in: modelContext)
+                newSuggestionCount = DiscoveryManager.shared.uncheckedSuggestionCount(in: modelContext)
             }
         )
     }
@@ -1228,7 +1228,7 @@ private struct FeedFloatingFooter: View {
     let feedStatus: String?
     let discoveryStatus: String?
     let syncStatus: String?
-    let hasNewSuggestions: Bool
+    let newSuggestionCount: Int
     let modelContainer: ModelContainer
     @Binding var useCompactLayout: Bool
     @Binding var feedMode: FeedMode
@@ -1253,7 +1253,7 @@ private struct FeedFloatingFooter: View {
                     .frame(height: 22)
                 FloatingActionBar(
                     modelContainer: modelContainer,
-                    hasNewSuggestions: hasNewSuggestions,
+                    newSuggestionCount: newSuggestionCount,
                     useCompactLayout: $useCompactLayout
                 )
             }
@@ -1273,7 +1273,7 @@ private struct FeedFloatingFooter: View {
 /// FeedView の浮遊メニュー (iOS) と toolbar メニュー (macOS / visionOS) で共通の遷移項目。
 /// iOS 側は先頭に「コンパクト切替」を別途追加する。
 @ViewBuilder
-private func feedNavigationMenuItems(modelContainer: ModelContainer, hasNewSuggestions: Bool) -> some View {
+private func feedNavigationMenuItems(modelContainer: ModelContainer, newSuggestionCount: Int) -> some View {
     NavigationLink {
         SourcesListView(modelContainer: modelContainer)
     } label: {
@@ -1283,7 +1283,7 @@ private func feedNavigationMenuItems(modelContainer: ModelContainer, hasNewSugge
         DiscoveryView(modelContainer: modelContainer)
     } label: {
         Label(
-            hasNewSuggestions ? "ソース発見（新着あり）" : "ソース発見",
+            newSuggestionCount > 0 ? "ソース発見（新着\(newSuggestionCount)件）" : "ソース発見",
             systemImage: "sparkle.magnifyingglass"
         )
     }
@@ -1333,7 +1333,7 @@ private struct StatusProgressCapsule: View {
 /// 右下に浮遊表示する丸ボタン。Menu で コンパクト切替 / 発見 / ソース管理 / 設定 にアクセス。
 private struct FloatingActionBar: View {
     let modelContainer: ModelContainer
-    let hasNewSuggestions: Bool
+    let newSuggestionCount: Int
     @Binding var useCompactLayout: Bool
 
     var body: some View {
@@ -1351,7 +1351,7 @@ private struct FloatingActionBar: View {
             Divider()
             feedNavigationMenuItems(
                 modelContainer: modelContainer,
-                hasNewSuggestions: hasNewSuggestions
+                newSuggestionCount: newSuggestionCount
             )
         } label: {
             Image(systemName: "ellipsis")
@@ -1360,7 +1360,7 @@ private struct FloatingActionBar: View {
                 .frame(width: 48, height: 48)
                 .contentShape(Rectangle())
                 .overlay(alignment: .topTrailing) {
-                    if hasNewSuggestions {
+                    if newSuggestionCount > 0 {
                         Circle()
                             .fill(.red)
                             .frame(width: 10, height: 10)
