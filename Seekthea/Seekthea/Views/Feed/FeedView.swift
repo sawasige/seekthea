@@ -291,6 +291,7 @@ struct FeedView: View {
     @State private var sourceFilter: SourceFilter? = nil
     @State private var sessionReadIDs: Set<UUID> = []
     @State private var lockedSortKeys: [UUID: Double] = [:]
+    @State private var lockedHistoryDates: [UUID: Date] = [:]
     @State private var wasBackgrounded = false
     @State private var hasInitialRefreshed = false
     @State private var scoreBreakdownArticle: Article?
@@ -447,7 +448,14 @@ struct FeedView: View {
         case .latest, .favorites:
             break
         case .history:
-            modeFiltered.sort { ($0.fetchedAt) > ($1.fetchedAt) }
+            // 表示中の閲覧時刻をロック: 開いた記事が並びの先頭に飛ぶと見失うため、
+            // リフレッシュまでは初回表示時の readAt（無ければ fetchedAt）で固定
+            var lockedDates = lockedHistoryDates
+            for article in modeFiltered where lockedDates[article.id] == nil {
+                lockedDates[article.id] = article.readAt ?? article.fetchedAt
+            }
+            lockedHistoryDates = lockedDates
+            modeFiltered.sort { (lockedDates[$0.id] ?? .distantPast) > (lockedDates[$1.id] ?? .distantPast) }
         }
 
         cachedModeArticles = modeFiltered
@@ -626,6 +634,7 @@ struct FeedView: View {
                         Button {
                             sessionReadIDs.removeAll()
                             lockedSortKeys.removeAll()
+                            lockedHistoryDates.removeAll()
                             Task { await refreshAll() }
                         } label: {
                             Image(systemName: "arrow.clockwise")
@@ -690,6 +699,7 @@ struct FeedView: View {
                         if wasBackgrounded {
                             wasBackgrounded = false
                             lockedSortKeys.removeAll()
+                            lockedHistoryDates.removeAll()
                             sessionReadIDs.removeAll()
                         }
                         reloadArticles()
@@ -830,6 +840,7 @@ struct FeedView: View {
             .refreshable {
                 sessionReadIDs.removeAll()
                 lockedSortKeys.removeAll()
+                lockedHistoryDates.removeAll()
                 await refreshAll()
             }
         }
