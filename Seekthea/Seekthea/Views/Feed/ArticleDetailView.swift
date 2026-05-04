@@ -30,6 +30,8 @@ struct ArticleDetailView: View {
     @State private var showFailureNotice = false
     @State private var showScoreBreakdown = false
     @State private var webPage = WebPage()
+    @State private var readerPage = WebPage()
+    @State private var readerHasNavigated = false
     @State private var scrollState = ScrollState()
 
     var body: some View {
@@ -182,7 +184,18 @@ struct ArticleDetailView: View {
         ZStack {
             switch viewMode {
             case .reader:
-                ReaderView(article: article, extracted: extracted)
+                ReaderView(
+                    article: article,
+                    extracted: extracted,
+                    page: readerPage,
+                    hasNavigated: $readerHasNavigated
+                )
+                .safeAreaInset(edge: .bottom) {
+                    if readerHasNavigated {
+                        WebNavBar(page: readerPage, onBackBeyondHistory: restoreReader(extracted: extracted))
+                            .padding(.bottom, 8)
+                    }
+                }
             case .aiSummary:
                 AISummaryView(article: article)
             case .web:
@@ -211,6 +224,8 @@ struct ArticleDetailView: View {
             article: article,
             extracted: extracted,
             webPage: webPage,
+            readerPage: readerPage,
+            readerHasNavigated: $readerHasNavigated,
             scrollState: scrollState,
             selection: $viewMode
         )
@@ -220,6 +235,8 @@ struct ArticleDetailView: View {
                 VStack(spacing: 8) {
                     if viewMode == .web {
                         WebNavBar(page: webPage)
+                    } else if viewMode == .reader && readerHasNavigated {
+                        WebNavBar(page: readerPage, onBackBeyondHistory: restoreReader(extracted: extracted))
                     }
                     HStack(spacing: 8) {
                         ForEach(DetailViewMode.allCases, id: \.self) { mode in
@@ -250,6 +267,17 @@ struct ArticleDetailView: View {
         loadingStage = "記事ページを取得中..."
         isLoading = true
         await loadContent()
+    }
+
+    /// ナビバーの戻るが履歴外（リーダーのHTMLは backForwardList に積まれない）に達した時に
+    /// リーダーHTML を再ロードして元に戻すクロージャを返す。
+    private func restoreReader(extracted: ReadabilityExtractor.Article) -> () -> Void {
+        return { [readerPage, article] in
+            readerPage.load(
+                html: ReaderView.buildReaderHTML(article: article, extracted: extracted),
+                baseURL: article.articleURL
+            )
+        }
     }
 
     private func reprocessAI() async {
@@ -642,6 +670,8 @@ private struct DetailPagingView: UIViewControllerRepresentable {
     let article: Article
     let extracted: ReadabilityExtractor.Article
     let webPage: WebPage
+    let readerPage: WebPage
+    @Binding var readerHasNavigated: Bool
     let scrollState: ScrollState
     @Binding var selection: DetailViewMode
 
@@ -684,7 +714,13 @@ private struct DetailPagingView: UIViewControllerRepresentable {
             let vc: UIViewController
             switch mode {
             case .reader:
-                vc = UIHostingController(rootView: ReaderView(article: parent.article, extracted: parent.extracted, scrollState: parent.scrollState))
+                vc = UIHostingController(rootView: ReaderView(
+                    article: parent.article,
+                    extracted: parent.extracted,
+                    page: parent.readerPage,
+                    hasNavigated: parent.$readerHasNavigated,
+                    scrollState: parent.scrollState
+                ))
             case .aiSummary:
                 vc = UIHostingController(rootView: AISummaryView(article: parent.article, scrollState: parent.scrollState))
             case .web:
@@ -760,11 +796,14 @@ private struct DetailModeButton: View {
     }
 }
 
-private struct ReaderView: View {
+fileprivate struct ReaderView: View {
     let article: Article
     let extracted: ReadabilityExtractor.Article
+    /// WebPage は親に持ち上げてある。本文中の <a> をタップして外部 URL に移動したかを
+    /// 親に通知する必要があるため、戻る／リロードのバーは親側 (iosContent) で表示する。
+    let page: WebPage
+    @Binding var hasNavigated: Bool
     var scrollState: ScrollState? = nil
-    @State private var page = WebPage()
 
     var body: some View {
         WebView(page)
@@ -775,6 +814,9 @@ private struct ReaderView: View {
                 // エラー 153（プレーヤー設定エラー）で再生できない。
                 page.load(html: buildReaderHTML(), baseURL: article.articleURL)
             }
+            .onChange(of: page.url) { _, newURL in
+                hasNavigated = newURL != nil && newURL != article.articleURL
+            }
             #if !os(macOS)
             .webViewOnScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { oldY, newY in
                 scrollState?.reportScroll(oldY: oldY, newY: newY)
@@ -783,6 +825,11 @@ private struct ReaderView: View {
     }
 
     private func buildReaderHTML() -> String {
+        Self.buildReaderHTML(article: article, extracted: extracted)
+    }
+
+    /// 親（ArticleDetailView）から戻るボタンの履歴外フォールバックで再ロード時にも使うため static にしてある。
+    fileprivate static func buildReaderHTML(article: Article, extracted: ReadabilityExtractor.Article) -> String {
         let title = escapeHTML(extracted.title)
         let sourceName = escapeHTML(article.source?.name ?? extracted.siteName ?? "")
         let byline = extracted.byline.map { "　" + escapeHTML($0) } ?? ""
@@ -866,7 +913,7 @@ private struct ReaderView: View {
             <h1>\(title)</h1>
             <div class="meta">\(escapeHTML(sourceName))\(byline)　\(escapeHTML(dateStr))</div>
             <hr>
-            <div class="content">\(heroImageHTML())\(extracted.content)</div>
+            <div class="content">\(heroImageHTML(article: article, extracted: extracted))\(extracted.content)</div>
             <script>
             // 読み込みに失敗した画像はプレースホルダを出さず非表示にする
             // (404 / 認証必須 / CORS ブロック等の broken image 対策)
@@ -883,13 +930,13 @@ private struct ReaderView: View {
     /// Readability が落としがちな OG 画像を、本文に同じ URL が含まれていなければ先頭に補う。
     /// 画像のロードに失敗した場合（Qiita 等で OG URL が 404 を返すケース）はプレースホルダを
     /// 出さず非表示にする。
-    private func heroImageHTML() -> String {
+    fileprivate static func heroImageHTML(article: Article, extracted: ReadabilityExtractor.Article) -> String {
         guard let url = article.ogImageURL?.absoluteString, !url.isEmpty else { return "" }
         if extracted.content.range(of: url, options: .caseInsensitive) != nil { return "" }
         return "<img class=\"hero\" src=\"\(escapeHTML(url))\" onerror=\"this.style.display='none'\">"
     }
 
-    private func escapeHTML(_ text: String) -> String {
+    fileprivate static func escapeHTML(_ text: String) -> String {
         text.replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
@@ -937,22 +984,30 @@ struct ArticleWebView: View {
 
 struct WebNavBar: View {
     let page: WebPage
+    /// ネイティブの戻る履歴（backForwardList）が空のときに代わりに呼ぶ閉包。
+    /// 例: リーダーで `load(html:)` した後にリンク先へ移動した場合、その時点の
+    /// backList は空のままなので戻る手段が無くなる。これを使ってリーダーHTMLの
+    /// 再ロードなどに使う。
+    var onBackBeyondHistory: (() -> Void)? = nil
 
     var body: some View {
         // URL変更を観測して再描画を促す（backForwardListだけでは追跡されない）
         let _ = page.url
         let _ = page.isLoading
+        let canNativeBack = !page.backForwardList.backList.isEmpty
 
         HStack(spacing: 24) {
             Button {
-                if let item = page.backForwardList.backList.last {
+                if canNativeBack, let item = page.backForwardList.backList.last {
                     page.load(item)
+                } else {
+                    onBackBeyondHistory?()
                 }
             } label: {
                 Image(systemName: "chevron.backward")
                     .font(.title3)
             }
-            .disabled(page.backForwardList.backList.isEmpty)
+            .disabled(!canNativeBack && onBackBeyondHistory == nil)
 
             Button {
                 if page.isLoading {
