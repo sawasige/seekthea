@@ -1,6 +1,11 @@
 import SwiftUI
 import SwiftData
 import WebKit
+#if os(iOS) || os(visionOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 // MARK: - 表示モード
 
@@ -29,8 +34,8 @@ struct ArticleDetailView: View {
     @State private var loadingStage: String = "記事ページを取得中..."
     @State private var showFailureNotice = false
     @State private var showScoreBreakdown = false
-    @State private var webPage = WebPage()
-    @State private var readerPage = WebPage()
+    @State private var webPage = makeConfiguredWebPage()
+    @State private var readerPage = makeConfiguredWebPage()
     @State private var readerHasNavigated = false
     @State private var scrollState = ScrollState()
 
@@ -398,7 +403,7 @@ private struct LoadingPreviewView: View {
 private struct AISummaryView: View {
     let article: Article
     var scrollState: ScrollState? = nil
-    @State private var page = WebPage()
+    @State private var page = makeConfiguredWebPage()
 
     private var isAIProcessing: Bool {
         AIProgressTracker.shared.isProcessing(article.id)
@@ -950,9 +955,35 @@ final class ScrollState {
 
 // MARK: - ConfiguredWebView（共通ラッパー：scroll連動・新ウィンドウ処理など）
 
+/// `target="_blank"` などの新規ウィンドウ要求を Safari で開くナビゲーション判定。
+/// `action.target` が nil なら新規ウィンドウへの遷移要求なので、現在の WebView では開かず
+/// 外部ブラウザに渡す。
+@MainActor
+fileprivate struct ExternalWindowOpener: WebPage.NavigationDeciding {
+    mutating func decidePolicy(
+        for action: WebPage.NavigationAction,
+        preferences: inout WebPage.NavigationPreferences
+    ) async -> WKNavigationActionPolicy {
+        if action.target == nil, let url = action.request.url {
+            #if os(iOS) || os(visionOS)
+            await UIApplication.shared.open(url)
+            #elseif os(macOS)
+            NSWorkspace.shared.open(url)
+            #endif
+            return .cancel
+        }
+        return .allow
+    }
+}
+
+/// `target="_blank"` のリンクを Safari で開くようにした WebPage を生成。
+@MainActor
+fileprivate func makeConfiguredWebPage() -> WebPage {
+    WebPage(navigationDecider: ExternalWindowOpener())
+}
+
 /// アプリ内で WebPage を表示する共通ラッパー。
 /// - スクロールに連動してナビバーを隠す挙動
-/// - （今後）`target="_blank"` などの新ウィンドウ要求を Safari で開く挙動
 /// など、すべての WebView 利用箇所で揃えたい設定をここに集約する。
 fileprivate struct ConfiguredWebView: View {
     let page: WebPage
