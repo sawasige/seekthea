@@ -446,8 +446,7 @@ private struct AISummaryView: View {
         :root { color-scheme: light dark; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif;
-            font-size: 18px;
+            font: -apple-system-body;
             line-height: 1.8;
             color: #1d1d1f;
             background: #fff;
@@ -467,17 +466,17 @@ private struct AISummaryView: View {
             .tag.keyword { background: rgba(50,130,246,0.2); color: #64a8ff; }
             .tag.category { background: rgba(255,159,10,0.2); color: #ffa33a; }
         }
-        h1 { font-size: 22px; line-height: 1.4; margin-bottom: 8px; font-weight: 700; }
-        .meta { font-size: 13px; color: #86868b; margin-bottom: 16px; }
+        h1 { font: -apple-system-title2; line-height: 1.4; margin-bottom: 8px; font-weight: 700; }
+        .meta { font: -apple-system-footnote; color: #86868b; margin-bottom: 16px; }
         .ai-label {
-            font-size: 14px; font-weight: 600; color: #007aff;
+            font: -apple-system-subheadline; font-weight: 600; color: #007aff;
             margin-bottom: 12px;
         }
         hr { border: none; border-top: 1px solid #d2d2d7; margin: 16px 0; }
         .summary p { margin-bottom: 14px; }
-        .summary h2 { font-size: 20px; margin: 24px 0 10px; font-weight: 700; color: #1d1d1f; }
-        .summary h3 { font-size: 18px; margin: 20px 0 8px; font-weight: 600; color: #1d1d1f; }
-        .summary h4 { font-size: 16px; margin: 18px 0 6px; font-weight: 600; color: #1d1d1f; }
+        .summary h2 { font: -apple-system-title3; margin: 24px 0 10px; font-weight: 700; color: #1d1d1f; }
+        .summary h3 { font: -apple-system-headline; margin: 20px 0 8px; color: #1d1d1f; }
+        .summary h4 { font: -apple-system-callout; margin: 18px 0 6px; font-weight: 600; color: #1d1d1f; }
         .summary ul, .summary ol { padding-left: 24px; margin: 10px 0; }
         .summary li { margin-bottom: 6px; }
         .summary strong { font-weight: 600; }
@@ -485,12 +484,12 @@ private struct AISummaryView: View {
             border-left: 3px solid #d2d2d7; margin: 14px 0;
             padding: 8px 16px; color: #6e6e73; font-style: italic;
         }
-        table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 15px; }
+        table { font: -apple-system-subheadline; border-collapse: collapse; width: 100%; margin: 14px 0; }
         th, td { border: 1px solid #d2d2d7; padding: 8px 12px; text-align: left; }
         th { background: #f5f5f7; font-weight: 600; }
         .tags { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
         .tag {
-            font-size: 13px; padding: 4px 10px; border-radius: 20px; display: inline-block;
+            font: -apple-system-footnote; padding: 4px 10px; border-radius: 20px; display: inline-block;
         }
         .tag.keyword { background: rgba(50,130,246,0.1); color: #007aff; }
         .tag.category { background: rgba(255,159,10,0.1); color: #ff9500; }
@@ -792,8 +791,7 @@ private struct ReaderView: View {
         :root { color-scheme: light dark; }
         * { box-sizing: border-box; }
         body {
-            font-family: -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif;
-            font-size: 17px;
+            font: -apple-system-body;
             line-height: 1.9;
             color: #1d1d1f;
             background: #fff;
@@ -819,8 +817,8 @@ private struct ReaderView: View {
             .content a { color: #64d2ff; }
             hr { border-color: #38383a; }
         }
-        h1 { font-size: 24px; line-height: 1.4; margin: 0 0 8px; font-weight: 700; }
-        .meta { font-size: 13px; color: #86868b; margin-bottom: 20px; }
+        h1 { font: -apple-system-title2; line-height: 1.4; margin: 0 0 8px; font-weight: 700; }
+        .meta { font: -apple-system-footnote; color: #86868b; margin-bottom: 20px; }
         hr { border: none; border-top: 1px solid #d2d2d7; margin: 0 0 24px; }
         .content img {
             max-width: 100%; height: auto;
@@ -831,9 +829,9 @@ private struct ReaderView: View {
             margin-bottom: 24px;
         }
         .content p { margin: 0 0 18px; }
-        .content h2 { font-size: 20px; margin: 32px 0 12px; }
-        .content h3 { font-size: 18px; margin: 28px 0 10px; }
-        .content h4 { font-size: 16px; margin: 24px 0 8px; }
+        .content h2 { font: -apple-system-title3; margin: 32px 0 12px; }
+        .content h3 { font: -apple-system-headline; margin: 28px 0 10px; }
+        .content h4 { font: -apple-system-callout; margin: 24px 0 8px; }
         .content ul, .content ol { padding-left: 24px; margin: 12px 0; }
         .content li { margin-bottom: 8px; }
         .content blockquote {
@@ -841,15 +839,15 @@ private struct ReaderView: View {
             padding: 8px 16px; color: #6e6e73; font-style: italic;
         }
         .content pre {
-            font-size: 14px; background: #f5f5f7; border-radius: 8px;
+            font: -apple-system-footnote; background: #f5f5f7; border-radius: 8px;
             padding: 14px; overflow-x: auto; line-height: 1.5;
         }
-        .content code { font-size: 14px; background: #f5f5f7; padding: 2px 6px; border-radius: 4px; }
+        .content code { font: -apple-system-footnote; background: #f5f5f7; padding: 2px 6px; border-radius: 4px; }
         .content pre code { background: none; padding: 0; }
         .content table { border-collapse: collapse; width: 100%; margin: 16px 0; }
-        .content th, .content td { border: 1px solid #d2d2d7; padding: 8px 12px; text-align: left; font-size: 14px; }
+        .content th, .content td { border: 1px solid #d2d2d7; padding: 8px 12px; text-align: left; font: -apple-system-subheadline; }
         .content figure { margin: 16px 0; }
-        .content figcaption { font-size: 13px; color: #86868b; text-align: center; margin-top: 6px; }
+        .content figcaption { font: -apple-system-footnote; color: #86868b; text-align: center; margin-top: 6px; }
         .content a { color: #0066cc; text-decoration: none; }
         .content a:hover { text-decoration: underline; }
         .content video, .content iframe { max-width: 100%; }
