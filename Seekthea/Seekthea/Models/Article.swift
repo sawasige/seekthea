@@ -23,6 +23,10 @@ class Article: Identifiable {
     // AI処理結果（カテゴリ・キーワードはスコアリングで使うため永続化）
     // 要約はメモリキャッシュ（AISummaryCache）のみ、永続化しない
     var aiCategory: String? = nil
+    /// 分類失敗の理由。aiCategory が "" の時のみ意味を持つ。
+    /// nil = 失敗していない、"refused" = Apple AI の安全拒否、"other" = それ以外のエラー。
+    /// 将来的に "deviceUnsupported" 等を追加する余地あり。
+    var aiClassificationError: String? = nil
     var keywordsRaw: String = ""
     var keywordsEnRaw: String = ""
 
@@ -80,6 +84,11 @@ class Article: Identifiable {
     /// 分類処理を試みたが分類できなかった
     var classificationFailed: Bool {
         aiCategory == ""
+    }
+
+    /// 安全フィルタで Apple AI に拒否されて分類できなかった
+    var classificationRefused: Bool {
+        classificationFailed && aiClassificationError == "refused"
     }
 
     var displayImageURL: URL? {

@@ -256,10 +256,12 @@ class AIProcessor {
                 #endif
                 if let name = mappedName {
                     article.aiCategory = name
+                    article.aiClassificationError = nil
                 } else {
                     // letter以外（カテゴリ名そのものなど）が返ってきた時はマップ失敗。
                     // 空文字を入れて「処理済」扱いにしないと、次回も同じ記事を拾って無限ループする
                     article.aiCategory = ""
+                    article.aiClassificationError = "other"
                     #if DEBUG
                     print("[AI分類] ⚠️マップ失敗（category='\(result.category)'）: \(article.title)")
                     #endif
@@ -273,8 +275,13 @@ class AIProcessor {
                 #if DEBUG
                 print("[AI分類] ✗失敗（\(String(format: "%.2f", elapsed))秒）: \(article.title) — \(error)")
                 #endif
-                // 失敗時は空文字をマークして無限ループ防止（"未分類"扱い）
+                // 失敗時は空文字をマークして無限ループ防止
                 article.aiCategory = ""
+                if case LanguageModelSession.GenerationError.refusal = error {
+                    article.aiClassificationError = "refused"
+                } else {
+                    article.aiClassificationError = "other"
+                }
                 try? context.save()
             }
         }
@@ -302,6 +309,7 @@ class AIProcessor {
         guard let article = context.model(for: articleID) as? Article else { return }
         AISummaryCache.shared.remove(article.id)
         article.aiCategory = nil
+        article.aiClassificationError = nil
         article.keywordsRaw = ""
         article.keywordsEnRaw = ""
         try? context.save()
@@ -318,39 +326,62 @@ class AIProcessor {
         let catList = labeledCategoryList
         let catDescBlock = categoryDescriptionsBlock
         let desc = article.leadText ?? article.ogDescription ?? ""
-        let truncated = desc.isEmpty ? "" : "\n内容: \(String(desc.prefix(200)))"
+        let isThin = Self.isThinBody(desc)
+        let articleSection: String
+        let keywordInstruction: String
+        if isThin {
+            articleSection = "タイトル: \(article.title)"
+            keywordInstruction = "上のタイトルから抽出できる重要語句を日本語で（最大5つ。抽出できる語が少なければ無理に揃えなくてよい）"
+        } else {
+            articleSection = "タイトル: \(article.title)\n内容: \(String(desc.prefix(200)))"
+            keywordInstruction = "上の記事タイトル・内容に実際に登場する重要語句を日本語で最大5つ抽出（カテゴリ参考の語ではなく、記事本文から）"
+        }
 
+        let prompt = """
+        以下の記事を分類し、キーワードを抽出してください。
+
+        【カテゴリ】
+        \(catList)
+
+        【参考: 各カテゴリの傾向】
+        \(catDescBlock)
+
+        【記事】
+        \(articleSection)
+
+        【出力】
+        - category: 最も適切なカテゴリのアルファベットを1つだけ
+        - keywords: \(keywordInstruction)
+        - keywordsEn: keywordsと同じ順序で各キーワードを英語1単語に翻訳
+        """
         do {
             let session = LanguageModelSession()
-            let prompt = """
-            以下の記事を分類し、キーワードを抽出してください。
-
-            【カテゴリ】
-            \(catList)
-
-            【参考: 各カテゴリの傾向】
-            \(catDescBlock)
-
-            【記事】
-            タイトル: \(article.title)\(truncated)
-
-            【出力】
-            - category: 最も適切なカテゴリのアルファベットを1つだけ
-            - keywords: 上の記事タイトル・内容に実際に登場する重要語句を日本語で最大5つ抽出（カテゴリ参考の語ではなく、記事本文から）
-            - keywordsEn: keywordsと同じ順序で各キーワードを英語1単語に翻訳
-            """
             let response = try await session.respond(to: prompt, generating: CategoryResult.self)
             let result = response.content
-            if let name = categoryName(from: result.category) {
+            let mappedName = categoryName(from: result.category)
+            if let name = mappedName {
                 article.aiCategory = name
+                article.aiClassificationError = nil
             } else {
                 article.aiCategory = ""
+                article.aiClassificationError = "other"
+                #if DEBUG
+                print("[AI再分類] ⚠️マップ失敗（category='\(result.category)'）: \(article.title)")
+                #endif
             }
             article.keywords = result.keywords
             article.keywordsEn = result.keywordsEn
             try? context.save()
         } catch {
+            #if DEBUG
+            print("[AI再分類] ✗失敗: \(article.title) — \(error)")
+            #endif
             article.aiCategory = ""
+            if case LanguageModelSession.GenerationError.refusal = error {
+                article.aiClassificationError = "refused"
+            } else {
+                article.aiClassificationError = "other"
+            }
             try? context.save()
         }
         #endif
