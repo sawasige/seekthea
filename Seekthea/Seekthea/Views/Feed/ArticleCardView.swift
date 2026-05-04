@@ -85,7 +85,7 @@ struct ArticleCardView: View {
                         }
                     }
                 } else if article.classificationFailed {
-                    Text("未分類")
+                    Text(article.classificationRefused ? "対象外" : "分類失敗")
                         .font(badgeFont)
                         .foregroundStyle(.tertiary)
                 }

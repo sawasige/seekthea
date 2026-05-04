@@ -477,6 +477,12 @@ fileprivate struct AISummaryView: View {
     <div class="shimmer-block" style="width:60%"></div>
     """
 
+    /// カテゴリ・キーワードの状態をまとめた識別子。これが変わったら
+    /// AI 結果が変わったということなので HTML 全体を再ロードする。
+    private var aiResultKey: String {
+        "\(article.aiCategory ?? "(nil)")|\(article.keywordsRaw)|\(article.keywordsEnRaw)"
+    }
+
     var body: some View {
         ConfiguredWebView(page: page, scrollState: scrollState)
             .task {
@@ -501,6 +507,11 @@ fileprivate struct AISummaryView: View {
                     try? await page.callJavaScript("document.getElementById('summary').innerHTML = '\(escaped)';")
                 }
             }
+            .onChange(of: aiResultKey) {
+                // カテゴリ・キーワードが変わったら HTML 全体を再ロード
+                // （JS で summary 部分しか更新していないため）
+                page.load(html: buildSummaryHTML(), baseURL: URL(string: "about:blank")!)
+            }
     }
 
     private func buildSummaryHTML() -> String {
@@ -521,10 +532,16 @@ fileprivate struct AISummaryView: View {
             return "<div class=\"tags\">\(tags)</div>"
         }()
 
-        let categoriesHTML = article.categories.isEmpty ? "" : {
+        let categoriesHTML: String
+        if !article.categories.isEmpty {
             let tags = article.categories.map { "<span class=\"tag category\">\(escapeHTML($0))</span>" }.joined()
-            return "<div class=\"tags\">\(tags)</div>"
-        }()
+            categoriesHTML = "<div class=\"tags\">\(tags)</div>"
+        } else if article.classificationFailed {
+            let label = article.classificationRefused ? "対象外" : "分類失敗"
+            categoriesHTML = "<div class=\"tags\"><span class=\"tag category\">\(label)</span></div>"
+        } else {
+            categoriesHTML = ""
+        }
 
         // Markdown→HTML簡易変換
         let summaryHTML = summary.isEmpty ? "" : markdownToHTML(summary)
