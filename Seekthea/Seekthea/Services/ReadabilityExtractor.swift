@@ -129,7 +129,10 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
             try {
                 var documentClone = document.cloneNode(true);
                 __seekthea_cleanDOM(documentClone);
-                var reader = new Readability(documentClone);
+                // linkDensityModifier: デフォルト 0 だと「リンク密度が高い段落」を
+                // 過剰に除去してしまう（GIGAZINE 等で冒頭の Amazon／GitHub リンク混じりの
+                // 紹介段落が消える）。0.5 まで緩めると本文が正しく残る。
+                var reader = new Readability(documentClone, { linkDensityModifier: 0.5 });
                 var article = reader.parse();
                 if (article) {
                     window.webkit.messageHandlers.readabilityResult.postMessage({
