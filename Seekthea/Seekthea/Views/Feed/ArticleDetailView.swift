@@ -415,7 +415,7 @@ private struct AISummaryView: View {
     """
 
     var body: some View {
-        WebView(page)
+        ConfiguredWebView(page: page, scrollState: scrollState)
             .task {
                 page.load(html: buildSummaryHTML(), baseURL: URL(string: "about:blank")!)
             }
@@ -435,11 +435,6 @@ private struct AISummaryView: View {
                     try? await page.callJavaScript("document.getElementById('summary').innerHTML = '\(escaped)';")
                 }
             }
-            #if !os(macOS)
-            .webViewOnScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { oldY, newY in
-                scrollState?.reportScroll(oldY: oldY, newY: newY)
-            }
-            #endif
     }
 
     private func buildSummaryHTML() -> String {
@@ -806,7 +801,7 @@ fileprivate struct ReaderView: View {
     var scrollState: ScrollState? = nil
 
     var body: some View {
-        WebView(page)
+        ConfiguredWebView(page: page, scrollState: scrollState)
             .task {
                 // baseURL に元記事の URL を渡すことで、相対リンク／画像の解決と
                 // 埋め込み iframe（YouTube 等）の origin チェック通過に必要な
@@ -817,11 +812,6 @@ fileprivate struct ReaderView: View {
             .onChange(of: page.url) { _, newURL in
                 hasNavigated = newURL != nil && newURL != article.articleURL
             }
-            #if !os(macOS)
-            .webViewOnScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { oldY, newY in
-                scrollState?.reportScroll(oldY: oldY, newY: newY)
-            }
-            #endif
     }
 
     private func buildReaderHTML() -> String {
@@ -958,6 +948,26 @@ final class ScrollState {
     }
 }
 
+// MARK: - ConfiguredWebView（共通ラッパー：scroll連動・新ウィンドウ処理など）
+
+/// アプリ内で WebPage を表示する共通ラッパー。
+/// - スクロールに連動してナビバーを隠す挙動
+/// - （今後）`target="_blank"` などの新ウィンドウ要求を Safari で開く挙動
+/// など、すべての WebView 利用箇所で揃えたい設定をここに集約する。
+fileprivate struct ConfiguredWebView: View {
+    let page: WebPage
+    var scrollState: ScrollState? = nil
+
+    var body: some View {
+        WebView(page)
+            #if !os(macOS)
+            .webViewOnScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { oldY, newY in
+                scrollState?.reportScroll(oldY: oldY, newY: newY)
+            }
+            #endif
+    }
+}
+
 // MARK: - ArticleWebView（iOS 26/macOS 26 WebView + WebPage）
 
 struct ArticleWebView: View {
@@ -966,17 +976,12 @@ struct ArticleWebView: View {
     let scrollState: ScrollState
 
     var body: some View {
-        WebView(page)
+        ConfiguredWebView(page: page, scrollState: scrollState)
             .task(id: url) {
                 if page.url != url {
                     page.load(URLRequest(url: url))
                 }
             }
-            #if !os(macOS)
-            .webViewOnScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { oldY, newY in
-                scrollState.reportScroll(oldY: oldY, newY: newY)
-            }
-            #endif
     }
 }
 
