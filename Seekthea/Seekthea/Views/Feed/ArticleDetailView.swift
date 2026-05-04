@@ -36,7 +36,13 @@ struct ArticleDetailView: View {
     @State private var showScoreBreakdown = false
     @State private var webPage = makeConfiguredWebPage()
     @State private var readerPage = makeConfiguredWebPage()
+    @State private var summaryPage = makeConfiguredWebPage()
+    /// Reader / Web / AI要約 の各 WebView が初期状態（記事URL or 自前HTML）から
+    /// 別 URL に遷移したかどうか。ナビ済みのモードではモードピッカーを隠して
+    /// 戻る／リロードのバーだけを表示する。
     @State private var readerHasNavigated = false
+    @State private var webHasNavigated = false
+    @State private var summaryHasNavigated = false
     @State private var scrollState = ScrollState()
 
     var body: some View {
@@ -48,33 +54,37 @@ struct ArticleDetailView: View {
         #endif
         .toolbar {
             ToolbarItemGroup(placement: .automatic) {
-                Button {
-                    article.isFavorite.toggle()
-                    try? modelContext.save()
-                } label: {
-                    Image(systemName: article.isFavorite ? "star.fill" : "star")
-                        .foregroundStyle(article.isFavorite ? .yellow : .secondary)
-                }
+                // どのモードでもリンク先に遷移している間は、これらのボタンは
+                // すべて「元記事」に対する操作なので意味が無い。隠す。
+                if !readerHasNavigated && !webHasNavigated && !summaryHasNavigated {
+                    Button {
+                        article.isFavorite.toggle()
+                        try? modelContext.save()
+                    } label: {
+                        Image(systemName: article.isFavorite ? "star.fill" : "star")
+                            .foregroundStyle(article.isFavorite ? .yellow : .secondary)
+                    }
 
-                Menu {
-                    Link(destination: article.articleURL) {
-                        Label("ブラウザで開く", systemImage: "safari")
-                    }
-                    ShareLink(item: article.articleURL) {
-                        Label("共有", systemImage: "square.and.arrow.up")
-                    }
-                    Button {
-                        Task { await reprocessAI() }
+                    Menu {
+                        Link(destination: article.articleURL) {
+                            Label("ブラウザで開く", systemImage: "safari")
+                        }
+                        ShareLink(item: article.articleURL) {
+                            Label("共有", systemImage: "square.and.arrow.up")
+                        }
+                        Button {
+                            Task { await reprocessAI() }
+                        } label: {
+                            Label("AI処理を再実行", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                        Button {
+                            showScoreBreakdown = true
+                        } label: {
+                            Label("スコアの内訳", systemImage: "chart.bar.doc.horizontal")
+                        }
                     } label: {
-                        Label("AI処理を再実行", systemImage: "arrow.triangle.2.circlepath")
+                        Image(systemName: "ellipsis")
                     }
-                    Button {
-                        showScoreBreakdown = true
-                    } label: {
-                        Label("スコアの内訳", systemImage: "chart.bar.doc.horizontal")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
                 }
             }
         }
@@ -199,9 +209,19 @@ struct ArticleDetailView: View {
                     }
                 }
             case .aiSummary:
-                AISummaryView(article: article)
+                AISummaryView(
+                    article: article,
+                    page: summaryPage,
+                    hasNavigated: $summaryHasNavigated
+                )
+                .safeAreaInset(edge: .bottom) {
+                    if summaryHasNavigated {
+                        WebNavBar(page: summaryPage, onBackBeyondHistory: restoreSummary())
+                            .padding(.bottom, 8)
+                    }
+                }
             case .web:
-                ArticleWebView(url: article.articleURL, page: webPage, scrollState: scrollState)
+                ArticleWebView(url: article.articleURL, page: webPage, hasNavigated: $webHasNavigated, scrollState: scrollState)
                     .safeAreaInset(edge: .bottom) {
                         WebNavBar(page: webPage)
                             .padding(.bottom, 8)
@@ -227,31 +247,53 @@ struct ArticleDetailView: View {
             extracted: extracted,
             webPage: webPage,
             readerPage: readerPage,
+            summaryPage: summaryPage,
             readerHasNavigated: $readerHasNavigated,
+            webHasNavigated: $webHasNavigated,
+            summaryHasNavigated: $summaryHasNavigated,
             scrollState: scrollState,
             selection: $viewMode
         )
         .ignoresSafeArea()
         .safeAreaInset(edge: .bottom) {
             if !scrollState.barsHidden {
-                VStack(spacing: 8) {
-                    if viewMode == .web {
-                        WebNavBar(page: webPage)
-                    } else if viewMode == .reader && readerHasNavigated {
-                        WebNavBar(page: readerPage, onBackBeyondHistory: restoreReader(extracted: extracted))
+                let hasNavigated: Bool = {
+                    switch viewMode {
+                    case .reader: return readerHasNavigated
+                    case .web: return webHasNavigated
+                    case .aiSummary: return summaryHasNavigated
                     }
-                    HStack(spacing: 8) {
-                        ForEach(DetailViewMode.allCases, id: \.self) { mode in
-                            DetailModeButton(
-                                mode: mode,
-                                isSelected: viewMode == mode,
-                                isProcessing: mode == .aiSummary && AIProgressTracker.shared.isProcessing(article.id)
-                            ) {
-                                withAnimation { viewMode = mode }
-                            }
+                }()
+                VStack(spacing: 8) {
+                    // 戻る／リロードバー: Web は元々常時表示、Reader/AI要約 はナビ済み時のみ。
+                    switch viewMode {
+                    case .web:
+                        WebNavBar(page: webPage)
+                    case .reader:
+                        if readerHasNavigated {
+                            WebNavBar(page: readerPage, onBackBeyondHistory: restoreReader(extracted: extracted))
+                        }
+                    case .aiSummary:
+                        if summaryHasNavigated {
+                            WebNavBar(page: summaryPage, onBackBeyondHistory: restoreSummary())
                         }
                     }
-                    .padding(.vertical, 8)
+                    // モードピッカー: 元の状態にいる時だけ表示。
+                    // リンク先に遷移してる時はモード切替の意味が無いので隠す。
+                    if !hasNavigated {
+                        HStack(spacing: 8) {
+                            ForEach(DetailViewMode.allCases, id: \.self) { mode in
+                                DetailModeButton(
+                                    mode: mode,
+                                    isSelected: viewMode == mode,
+                                    isProcessing: mode == .aiSummary && AIProgressTracker.shared.isProcessing(article.id)
+                                ) {
+                                    withAnimation { viewMode = mode }
+                                }
+                            }
+                        }
+                        .padding(.vertical, 8)
+                    }
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -278,6 +320,16 @@ struct ArticleDetailView: View {
             readerPage.load(
                 html: ReaderView.buildReaderHTML(article: article, extracted: extracted),
                 baseURL: article.articleURL
+            )
+        }
+    }
+
+    /// AI 要約モードでナビ済みになった時に元の AI 要約 HTML を再ロードする。
+    private func restoreSummary() -> () -> Void {
+        return { [summaryPage, article] in
+            summaryPage.load(
+                html: AISummaryView.buildSummaryHTML(article: article),
+                baseURL: URL(string: "about:blank")!
             )
         }
     }
@@ -397,10 +449,19 @@ private struct LoadingPreviewView: View {
 
 // MARK: - AI要約ビュー
 
-private struct AISummaryView: View {
+fileprivate struct AISummaryView: View {
     let article: Article
+    /// WebPage は親に持ち上げてある（ナビ済み状態を親と共有するため）。
+    let page: WebPage
+    @Binding var hasNavigated: Bool
     var scrollState: ScrollState? = nil
-    @State private var page = makeConfiguredWebPage()
+
+    /// AI 要約の HTML 自体は about:blank で読み込んでいるので、
+    /// 「ナビ済み = page.url が about:blank 以外の URL になった状態」と判定する。
+    private static func isOriginalURL(_ url: URL?) -> Bool {
+        guard let url else { return true }
+        return url.absoluteString == "about:blank"
+    }
 
     private var isAIProcessing: Bool {
         AIProgressTracker.shared.isProcessing(article.id)
@@ -421,10 +482,13 @@ private struct AISummaryView: View {
             .task {
                 page.load(html: buildSummaryHTML(), baseURL: URL(string: "about:blank")!)
             }
+            .onChange(of: page.url) { _, newURL in
+                hasNavigated = !Self.isOriginalURL(newURL)
+            }
             .onChange(of: summary) {
                 let html: String
                 if let summary, !summary.isEmpty {
-                    html = markdownToHTML(summary)
+                    html = Self.markdownToHTML(summary)
                 } else {
                     // キャッシュクリア時（再処理開始時など）はshimmerに戻す
                     html = Self.shimmerHTML
@@ -440,7 +504,12 @@ private struct AISummaryView: View {
     }
 
     private func buildSummaryHTML() -> String {
-        let summary = self.summary ?? ""
+        Self.buildSummaryHTML(article: article)
+    }
+
+    /// 親（ArticleDetailView）から復帰用に再ロード時にも使うため static にしてある。
+    fileprivate static func buildSummaryHTML(article: Article) -> String {
+        let summary = AISummaryCache.shared.get(article.id) ?? ""
         let title = escapeHTML(article.title)
         let sourceName = escapeHTML(article.source?.name ?? "")
         let dateStr = article.publishedAt.map {
@@ -552,7 +621,7 @@ private struct AISummaryView: View {
         """
     }
 
-    private func markdownToHTML(_ markdown: String) -> String {
+    private static func markdownToHTML(_ markdown: String) -> String {
         var html = ""
         var inList = false
         var inTable = false
@@ -622,7 +691,7 @@ private struct AISummaryView: View {
         return html
     }
 
-    private func inlineMarkdown(_ text: String) -> String {
+    private static func inlineMarkdown(_ text: String) -> String {
         var result = escapeHTML(text)
         // **bold**
         result = result.replacingOccurrences(
@@ -633,7 +702,7 @@ private struct AISummaryView: View {
         return result
     }
 
-    private func escapeHTML(_ text: String) -> String {
+    private static func escapeHTML(_ text: String) -> String {
         text.replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
@@ -668,7 +737,10 @@ private struct DetailPagingView: UIViewControllerRepresentable {
     let extracted: ReadabilityExtractor.Article
     let webPage: WebPage
     let readerPage: WebPage
+    let summaryPage: WebPage
     @Binding var readerHasNavigated: Bool
+    @Binding var webHasNavigated: Bool
+    @Binding var summaryHasNavigated: Bool
     let scrollState: ScrollState
     @Binding var selection: DetailViewMode
 
@@ -719,9 +791,19 @@ private struct DetailPagingView: UIViewControllerRepresentable {
                     scrollState: parent.scrollState
                 ))
             case .aiSummary:
-                vc = UIHostingController(rootView: AISummaryView(article: parent.article, scrollState: parent.scrollState))
+                vc = UIHostingController(rootView: AISummaryView(
+                    article: parent.article,
+                    page: parent.summaryPage,
+                    hasNavigated: parent.$summaryHasNavigated,
+                    scrollState: parent.scrollState
+                ))
             case .web:
-                vc = UIHostingController(rootView: ArticleWebView(url: parent.article.articleURL, page: parent.webPage, scrollState: parent.scrollState))
+                vc = UIHostingController(rootView: ArticleWebView(
+                    url: parent.article.articleURL,
+                    page: parent.webPage,
+                    hasNavigated: parent.$webHasNavigated,
+                    scrollState: parent.scrollState
+                ))
             }
             controllers[mode] = vc
             return vc
@@ -1001,6 +1083,7 @@ fileprivate struct ConfiguredWebView: View {
 struct ArticleWebView: View {
     let url: URL
     let page: WebPage
+    var hasNavigated: Binding<Bool>? = nil
     let scrollState: ScrollState
 
     var body: some View {
@@ -1009,6 +1092,9 @@ struct ArticleWebView: View {
                 if page.url != url {
                     page.load(URLRequest(url: url))
                 }
+            }
+            .onChange(of: page.url) { _, newURL in
+                hasNavigated?.wrappedValue = newURL != nil && newURL != url
             }
     }
 }
