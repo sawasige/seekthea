@@ -85,17 +85,14 @@ struct ArticleDetailView: View {
             ScoreBreakdownView(article: article, modelContainer: modelContext.container)
         }
         .onAppear {
-            if !article.isRead {
-                article.isRead = true
-                article.readAt = Date()
-                try? modelContext.save()
-                // 既読化でペナルティが解除されるためスコアを再計算
+            let wasUnread = !article.isRead
+            article.isRead = true
+            article.readAt = Date()
+            try? modelContext.save()
+            if wasUnread {
+                // 既読化でペナルティが解除されるためスコアを再計算（再閲覧時は不要）
                 let engine = InterestEngine(modelContainer: modelContext.container)
                 engine.rescore(article: article)
-            } else if article.readAt == nil {
-                // 旧データ（readAt 追加前に既読化された記事）に閲覧時刻を補完
-                article.readAt = Date()
-                try? modelContext.save()
             }
         }
     }
