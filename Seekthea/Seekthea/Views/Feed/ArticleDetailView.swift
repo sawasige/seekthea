@@ -7,6 +7,50 @@ import UIKit
 import AppKit
 #endif
 
+// MARK: - ArticleDetailContainer
+
+/// 記事詳細のラッパー。前の/次の記事カードからの遷移を受けて、
+/// `currentArticle` を差し替える。差し替え時には `.id(article.id)` により
+/// `ArticleDetailView` の @State が完全リセットされ、新しい記事として読み込み直される。
+///
+/// 前後の記事は `ArticleNavigationContext.shared` のスナップショットから解決する。
+struct ArticleDetailContainer: View {
+    let initialArticle: Article
+    @State private var currentArticle: Article
+
+    init(initialArticle: Article) {
+        self.initialArticle = initialArticle
+        self._currentArticle = State(initialValue: initialArticle)
+    }
+
+    var body: some View {
+        let neighbors = ArticleNavigationContext.shared.neighbors(of: currentArticle)
+        ArticleDetailView(
+            article: currentArticle,
+            previousArticle: neighbors.previous,
+            nextArticle: neighbors.next,
+            onNavigatePrev: {
+                if let p = neighbors.previous {
+                    // セッション保護に登録（フィードに戻った時にこの記事も
+                    // 元の位置に留まるように。FeedView の openArticle と同等処理）。
+                    ArticleNavigationContext.shared.markVisited(p.id)
+                    // SwiftUI の更新サイクル内で .id() による identity 変更を起こすと
+                    // 描画ツリーの torn down と onTap 元の view 破棄が同期して
+                    // クラッシュすることがある。次の runloop に逃がす。
+                    Task { @MainActor in currentArticle = p }
+                }
+            },
+            onNavigateNext: {
+                if let n = neighbors.next {
+                    ArticleNavigationContext.shared.markVisited(n.id)
+                    Task { @MainActor in currentArticle = n }
+                }
+            }
+        )
+        .id(currentArticle.id)
+    }
+}
+
 // MARK: - 表示モード
 
 private enum DetailViewMode: String, CaseIterable {
@@ -28,6 +72,10 @@ private enum DetailViewMode: String, CaseIterable {
 struct ArticleDetailView: View {
     @Environment(\.modelContext) private var modelContext
     let article: Article
+    var previousArticle: Article? = nil
+    var nextArticle: Article? = nil
+    var onNavigatePrev: (() -> Void)? = nil
+    var onNavigateNext: (() -> Void)? = nil
     @State private var extractedArticle: ReadabilityExtractor.Article?
     @State private var isLoading = true
     @State private var viewMode: DetailViewMode = .reader
@@ -189,6 +237,17 @@ struct ArticleDetailView: View {
         }
         .animation(.easeInOut(duration: 0.25), value: loadingStage)
         .animation(.easeInOut(duration: 0.3), value: showFailureNotice)
+        .overlay(alignment: .bottom) {
+            if !isLoading {
+                PrevNextCardsOverlay(
+                    previous: previousArticle,
+                    next: nextArticle,
+                    scrollProgress: scrollState.scrollProgress,
+                    onTapPrev: { onNavigatePrev?() },
+                    onTapNext: { onNavigateNext?() }
+                )
+            }
+        }
     }
 
     #if os(macOS)
@@ -200,7 +259,8 @@ struct ArticleDetailView: View {
                     article: article,
                     extracted: extracted,
                     page: readerPage,
-                    hasNavigated: $readerHasNavigated
+                    hasNavigated: $readerHasNavigated,
+                    scrollState: scrollState
                 )
                 .safeAreaInset(edge: .bottom) {
                     if readerHasNavigated {
@@ -212,7 +272,8 @@ struct ArticleDetailView: View {
                 AISummaryView(
                     article: article,
                     page: summaryPage,
-                    hasNavigated: $summaryHasNavigated
+                    hasNavigated: $summaryHasNavigated,
+                    scrollState: scrollState
                 )
                 .safeAreaInset(edge: .bottom) {
                     if summaryHasNavigated {
@@ -444,6 +505,131 @@ private struct LoadingPreviewView: View {
             .frame(maxWidth: 720)
             .frame(maxWidth: .infinity)
         }
+    }
+}
+
+// MARK: - 前後記事カード Overlay
+
+/// 記事末尾近くまでスクロールすると左下と右下に fade-in する前後記事カード。
+/// タップで `currentArticle` が差し替わる（その場で記事遷移）。
+fileprivate struct PrevNextCardsOverlay: View {
+    let previous: Article?
+    let next: Article?
+    let scrollProgress: Double
+    let onTapPrev: () -> Void
+    let onTapNext: () -> Void
+
+    /// `scrollProgress` 0.6 から fade-in、0.85 で完全表示。
+    private var opacity: Double {
+        let start = 0.6
+        let end = 0.85
+        if scrollProgress < start { return 0 }
+        if scrollProgress > end { return 1 }
+        return (scrollProgress - start) / (end - start)
+    }
+
+    private var bottomPadding: CGFloat {
+        #if os(macOS)
+        return 24
+        #else
+        return 100
+        #endif
+    }
+
+    var body: some View {
+        if previous == nil && next == nil {
+            EmptyView()
+        } else {
+            HStack(alignment: .bottom, spacing: 8) {
+                if let prev = previous {
+                    NavArticleCard(article: prev, direction: .previous, action: onTapPrev)
+                }
+                Spacer(minLength: 0)
+                if let next = next {
+                    NavArticleCard(article: next, direction: .next, action: onTapNext)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, bottomPadding)
+            .opacity(opacity)
+            .allowsHitTesting(opacity > 0.5)
+            .animation(.easeInOut(duration: 0.25), value: opacity)
+        }
+    }
+}
+
+fileprivate struct NavArticleCard: View {
+    let article: Article
+    let direction: Direction
+    let action: () -> Void
+
+    enum Direction {
+        case previous, next
+    }
+
+    private var label: String {
+        direction == .previous ? "前の記事" : "次の記事"
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                if direction == .previous {
+                    Image(systemName: "chevron.left")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                thumbnail
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text(article.title)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+                if direction == .next {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(8)
+            .frame(maxWidth: 220, alignment: .leading)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .shadow(color: .black.opacity(0.15), radius: 8, y: 2)
+        }
+        .buttonStyle(.plain)
+        #if os(visionOS)
+        .hoverEffect()
+        #endif
+    }
+
+    @ViewBuilder
+    private var thumbnail: some View {
+        if let url = article.displayImageURL {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().scaledToFill()
+                default:
+                    placeholder
+                }
+            }
+            .frame(width: 36, height: 36)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        } else {
+            placeholder
+        }
+    }
+
+    private var placeholder: some View {
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .fill(.quaternary)
+            .frame(width: 36, height: 36)
     }
 }
 
@@ -1034,11 +1220,36 @@ fileprivate struct ReaderView: View {
     }
 }
 
+// MARK: - ScrollMetrics
+
+/// ScrollGeometry から進捗判定に必要な値だけを抽出した小さな struct。
+/// `webViewOnScrollGeometryChange` の比較用に Equatable にしておく。
+fileprivate struct ScrollMetrics: Hashable {
+    let offsetY: CGFloat
+    let containerHeight: CGFloat
+    let contentHeight: CGFloat
+
+    init(offsetY: CGFloat, containerHeight: CGFloat, contentHeight: CGFloat) {
+        self.offsetY = offsetY
+        self.containerHeight = containerHeight
+        self.contentHeight = contentHeight
+    }
+
+    init(geometry: ScrollGeometry) {
+        self.offsetY = geometry.contentOffset.y
+        self.containerHeight = geometry.containerSize.height
+        self.contentHeight = geometry.contentSize.height
+    }
+}
+
 // MARK: - ScrollState（Safari風バーの表示状態）
 
 @Observable
 final class ScrollState {
     var barsHidden: Bool = false
+    /// スクロール進捗 (0..1)。記事末尾に近いほど 1 に近づく。
+    /// 末尾近くで前後記事カードを fade-in させるためのヒント。
+    var scrollProgress: Double = 0
 
     func reportScroll(oldY: CGFloat, newY: CGFloat) {
         let delta = newY - oldY
@@ -1046,6 +1257,18 @@ final class ScrollState {
         withAnimation(.easeInOut(duration: 0.25)) {
             barsHidden = delta > 0
         }
+    }
+
+    /// `webViewOnScrollGeometryChange` から呼び出してスクロール進捗を更新。
+    /// `containerHeight + offsetY >= contentHeight` で末尾到達 (= 1.0)。
+    func reportProgress(offsetY: CGFloat, containerHeight: CGFloat, contentHeight: CGFloat) {
+        let scrollable = max(0, contentHeight - containerHeight)
+        guard scrollable > 0 else {
+            scrollProgress = 0
+            return
+        }
+        let p = Double(min(max(offsetY / scrollable, 0), 1))
+        scrollProgress = p
     }
 }
 
@@ -1088,8 +1311,13 @@ fileprivate struct ConfiguredWebView: View {
     var body: some View {
         WebView(page)
             #if !os(macOS)
-            .webViewOnScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { oldY, newY in
-                scrollState?.reportScroll(oldY: oldY, newY: newY)
+            .webViewOnScrollGeometryChange(for: ScrollMetrics.self, of: { ScrollMetrics(geometry: $0) }) { old, new in
+                scrollState?.reportScroll(oldY: old.offsetY, newY: new.offsetY)
+                scrollState?.reportProgress(
+                    offsetY: new.offsetY,
+                    containerHeight: new.containerHeight,
+                    contentHeight: new.contentHeight
+                )
             }
             #endif
     }

@@ -289,7 +289,6 @@ struct FeedView: View {
     @AppStorage("categoryFilterSortMode") private var filterSortModeRaw: String = CategoryFilterSortMode.count.rawValue
     @State private var newSuggestionCount = 0
     @State private var sourceFilter: SourceFilter? = nil
-    @State private var sessionReadIDs: Set<UUID> = []
     @State private var lockedSortKeys: [UUID: Double] = [:]
     @State private var lockedHistoryDates: [UUID: Date] = [:]
     @State private var wasBackgrounded = false
@@ -430,7 +429,7 @@ struct FeedView: View {
             }
             lockedSortKeys = lockedKeys
 
-            let sessionReadIDs = self.sessionReadIDs
+            let sessionReadIDs = ArticleNavigationContext.shared.sessionReadIDs
             func effectivelyRead(_ article: Article) -> Bool {
                 article.isRead && !sessionReadIDs.contains(article.id)
             }
@@ -632,7 +631,7 @@ struct FeedView: View {
                     #if !os(iOS)
                     ToolbarItem(placement: .automatic) {
                         Button {
-                            sessionReadIDs.removeAll()
+                            ArticleNavigationContext.shared.clearSession()
                             lockedSortKeys.removeAll()
                             lockedHistoryDates.removeAll()
                             Task { await refreshAll() }
@@ -700,7 +699,7 @@ struct FeedView: View {
                             wasBackgrounded = false
                             lockedSortKeys.removeAll()
                             lockedHistoryDates.removeAll()
-                            sessionReadIDs.removeAll()
+                            ArticleNavigationContext.shared.clearSession()
                         }
                         reloadArticles()
                         updateCachedData()
@@ -725,11 +724,11 @@ struct FeedView: View {
                     }
                 }
                 .navigationDestination(for: Article.self) { article in
-                    let detail = ArticleDetailView(article: article)
+                    let container = ArticleDetailContainer(initialArticle: article)
                     #if os(macOS)
-                    detail
+                    container
                     #else
-                    detail.navigationTransition(.zoom(sourceID: article.id, in: zoomNamespace))
+                    container.navigationTransition(.zoom(sourceID: article.id, in: zoomNamespace))
                     #endif
                 }
                 .sheet(item: $scoreBreakdownArticle) { article in
@@ -838,7 +837,7 @@ struct FeedView: View {
                 }
             }
             .refreshable {
-                sessionReadIDs.removeAll()
+                ArticleNavigationContext.shared.clearSession()
                 lockedSortKeys.removeAll()
                 lockedHistoryDates.removeAll()
                 await refreshAll()
@@ -883,9 +882,11 @@ struct FeedView: View {
     }
 
     private func openArticle(_ article: Article) {
-        sessionReadIDs.insert(article.id)
+        ArticleNavigationContext.shared.markVisited(article.id)
         cancelImpressionTimer(for: article.id)
         pendingImpressions[article.id] = nil
+        // 詳細画面の前後ナビ用に、開いた瞬間のフィード表示順をスナップショット
+        ArticleNavigationContext.shared.snapshot(cachedDisplayArticles)
         navigationPath.append(article)
     }
 
