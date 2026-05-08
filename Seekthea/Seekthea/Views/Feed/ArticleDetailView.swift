@@ -116,9 +116,9 @@ struct ArticleDetailView: View {
     @State private var loadingStage: String = "記事ページを取得中..."
     @State private var showFailureNotice = false
     @State private var showScoreBreakdown = false
-    @State private var webPage = makeConfiguredWebPage()
-    @State private var readerPage = makeConfiguredWebPage()
-    @State private var summaryPage = makeConfiguredWebPage()
+    @State private var webPage = ManagedWKWebView()
+    @State private var readerPage = ManagedWKWebView()
+    @State private var summaryPage = ManagedWKWebView()
     /// Reader / Web / AI要約 の各 WebView が初期状態（記事URL or 自前HTML）から
     /// 別 URL に遷移したかどうか。ナビ済みのモードではモードピッカーを隠して
     /// 戻る／リロードのバーだけを表示する。
@@ -685,8 +685,8 @@ fileprivate struct NavArticleCard: View {
 
 fileprivate struct AISummaryView: View {
     let article: Article
-    /// WebPage は親に持ち上げてある（ナビ済み状態を親と共有するため）。
-    let page: WebPage
+    /// WebView インスタンスは親に持ち上げてある（ナビ済み状態を親と共有するため）。
+    let page: ManagedWKWebView
     @Binding var hasNavigated: Bool
     var scrollState: ScrollState? = nil
 
@@ -986,9 +986,9 @@ private struct ShimmerView: View {
 private struct DetailPagingView: UIViewControllerRepresentable {
     let article: Article
     let extracted: ReadabilityExtractor.Article
-    let webPage: WebPage
-    let readerPage: WebPage
-    let summaryPage: WebPage
+    let webPage: ManagedWKWebView
+    let readerPage: ManagedWKWebView
+    let summaryPage: ManagedWKWebView
     @Binding var readerHasNavigated: Bool
     @Binding var webHasNavigated: Bool
     @Binding var summaryHasNavigated: Bool
@@ -1129,9 +1129,9 @@ private struct DetailModeButton: View {
 fileprivate struct ReaderView: View {
     let article: Article
     let extracted: ReadabilityExtractor.Article
-    /// WebPage は親に持ち上げてある。本文中の <a> をタップして外部 URL に移動したかを
-    /// 親に通知する必要があるため、戻る／リロードのバーは親側 (iosContent) で表示する。
-    let page: WebPage
+    /// WebView インスタンスは親に持ち上げてある。本文中の <a> をタップして外部 URL に
+    /// 移動したかを親に通知する必要があるため、戻る／リロードのバーは親側 (iosContent) で表示する。
+    let page: ManagedWKWebView
     @Binding var hasNavigated: Bool
     var scrollState: ScrollState? = nil
 
@@ -1268,47 +1268,13 @@ fileprivate struct ReaderView: View {
     }
 }
 
-// MARK: - ScrollMetrics
-
-/// ScrollGeometry から進捗判定に必要な値だけを抽出した小さな struct。
-/// `webViewOnScrollGeometryChange` の比較用に Hashable にしておく。
-fileprivate struct ScrollMetrics: Hashable {
-    let offsetY: CGFloat
-    let containerHeight: CGFloat
-    let contentHeight: CGFloat
-    /// safeAreaInset.bottom 等の下方向 inset。これがあると max scroll は
-    /// contentHeight + insetBottom - containerHeight になる（contentHeight 単純差ではない）。
-    let insetBottom: CGFloat
-    let boundsMaxY: CGFloat
-    let visibleMaxY: CGFloat
-
-    init(geometry: ScrollGeometry) {
-        self.offsetY = geometry.contentOffset.y
-        self.containerHeight = geometry.containerSize.height
-        self.contentHeight = geometry.contentSize.height
-        self.insetBottom = geometry.contentInsets.bottom
-        self.boundsMaxY = geometry.bounds.maxY
-        self.visibleMaxY = geometry.visibleRect.maxY
-    }
-}
-
 // MARK: - ScrollState（Safari風バーの表示状態）
 
 @Observable
 final class ScrollState {
     var barsHidden: Bool = false
     /// 実コンテンツの末尾に viewport が到達したか（前後カード表示用）。
-    /// 「ほぼ末尾」という曖昧さを避けるため、絶対距離 (pt) で判定する。
     var isAtBottom: Bool = false
-    /// SwiftUI 側で測った WebView の bottom inset。
-    /// ScrollGeometry の `contentInsets.bottom` は WebView の adjustedContentInset を反映せず
-    /// 0 を返すため、GeometryReader で実測した値で補完する。
-    var knownBottomInset: CGFloat = 0
-    /// 直近の scroll geometry。`knownBottomInset` 更新時にも判定をやり直すため保持。
-    private var lastOffsetY: CGFloat = 0
-    private var lastContainerHeight: CGFloat = 0
-    private var lastContentHeight: CGFloat = 0
-    private var lastReportedInsetBottom: CGFloat = 0
 
     func reportScroll(oldY: CGFloat, newY: CGFloat) {
         let delta = newY - oldY
@@ -1318,102 +1284,207 @@ final class ScrollState {
         }
     }
 
-    /// `webViewOnScrollGeometryChange` から呼び出して末尾到達を判定。
+    /// WKWebView の `scrollView` から直接呼ばれる。
     /// 実 max scroll = `contentHeight + insetBottom - containerHeight`。
-    /// `insetBottom` は ScrollGeometry 側の値 (大抵 0)、`knownBottomInset` は SwiftUI で実測した値。
-    /// 大きい方を採用する。
-    /// WebView が初期化直後で contentHeight が 0 の場合は判定不能なので false。
+    /// `insetBottom` は `scrollView.adjustedContentInset.bottom`（safeAreaInset の
+    /// mode picker / home indicator 分。SwiftUI WebView では取れない値）。
     func reportProgress(offsetY: CGFloat, containerHeight: CGFloat, contentHeight: CGFloat, insetBottom: CGFloat) {
-        lastOffsetY = offsetY
-        lastContainerHeight = containerHeight
-        lastContentHeight = contentHeight
-        lastReportedInsetBottom = insetBottom
-        recomputeIsAtBottom()
-    }
-
-    /// `knownBottomInset` が更新された時に最新の geometry で判定をやり直す。
-    func recomputeIsAtBottom() {
-        guard lastContentHeight > 0 else {
+        guard contentHeight > 0 else {
             isAtBottom = false
             return
         }
-        let effectiveInset = max(lastReportedInsetBottom, knownBottomInset)
-        let maxOffsetY = lastContentHeight + effectiveInset - lastContainerHeight
+        let maxOffsetY = contentHeight + insetBottom - containerHeight
         if maxOffsetY <= 0 {
             isAtBottom = true
             return
         }
         let tolerance: CGFloat = 5
-        isAtBottom = lastOffsetY >= maxOffsetY - tolerance
+        isAtBottom = offsetY >= maxOffsetY - tolerance
     }
 }
 
-// MARK: - ConfiguredWebView（共通ラッパー：scroll連動・新ウィンドウ処理など）
+// MARK: - WKWebView ラッパー
 
-/// `target="_blank"` などの新規ウィンドウ要求を Safari で開くナビゲーション判定。
-/// `action.target` が nil なら新規ウィンドウへの遷移要求なので、現在の WebView では開かず
-/// 外部ブラウザに渡す。
+/// target="_blank" や window.open() などの新規ウィンドウ要求を Safari に逃がす delegate。
 @MainActor
-fileprivate struct ExternalWindowOpener: WebPage.NavigationDeciding {
-    mutating func decidePolicy(
-        for action: WebPage.NavigationAction,
-        preferences: inout WebPage.NavigationPreferences
+final class WebNavDelegate: NSObject, WKNavigationDelegate, WKUIDelegate {
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction
     ) async -> WKNavigationActionPolicy {
-        if action.target == nil, let url = action.request.url {
-            #if os(iOS) || os(visionOS)
-            await UIApplication.shared.open(url)
-            #elseif os(macOS)
-            NSWorkspace.shared.open(url)
-            #endif
+        // targetFrame が nil = 新規ウィンドウへの遷移。現在の WebView で開かず外部に。
+        if navigationAction.targetFrame == nil, let url = navigationAction.request.url {
+            await openExternally(url)
             return .cancel
         }
         return .allow
     }
-}
 
-/// `target="_blank"` のリンクを Safari で開くようにした WebPage を生成。
-@MainActor
-fileprivate func makeConfiguredWebPage() -> WebPage {
-    WebPage(navigationDecider: ExternalWindowOpener())
-}
+    func webView(
+        _ webView: WKWebView,
+        createWebViewWith configuration: WKWebViewConfiguration,
+        for navigationAction: WKNavigationAction,
+        windowFeatures: WKWindowFeatures
+    ) -> WKWebView? {
+        // window.open() などで decidePolicy を経由しない経路用のフォールバック。
+        if let url = navigationAction.request.url {
+            Task { await openExternally(url) }
+        }
+        return nil
+    }
 
-/// アプリ内で WebPage を表示する共通ラッパー。
-/// - スクロールに連動してナビバーを隠す挙動
-/// など、すべての WebView 利用箇所で揃えたい設定をここに集約する。
-fileprivate struct ConfiguredWebView: View {
-    let page: WebPage
-    var scrollState: ScrollState? = nil
-
-    var body: some View {
-        WebView(page)
-            #if !os(macOS)
-            .webViewOnScrollGeometryChange(for: ScrollMetrics.self, of: { ScrollMetrics(geometry: $0) }) { old, new in
-                scrollState?.reportScroll(oldY: old.offsetY, newY: new.offsetY)
-                scrollState?.reportProgress(
-                    offsetY: new.offsetY,
-                    containerHeight: new.containerHeight,
-                    contentHeight: new.contentHeight,
-                    insetBottom: new.insetBottom
-                )
-            }
-            // SwiftUI 側で実測した safeArea.bottom を ScrollState に渡す。
-            // ScrollGeometry の contentInsets.bottom は WebView の adjustedContentInset を
-            // 反映しないため、これで補完する。
-            .onGeometryChange(for: CGFloat.self, of: { $0.safeAreaInsets.bottom }) { newValue in
-                scrollState?.knownBottomInset = newValue
-                scrollState?.recomputeIsAtBottom()
-                // TODO: REMOVE_DEBUG
-                print("[inset] safeAreaBottom=\(Int(newValue))")
-            }
-            #endif
+    private func openExternally(_ url: URL) async {
+        #if os(iOS) || os(visionOS)
+        await UIApplication.shared.open(url)
+        #elseif os(macOS)
+        NSWorkspace.shared.open(url)
+        #endif
     }
 }
 
-// MARK: - ArticleWebView（iOS 26/macOS 26 WebView + WebPage）
+/// WKWebView を SwiftUI で扱うために @Observable で包む wrapper。
+/// iOS 26 SwiftUI の `WebPage` と同等の API（load(html:) / callJavaScript /
+/// url 観測 / backForwardList 等）を提供しつつ、WebPage では取れない
+/// `scrollView.adjustedContentInset` などの UIKit 情報にもアクセスできる。
+/// （前後カードの表示判定で本物の最大スクロール位置が必要なため）
+@MainActor
+@Observable
+final class ManagedWKWebView {
+    @ObservationIgnored let webView: WKWebView
+    var url: URL?
+    var isLoading: Bool = false
+
+    @ObservationIgnored private let navDelegate: WebNavDelegate
+    @ObservationIgnored private var urlObs: NSKeyValueObservation?
+    @ObservationIgnored private var loadingObs: NSKeyValueObservation?
+
+    init() {
+        let config = WKWebViewConfiguration()
+        let wv = WKWebView(frame: .zero, configuration: config)
+        let nd = WebNavDelegate()
+        wv.navigationDelegate = nd
+        wv.uiDelegate = nd
+        self.webView = wv
+        self.navDelegate = nd
+
+        // KVO 経由で WebPage 互換の url / isLoading を更新する。
+        // observe コールバックは KVO スレッド（多くは UI スレッド）で来るが、
+        // @MainActor isolation を確実にするため Task で MainActor へ。
+        self.urlObs = wv.observe(\.url, options: [.initial, .new]) { [weak self] wv, _ in
+            let newURL = wv.url
+            Task { @MainActor [weak self] in self?.url = newURL }
+        }
+        self.loadingObs = wv.observe(\.isLoading, options: [.initial, .new]) { [weak self] wv, _ in
+            let newLoading = wv.isLoading
+            Task { @MainActor [weak self] in self?.isLoading = newLoading }
+        }
+    }
+
+    func load(html: String, baseURL: URL?) {
+        webView.loadHTMLString(html, baseURL: baseURL)
+    }
+
+    func load(_ request: URLRequest) {
+        webView.load(request)
+    }
+
+    func load(_ item: WKBackForwardListItem) {
+        webView.go(to: item)
+    }
+
+    func reload() { webView.reload() }
+    func stopLoading() { webView.stopLoading() }
+
+    func callJavaScript(_ js: String) async throws -> Any? {
+        try await webView.callAsyncJavaScript(js, in: nil, contentWorld: .page)
+    }
+
+    var backForwardList: WKBackForwardList { webView.backForwardList }
+}
+
+#if canImport(UIKit)
+/// SwiftUI の view tree に WKWebView を埋める Representable。
+/// `manager.webView` をそのままホストする。複数の WrappedWKWebView が
+/// 同じ manager を持つことは無い前提（モード毎に別 manager を割り当てる）。
+struct WrappedWKWebView: UIViewRepresentable {
+    let manager: ManagedWKWebView
+    var scrollState: ScrollState? = nil
+
+    func makeUIView(context: Context) -> WKWebView {
+        context.coordinator.attach(scrollState: scrollState, to: manager.webView)
+        return manager.webView
+    }
+
+    func updateUIView(_ uiView: WKWebView, context: Context) {
+        context.coordinator.scrollState = scrollState
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    @MainActor
+    class Coordinator: NSObject {
+        var scrollState: ScrollState?
+        private var offsetObs: NSKeyValueObservation?
+        private var lastOffsetY: CGFloat = 0
+
+        func attach(scrollState: ScrollState?, to webView: WKWebView) {
+            self.scrollState = scrollState
+            let sv = webView.scrollView
+            self.offsetObs = sv.observe(\.contentOffset, options: [.new]) { [weak self] sv, _ in
+                let newY = sv.contentOffset.y
+                let containerH = sv.bounds.size.height
+                let contentH = sv.contentSize.height
+                let insetB = sv.adjustedContentInset.bottom
+                Task { @MainActor [weak self] in
+                    self?.report(offsetY: newY, containerH: containerH, contentH: contentH, insetB: insetB)
+                }
+            }
+        }
+
+        private func report(offsetY: CGFloat, containerH: CGFloat, contentH: CGFloat, insetB: CGFloat) {
+            scrollState?.reportScroll(oldY: lastOffsetY, newY: offsetY)
+            scrollState?.reportProgress(
+                offsetY: offsetY,
+                containerHeight: containerH,
+                contentHeight: contentH,
+                insetBottom: insetB
+            )
+            lastOffsetY = offsetY
+        }
+    }
+}
+#elseif canImport(AppKit)
+/// macOS 用。WKWebView を NSView としてホストするだけ。
+/// scroll 観測は UIScrollView と機構が違うので未対応（前後カード自体は機能する）。
+struct WrappedWKWebView: NSViewRepresentable {
+    let manager: ManagedWKWebView
+    var scrollState: ScrollState? = nil
+
+    func makeNSView(context: Context) -> WKWebView {
+        manager.webView
+    }
+
+    func updateNSView(_ nsView: WKWebView, context: Context) {}
+}
+#endif
+
+/// アプリ内で WKWebView を表示する共通ラッパー。
+fileprivate struct ConfiguredWebView: View {
+    let page: ManagedWKWebView
+    var scrollState: ScrollState? = nil
+
+    var body: some View {
+        WrappedWKWebView(manager: page, scrollState: scrollState)
+    }
+}
+
+// MARK: - ArticleWebView（WKWebView + ManagedWKWebView）
 
 struct ArticleWebView: View {
     let url: URL
-    let page: WebPage
+    let page: ManagedWKWebView
     var hasNavigated: Binding<Bool>? = nil
     let scrollState: ScrollState
 
@@ -1433,7 +1504,7 @@ struct ArticleWebView: View {
 // MARK: - WebNavBar（戻る・リロードの浮遊バー）
 
 struct WebNavBar: View {
-    let page: WebPage
+    let page: ManagedWKWebView
     /// ネイティブの戻る履歴（backForwardList）が空のときに代わりに呼ぶ閉包。
     /// 例: リーダーで `load(html:)` した後にリンク先へ移動した場合、その時点の
     /// backList は空のままなので戻る手段が無くなる。これを使ってリーダーHTMLの
