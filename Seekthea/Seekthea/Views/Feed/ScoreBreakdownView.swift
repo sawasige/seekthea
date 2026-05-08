@@ -13,9 +13,6 @@ struct ScoreBreakdownView: View {
                 if let b = breakdown {
                     Form {
                         totalSection(b)
-                        if !b.excludedMatches.isEmpty {
-                            excludedSection(b)
-                        }
                         keywordSection(b)
                         semanticSection(b)
                         modifierSection(b)
@@ -138,30 +135,6 @@ struct ScoreBreakdownView: View {
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(emphasized ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
                 .fontWeight(emphasized ? .semibold : .regular)
-        }
-    }
-
-    @ViewBuilder
-    private func excludedSection(_ b: ScoreBreakdown) -> some View {
-        Section {
-            ForEach(b.excludedMatches, id: \.keyword) { m in
-                HStack(alignment: .top) {
-                    Image(systemName: "nosign")
-                        .foregroundStyle(.red)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(m.keyword).font(.callout)
-                        Text("\(m.matchType)一致").font(.caption2).foregroundStyle(.tertiary)
-                    }
-                    Spacer()
-                    Text("→ 0%")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.red)
-                }
-            }
-        } header: {
-            Text("除外キーワード")
-        } footer: {
-            Text("除外キーワードに一致したためスコアは 0 になっています。設定 → 興味トピック → 除外キーワード で解除できます。")
         }
     }
 

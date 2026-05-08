@@ -64,6 +64,8 @@ struct InterestSettingsView: View {
                         modelContext.delete(interests[index])
                     }
                     try? modelContext.save()
+                    // 手動興味を消すと、その topic が自動興味として再登場する可能性がある
+                    loadLearnedTopics()
                 }
             }
 
@@ -116,7 +118,7 @@ struct InterestSettingsView: View {
                 } header: {
                     Text("行動から学習した興味")
                 } footer: {
-                    Text("既読・お気に入りから自動で見つけたトピック。「興味に追加」で手動側に昇格して重みを調整、「除外」で表示しないように。")
+                    Text("既読・お気に入りから自動で見つけたトピック。「興味に追加」で手動の興味に移して重みを調整できます。「除外」は誤学習の取り消しで、興味スコアの計算に使われなくなります。")
                 }
             }
 
@@ -135,11 +137,13 @@ struct InterestSettingsView: View {
                             modelContext.delete(excludedKeywords[index])
                         }
                         try? modelContext.save()
+                        // 除外を解除すると、その keyword が自動興味として再登場する可能性がある
+                        loadLearnedTopics()
                     }
                 } header: {
-                    Text("除外キーワード")
+                    Text("学習対象から外したキーワード")
                 } footer: {
-                    Text("これらのキーワードを含む記事はフィードに表示されません。スワイプで解除できます。")
+                    Text("AI が学習した興味から外したキーワード。興味スコアの計算には使われません（フィードからは消えません）。スワイプで解除できます。")
                 }
             }
         }
@@ -150,6 +154,9 @@ struct InterestSettingsView: View {
         #endif
         .navigationTitle("興味トピック")
         .onAppear { loadLearnedTopics() }
+        // CloudKit 同期等で外部から手動興味・除外リストが変わった時の安全網
+        .onChange(of: interests.count) { loadLearnedTopics() }
+        .onChange(of: excludedKeywords.count) { loadLearnedTopics() }
     }
 
     private func loadLearnedTopics() {
@@ -185,6 +192,7 @@ struct InterestSettingsView: View {
                     loadLearnedTopics()
                 } label: {
                     Label("興味に追加", systemImage: "plus.circle")
+                        .labelStyle(TightLabelStyle())
                         .font(.caption)
                 }
                 .buttonStyle(.borderless)
@@ -193,6 +201,7 @@ struct InterestSettingsView: View {
                     loadLearnedTopics()
                 } label: {
                     Label("除外", systemImage: "nosign")
+                        .labelStyle(TightLabelStyle())
                         .font(.caption)
                 }
                 .buttonStyle(.borderless)
@@ -207,17 +216,29 @@ struct InterestSettingsView: View {
         guard !existing.contains(trimmed) else { return }
         modelContext.insert(ExcludedKeyword(keyword: trimmed))
         try? modelContext.save()
+        // 自動興味リストを更新（除外したトピックを消す）
+        loadLearnedTopics()
     }
 
     private func addTopic(_ topic: String, en: String = "") {
         guard !topic.isEmpty else { return }
         let existing = Set(interests.map(\.topic))
         guard !existing.contains(topic) else { return }
+
+        // 同名の除外キーワードがあれば解除（手動追加が優先する）
+        let topicLower = topic.lowercased()
+        for excluded in excludedKeywords where excluded.keyword.lowercased() == topicLower {
+            modelContext.delete(excluded)
+        }
+
         let providedEn = en.trimmingCharacters(in: .whitespaces)
         let needsTranslation = providedEn.isEmpty && containsNonASCII(topic)
         let interest = UserInterest(topic: topic, topicEn: providedEn.isEmpty ? topic : providedEn)
         modelContext.insert(interest)
         try? modelContext.save()
+
+        // 自動興味リストを更新（手動に昇格したトピックを消す）
+        loadLearnedTopics()
 
         // プリセット外の非ASCIIトピックはバックグラウンドでAI翻訳
         if needsTranslation {
@@ -241,6 +262,20 @@ struct InterestSettingsView: View {
     /// - 日本語など非ASCIIトピックで topicEn が同じ（=翻訳されてない）の時
     private func isTranslationMissing(_ interest: UserInterest) -> Bool {
         containsNonASCII(interest.topic) && interest.topic == interest.topicEn
+    }
+}
+
+// MARK: - TightLabelStyle
+
+/// アイコンとテキストを 3pt 間隔で詰めて並べる Label スタイル。
+/// 標準の `.automatic` だとボタン内で隙間が広く感じるので。
+private struct TightLabelStyle: LabelStyle {
+    var spacing: CGFloat = 3
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: spacing) {
+            configuration.icon
+            configuration.title
+        }
     }
 }
 
