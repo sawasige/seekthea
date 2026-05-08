@@ -515,62 +515,137 @@ private struct LoadingPreviewView: View {
     var scrollState: ScrollState? = nil
 
     var body: some View {
+        // SwiftUI ScrollView では adjustedContentInset を取れず natural max が
+        // 推測になってしまうので、UIScrollView (UIViewRepresentable) で囲んで
+        // WKWebView と同じ要領で厳密値を取る。
+        #if os(iOS) || os(visionOS)
+        UIKitScrollHost(scrollState: scrollState) {
+            previewContent
+        }
+        #else
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(article.title)
-                    .font(.title2.weight(.bold))
-                    .fixedSize(horizontal: false, vertical: true)
+            previewContent
+        }
+        #endif
+    }
 
-                HStack(spacing: 6) {
-                    let name = article.source?.name ?? article.sourceName
-                    if !name.isEmpty {
-                        Text(name)
-                    }
-                    if let date = article.publishedAt {
-                        Text("・")
-                        Text(DateFormatter.localizedString(from: date, dateStyle: .long, timeStyle: .short))
-                    }
+    private var previewContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(article.title)
+                .font(.title2.weight(.bold))
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 6) {
+                let name = article.source?.name ?? article.sourceName
+                if !name.isEmpty {
+                    Text(name)
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-                if let imageURL = article.displayImageURL {
-                    AsyncImage(url: imageURL) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image.resizable().aspectRatio(contentMode: .fit)
-                        case .failure:
-                            EmptyView()
-                        default:
-                            Color.gray.opacity(0.1).aspectRatio(16.0/9.0, contentMode: .fit)
-                        }
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-
-                if let desc = article.cardDescription, !desc.isEmpty {
-                    Text(desc)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
+                if let date = article.publishedAt {
+                    Text("・")
+                    Text(DateFormatter.localizedString(from: date, dateStyle: .long, timeStyle: .short))
                 }
             }
-            .padding(20)
-            .padding(.bottom, 200)
-            .frame(maxWidth: 720)
-            .frame(maxWidth: .infinity)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            if let imageURL = article.displayImageURL {
+                AsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().aspectRatio(contentMode: .fit)
+                    case .failure:
+                        EmptyView()
+                    default:
+                        Color.gray.opacity(0.1).aspectRatio(16.0/9.0, contentMode: .fit)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
+            if let desc = article.cardDescription, !desc.isEmpty {
+                Text(desc)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        // SwiftUI ScrollView は contentInsets が safeAreaInset を反映する
-        // （WKWebView の adjustedContentInset を取れなかった問題は無い）。
-        .onScrollGeometryChange(for: Bool.self, of: { geom in
-            let maxOffsetY = geom.contentSize.height + geom.contentInsets.bottom - geom.containerSize.height
-            if maxOffsetY <= 0 { return true }
-            return geom.contentOffset.y >= maxOffsetY - 5
-        }) { _, isBottom in
-            scrollState?.isAtBottom = isBottom
+        .padding(20)
+        .padding(.bottom, 200)
+        .frame(maxWidth: 720)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+#if os(iOS) || os(visionOS)
+/// SwiftUI の content を UIScrollView でラップして、`adjustedContentInset` まで
+/// 含めた正確な末尾判定を可能にする UIViewRepresentable。
+/// SwiftUI ScrollView の `onScrollGeometryChange` では届かない値を取得するため。
+private struct UIKitScrollHost<Content: View>: UIViewRepresentable {
+    var scrollState: ScrollState?
+    @ViewBuilder var content: () -> Content
+
+    func makeUIView(context: Context) -> UIScrollView {
+        let sv = UIScrollView()
+        sv.alwaysBounceVertical = true
+        sv.backgroundColor = .clear
+
+        let host = UIHostingController(rootView: content())
+        host.view.translatesAutoresizingMaskIntoConstraints = false
+        host.view.backgroundColor = .clear
+        sv.addSubview(host.view)
+        NSLayoutConstraint.activate([
+            host.view.topAnchor.constraint(equalTo: sv.contentLayoutGuide.topAnchor),
+            host.view.leadingAnchor.constraint(equalTo: sv.contentLayoutGuide.leadingAnchor),
+            host.view.trailingAnchor.constraint(equalTo: sv.contentLayoutGuide.trailingAnchor),
+            host.view.bottomAnchor.constraint(equalTo: sv.contentLayoutGuide.bottomAnchor),
+            host.view.widthAnchor.constraint(equalTo: sv.frameLayoutGuide.widthAnchor),
+        ])
+        context.coordinator.host = host
+        context.coordinator.attach(scrollState: scrollState, to: sv)
+        return sv
+    }
+
+    func updateUIView(_ uiView: UIScrollView, context: Context) {
+        context.coordinator.host?.rootView = content()
+        context.coordinator.scrollState = scrollState
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    @MainActor
+    class Coordinator: NSObject {
+        var host: UIHostingController<Content>?
+        var scrollState: ScrollState?
+        private var offsetObs: NSKeyValueObservation?
+
+        func attach(scrollState: ScrollState?, to sv: UIScrollView) {
+            self.scrollState = scrollState
+            self.offsetObs = sv.observe(\.contentOffset, options: [.new]) { [weak self] sv, _ in
+                let offsetY = sv.contentOffset.y
+                let containerH = sv.bounds.size.height
+                let contentH = sv.contentSize.height
+                let insetB = sv.adjustedContentInset.bottom
+                Task { @MainActor [weak self] in
+                    self?.report(offsetY: offsetY, containerH: containerH, contentH: contentH, insetB: insetB)
+                }
+            }
+        }
+
+        private func report(offsetY: CGFloat, containerH: CGFloat, contentH: CGFloat, insetB: CGFloat) {
+            guard contentH > 0 else {
+                scrollState?.isAtBottom = false
+                return
+            }
+            let maxOffsetY = contentH + insetB - containerH
+            if maxOffsetY <= 0 {
+                scrollState?.isAtBottom = true
+                return
+            }
+            scrollState?.isAtBottom = offsetY >= maxOffsetY - 5
         }
     }
 }
+#endif
 
 // MARK: - 前後記事カード Overlay
 
