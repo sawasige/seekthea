@@ -173,10 +173,13 @@ struct ArticleDetailView: View {
         .task {
             await loadContent()
         }
-        // モード切替時は末尾判定をリセット。新モードの WebView から
+        // モード切替時 / 抽出完了時は末尾判定をリセット。新画面の WebView から
         // 改めて contentSize / offset が報告されるまで、stale な値で
         // 前後カードがちらつかないように。
         .onChange(of: viewMode) {
+            scrollState.isAtBottom = false
+        }
+        .onChange(of: isLoading) {
             scrollState.isAtBottom = false
         }
         .sheet(isPresented: $showScoreBreakdown) {
@@ -199,7 +202,7 @@ struct ArticleDetailView: View {
     private var contentView: some View {
         ZStack {
             if isLoading {
-                LoadingPreviewView(article: article)
+                LoadingPreviewView(article: article, scrollState: scrollState)
                     .transition(.opacity)
             } else if let extracted = extractedArticle {
                 #if os(macOS)
@@ -291,12 +294,12 @@ struct ArticleDetailView: View {
     }
 
     /// 前後カードを表示すべき状況かどうか。
-    /// - ロード中（リーダー抽出中）は隠す
+    /// - ロード中（リーダー抽出中の RSS 概要画面）でも表示する
     /// - リーダー抽出失敗 → Web フォールバックでは表示しない（記事と重なるため）
     /// - Web モードでも表示しない（同上）
     /// - リーダー / AI 要約モードで、抽出済みの場合のみ表示
     private var shouldShowPrevNextCards: Bool {
-        guard !isLoading else { return false }
+        if isLoading { return true }
         guard extractedArticle != nil else { return false }
         return viewMode != .web
     }
@@ -509,6 +512,7 @@ struct ArticleDetailView: View {
 
 private struct LoadingPreviewView: View {
     let article: Article
+    var scrollState: ScrollState? = nil
 
     var body: some View {
         ScrollView {
@@ -555,6 +559,15 @@ private struct LoadingPreviewView: View {
             .padding(.bottom, 200)
             .frame(maxWidth: 720)
             .frame(maxWidth: .infinity)
+        }
+        // SwiftUI ScrollView は contentInsets が safeAreaInset を反映する
+        // （WKWebView の adjustedContentInset を取れなかった問題は無い）。
+        .onScrollGeometryChange(for: Bool.self, of: { geom in
+            let maxOffsetY = geom.contentSize.height + geom.contentInsets.bottom - geom.containerSize.height
+            if maxOffsetY <= 0 { return true }
+            return geom.contentOffset.y >= maxOffsetY - 5
+        }) { _, isBottom in
+            scrollState?.isAtBottom = isBottom
         }
     }
 }
