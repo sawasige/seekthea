@@ -658,12 +658,6 @@ fileprivate struct PrevNextCardsOverlay: View {
     let onTapPrev: () -> Void
     let onTapNext: () -> Void
 
-    /// 実コンテンツの末尾に達した時のみ表示。
-    /// 徐々に出てくると読書中に視線を奪うので「最後まで読み切った時」だけはっきり出す。
-    private var opacity: Double {
-        isAtBottom ? 1 : 0
-    }
-
     private var bottomPadding: CGFloat {
         #if os(macOS)
         return 24
@@ -676,20 +670,21 @@ fileprivate struct PrevNextCardsOverlay: View {
         if previous == nil && next == nil {
             EmptyView()
         } else {
-            HStack(alignment: .bottom, spacing: 8) {
+            HStack(alignment: .bottom, spacing: 10) {
                 if let prev = previous {
-                    NavArticleCard(article: prev, direction: .previous, action: onTapPrev)
+                    NavArticleCard(article: prev, direction: .previous, action: onTapPrev, isVisible: isAtBottom)
+                } else {
+                    Spacer().frame(maxWidth: .infinity)
                 }
-                Spacer(minLength: 0)
                 if let next = next {
-                    NavArticleCard(article: next, direction: .next, action: onTapNext)
+                    NavArticleCard(article: next, direction: .next, action: onTapNext, isVisible: isAtBottom)
+                } else {
+                    Spacer().frame(maxWidth: .infinity)
                 }
             }
             .padding(.horizontal, 12)
             .padding(.bottom, bottomPadding)
-            .opacity(opacity)
-            .allowsHitTesting(opacity > 0.5)
-            .animation(.easeInOut(duration: 0.25), value: opacity)
+            .allowsHitTesting(isAtBottom)
         }
     }
 }
@@ -698,6 +693,8 @@ fileprivate struct NavArticleCard: View {
     let article: Article
     let direction: Direction
     let action: () -> Void
+    let isVisible: Bool
+    @State private var isPressed = false
 
     enum Direction {
         case previous, next
@@ -707,45 +704,83 @@ fileprivate struct NavArticleCard: View {
         direction == .previous ? "前の記事" : "次の記事"
     }
 
+    private var chevron: String {
+        direction == .previous ? "chevron.left" : "chevron.right"
+    }
+
+    /// 隠れている時の x オフセット。
+    /// 「前の記事」は左に少し沈み、「次の記事」は右に少し沈む。
+    /// 表示時にそれぞれ画面中央側へスライドインしてくる。
+    private var hiddenOffsetX: CGFloat {
+        direction == .previous ? -24 : 24
+    }
+
+    /// 表示時に「次の記事」の方が少し遅れて出ることで stagger 感を出す。
+    private var entranceDelay: Double {
+        direction == .next ? 0.07 : 0
+    }
+
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
-                if direction == .previous {
-                    Image(systemName: "chevron.left")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-                thumbnail
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(label)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+            ZStack(alignment: .bottomLeading) {
+                imageBackground
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.55), .black.opacity(0.9)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        if direction == .previous {
+                            Image(systemName: chevron)
+                                .font(.caption2.weight(.bold))
+                        }
+                        Text(label)
+                            .font(.caption2.weight(.semibold))
+                        if direction == .next {
+                            Image(systemName: chevron)
+                                .font(.caption2.weight(.bold))
+                        }
+                    }
+                    .foregroundStyle(.white.opacity(0.85))
+
                     Text(article.title)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.primary)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                if direction == .next {
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(8)
-            .frame(maxWidth: 220, alignment: .leading)
-            .background(.regularMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .shadow(color: .black.opacity(0.15), radius: 8, y: 2)
+            .frame(maxWidth: .infinity)
+            .frame(height: 96)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.18), lineWidth: 0.5)
+            }
+            .shadow(color: .black.opacity(0.28), radius: 14, y: 4)
+            .scaleEffect(isPressed ? 0.96 : (isVisible ? 1.0 : 0.92))
+            .opacity(isVisible ? 1 : 0)
+            .offset(x: isVisible ? 0 : hiddenOffsetX, y: isVisible ? 0 : 24)
+            .animation(.spring(response: 0.5, dampingFraction: 0.78).delay(entranceDelay), value: isVisible)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isPressed)
         }
         .buttonStyle(.plain)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in isPressed = true }
+                .onEnded { _ in isPressed = false }
+        )
         #if os(visionOS)
         .hoverEffect()
         #endif
     }
 
     @ViewBuilder
-    private var thumbnail: some View {
+    private var imageBackground: some View {
         if let url = article.displayImageURL {
             AsyncImage(url: url) { phase in
                 switch phase {
@@ -755,17 +790,18 @@ fileprivate struct NavArticleCard: View {
                     placeholder
                 }
             }
-            .frame(width: 36, height: 36)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         } else {
             placeholder
         }
     }
 
     private var placeholder: some View {
-        RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(.quaternary)
-            .frame(width: 36, height: 36)
+        Rectangle()
+            .fill(LinearGradient(
+                colors: [Color.gray.opacity(0.4), Color.gray.opacity(0.6)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ))
     }
 }
 
