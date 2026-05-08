@@ -523,8 +523,17 @@ private struct LoadingPreviewView: View {
             previewContent
         }
         #else
+        // macOS は NSScrollView の挙動が素直で natural max ≒ contentSize - container
+        // なので SwiftUI ScrollView + onScrollGeometryChange で済む。
         ScrollView {
             previewContent
+        }
+        .onScrollGeometryChange(for: Bool.self, of: { geom in
+            let max = geom.contentSize.height - geom.containerSize.height
+            if max <= 0 { return true }
+            return geom.contentOffset.y >= max - 5
+        }) { _, isBottom in
+            scrollState?.isAtBottom = isBottom
         }
         #endif
     }
@@ -666,16 +675,6 @@ fileprivate struct PrevNextCardsOverlay: View {
         #endif
     }
 
-    /// macOS は scroll 末尾検出を実装していないので、常に表示扱い。
-    /// iOS / visionOS は scrollState.isAtBottom に従う。
-    private var effectiveVisible: Bool {
-        #if os(macOS)
-        return true
-        #else
-        return isAtBottom
-        #endif
-    }
-
     var body: some View {
         if previous == nil && next == nil {
             EmptyView()
@@ -683,13 +682,13 @@ fileprivate struct PrevNextCardsOverlay: View {
             HStack(alignment: .bottom, spacing: 10) {
                 Spacer(minLength: 0)
                 if let prev = previous {
-                    NavArticleCard(article: prev, direction: .previous, action: onTapPrev, isVisible: effectiveVisible)
+                    NavArticleCard(article: prev, direction: .previous, action: onTapPrev, isVisible: isAtBottom)
                         .frame(maxWidth: 280)
                 } else {
                     Color.clear.frame(maxWidth: 280, maxHeight: 1)
                 }
                 if let next = next {
-                    NavArticleCard(article: next, direction: .next, action: onTapNext, isVisible: effectiveVisible)
+                    NavArticleCard(article: next, direction: .next, action: onTapNext, isVisible: isAtBottom)
                         .frame(maxWidth: 280)
                 } else {
                     Color.clear.frame(maxWidth: 280, maxHeight: 1)
@@ -698,7 +697,7 @@ fileprivate struct PrevNextCardsOverlay: View {
             }
             .padding(.horizontal, 12)
             .padding(.bottom, bottomPadding)
-            .allowsHitTesting(effectiveVisible)
+            .allowsHitTesting(isAtBottom)
             // 補助ナビゲーション用の小さな card なので Dynamic Type の
             // accessibility サイズまでは追従させない（画面より大きくなるのを防ぐ）。
             .dynamicTypeSize(...DynamicTypeSize.xxLarge)
@@ -1491,6 +1490,50 @@ final class WebNavDelegate: NSObject, WKNavigationDelegate, WKUIDelegate {
     }
 }
 
+#if os(macOS)
+/// macOS 用の scroll 末尾検出 JS。
+/// WKWebView 内部の NSScrollView に SwiftUI 越しに触れないので、
+/// JS の scroll event listener から native (WKScriptMessageHandler) に
+/// `atBottom` を投げる方式を取る。
+fileprivate let scrollListenerJS = """
+(function() {
+  if (window.__seektheaScrollHandlerInstalled) return;
+  window.__seektheaScrollHandlerInstalled = true;
+  function check() {
+    var docHeight = document.documentElement.scrollHeight;
+    var winHeight = window.innerHeight;
+    var scrollY = window.scrollY || window.pageYOffset || 0;
+    var atBottom = (scrollY + winHeight) >= (docHeight - 5);
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.scrollHandler) {
+      window.webkit.messageHandlers.scrollHandler.postMessage({ atBottom: atBottom });
+    }
+  }
+  window.addEventListener('scroll', check, { passive: true });
+  window.addEventListener('resize', check, { passive: true });
+  // 初期状態（scroll 不要で content がフィットしているケース）も判定する
+  setTimeout(check, 100);
+})();
+"""
+
+/// WKWebView 内 JS から scroll 末尾を通知してもらうための handler。
+/// `WKScriptMessage` の name / body は MainActor 隔離されているので
+/// handler 全体を @MainActor にして直接読む。
+@MainActor
+final class WebScrollMessageHandler: NSObject, WKScriptMessageHandler {
+    var callback: ((Bool) -> Void)?
+
+    func userContentController(
+        _ userContentController: WKUserContentController,
+        didReceive message: WKScriptMessage
+    ) {
+        guard message.name == "scrollHandler" else { return }
+        let atBottom: Bool? = (message.body as? [String: Any])?["atBottom"] as? Bool
+        guard let atBottom else { return }
+        callback?(atBottom)
+    }
+}
+#endif
+
 /// WKWebView を SwiftUI で扱うために @Observable で包む wrapper。
 /// iOS 26 SwiftUI の `WebPage` と同等の API（load(html:) / callJavaScript /
 /// url 観測 / backForwardList 等）を提供しつつ、WebPage では取れない
@@ -1507,8 +1550,28 @@ final class ManagedWKWebView {
     @ObservationIgnored private var urlObs: NSKeyValueObservation?
     @ObservationIgnored private var loadingObs: NSKeyValueObservation?
 
+    #if os(macOS)
+    /// macOS で scroll 末尾を検出した時に呼ばれる callback。
+    /// `WrappedWKWebView` の Coordinator が ScrollState を更新する処理を
+    /// 詰めるために使う（@MainActor）。
+    @ObservationIgnored var onScrollAtBottomChange: ((Bool) -> Void)?
+    @ObservationIgnored private let scrollMessageHandler: WebScrollMessageHandler
+    #endif
+
     init() {
         let config = WKWebViewConfiguration()
+
+        #if os(macOS)
+        let handler = WebScrollMessageHandler()
+        config.userContentController.add(handler, name: "scrollHandler")
+        config.userContentController.addUserScript(WKUserScript(
+            source: scrollListenerJS,
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: true
+        ))
+        self.scrollMessageHandler = handler
+        #endif
+
         let wv = WKWebView(frame: .zero, configuration: config)
         let nd = WebNavDelegate()
         wv.navigationDelegate = nd
@@ -1527,6 +1590,13 @@ final class ManagedWKWebView {
             let newLoading = wv.isLoading
             Task { @MainActor [weak self] in self?.isLoading = newLoading }
         }
+
+        #if os(macOS)
+        // self が完全初期化された後に callback を配線する。
+        handler.callback = { [weak self] atBottom in
+            self?.onScrollAtBottomChange?(atBottom)
+        }
+        #endif
     }
 
     func load(html: String, baseURL: URL?) {
@@ -1605,17 +1675,35 @@ struct WrappedWKWebView: UIViewRepresentable {
     }
 }
 #elseif canImport(AppKit)
-/// macOS 用。WKWebView を NSView としてホストするだけ。
-/// scroll 観測は UIScrollView と機構が違うので未対応（前後カード自体は機能する）。
+/// macOS 用。WKWebView を NSView としてホストする。
+/// scroll 観測は ManagedWKWebView 側で JS scroll listener から
+/// callback で受け取る形になっているので、ここで配線する。
 struct WrappedWKWebView: NSViewRepresentable {
     let manager: ManagedWKWebView
     var scrollState: ScrollState? = nil
 
     func makeNSView(context: Context) -> WKWebView {
-        manager.webView
+        context.coordinator.attach(manager: manager, scrollState: scrollState)
+        return manager.webView
     }
 
-    func updateNSView(_ nsView: WKWebView, context: Context) {}
+    func updateNSView(_ nsView: WKWebView, context: Context) {
+        context.coordinator.scrollState = scrollState
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    @MainActor
+    class Coordinator {
+        var scrollState: ScrollState?
+
+        func attach(manager: ManagedWKWebView, scrollState: ScrollState?) {
+            self.scrollState = scrollState
+            manager.onScrollAtBottomChange = { [weak self] atBottom in
+                self?.scrollState?.isAtBottom = atBottom
+            }
+        }
+    }
 }
 #endif
 
