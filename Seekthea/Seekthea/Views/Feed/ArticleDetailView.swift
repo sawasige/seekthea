@@ -173,6 +173,12 @@ struct ArticleDetailView: View {
         .task {
             await loadContent()
         }
+        // モード切替時は末尾判定をリセット。新モードの WebView から
+        // 改めて contentSize / offset が報告されるまで、stale な値で
+        // 前後カードがちらつかないように。
+        .onChange(of: viewMode) {
+            scrollState.isAtBottom = false
+        }
         .sheet(isPresented: $showScoreBreakdown) {
             ScoreBreakdownView(article: article, modelContainer: modelContext.container)
         }
@@ -272,16 +278,27 @@ struct ArticleDetailView: View {
         .animation(.easeInOut(duration: 0.25), value: loadingStage)
         .animation(.easeInOut(duration: 0.3), value: showFailureNotice)
         .overlay(alignment: .bottom) {
-            if !isLoading {
+            if shouldShowPrevNextCards {
                 PrevNextCardsOverlay(
                     previous: previousArticle,
                     next: nextArticle,
-                    scrollProgress: scrollState.scrollProgress,
+                    isAtBottom: scrollState.isAtBottom,
                     onTapPrev: { onNavigatePrev?() },
                     onTapNext: { onNavigateNext?() }
                 )
             }
         }
+    }
+
+    /// 前後カードを表示すべき状況かどうか。
+    /// - ロード中（リーダー抽出中）は隠す
+    /// - リーダー抽出失敗 → Web フォールバックでは表示しない（記事と重なるため）
+    /// - Web モードでも表示しない（同上）
+    /// - リーダー / AI 要約モードで、抽出済みの場合のみ表示
+    private var shouldShowPrevNextCards: Bool {
+        guard !isLoading else { return false }
+        guard extractedArticle != nil else { return false }
+        return viewMode != .web
     }
 
     #if os(macOS)
@@ -535,7 +552,7 @@ private struct LoadingPreviewView: View {
                 }
             }
             .padding(20)
-            .padding(.bottom, 80)
+            .padding(.bottom, 200)
             .frame(maxWidth: 720)
             .frame(maxWidth: .infinity)
         }
@@ -549,17 +566,14 @@ private struct LoadingPreviewView: View {
 fileprivate struct PrevNextCardsOverlay: View {
     let previous: Article?
     let next: Article?
-    let scrollProgress: Double
+    let isAtBottom: Bool
     let onTapPrev: () -> Void
     let onTapNext: () -> Void
 
-    /// `scrollProgress` 0.6 から fade-in、0.85 で完全表示。
+    /// 実コンテンツの末尾に達した時のみ表示。
+    /// 徐々に出てくると読書中に視線を奪うので「最後まで読み切った時」だけはっきり出す。
     private var opacity: Double {
-        let start = 0.6
-        let end = 0.85
-        if scrollProgress < start { return 0 }
-        if scrollProgress > end { return 1 }
-        return (scrollProgress - start) / (end - start)
+        isAtBottom ? 1 : 0
     }
 
     private var bottomPadding: CGFloat {
@@ -786,7 +800,7 @@ fileprivate struct AISummaryView: View {
             line-height: 1.8;
             color: #1d1d1f;
             background: #fff;
-            padding: 20px 20px 80px;
+            padding: 20px 20px 200px;
             max-width: 720px;
             margin: 0 auto;
             -webkit-text-size-adjust: 100%;
@@ -1163,7 +1177,7 @@ fileprivate struct ReaderView: View {
             color: #1d1d1f;
             background: #fff;
             margin: 0;
-            padding: 20px 20px 80px;
+            padding: 20px 20px 200px;
             max-width: 720px;
             margin: 0 auto;
             -webkit-text-size-adjust: 100%;
@@ -1257,22 +1271,24 @@ fileprivate struct ReaderView: View {
 // MARK: - ScrollMetrics
 
 /// ScrollGeometry から進捗判定に必要な値だけを抽出した小さな struct。
-/// `webViewOnScrollGeometryChange` の比較用に Equatable にしておく。
+/// `webViewOnScrollGeometryChange` の比較用に Hashable にしておく。
 fileprivate struct ScrollMetrics: Hashable {
     let offsetY: CGFloat
     let containerHeight: CGFloat
     let contentHeight: CGFloat
-
-    init(offsetY: CGFloat, containerHeight: CGFloat, contentHeight: CGFloat) {
-        self.offsetY = offsetY
-        self.containerHeight = containerHeight
-        self.contentHeight = contentHeight
-    }
+    /// safeAreaInset.bottom 等の下方向 inset。これがあると max scroll は
+    /// contentHeight + insetBottom - containerHeight になる（contentHeight 単純差ではない）。
+    let insetBottom: CGFloat
+    let boundsMaxY: CGFloat
+    let visibleMaxY: CGFloat
 
     init(geometry: ScrollGeometry) {
         self.offsetY = geometry.contentOffset.y
         self.containerHeight = geometry.containerSize.height
         self.contentHeight = geometry.contentSize.height
+        self.insetBottom = geometry.contentInsets.bottom
+        self.boundsMaxY = geometry.bounds.maxY
+        self.visibleMaxY = geometry.visibleRect.maxY
     }
 }
 
@@ -1281,9 +1297,9 @@ fileprivate struct ScrollMetrics: Hashable {
 @Observable
 final class ScrollState {
     var barsHidden: Bool = false
-    /// スクロール進捗 (0..1)。記事末尾に近いほど 1 に近づく。
-    /// 末尾近くで前後記事カードを fade-in させるためのヒント。
-    var scrollProgress: Double = 0
+    /// 実コンテンツの末尾に viewport が到達したか（前後カード表示用）。
+    /// 「ほぼ末尾」という曖昧さを避けるため、絶対距離 (pt) で判定する。
+    var isAtBottom: Bool = false
 
     func reportScroll(oldY: CGFloat, newY: CGFloat) {
         let delta = newY - oldY
@@ -1293,16 +1309,26 @@ final class ScrollState {
         }
     }
 
-    /// `webViewOnScrollGeometryChange` から呼び出してスクロール進捗を更新。
-    /// `containerHeight + offsetY >= contentHeight` で末尾到達 (= 1.0)。
-    func reportProgress(offsetY: CGFloat, containerHeight: CGFloat, contentHeight: CGFloat) {
-        let scrollable = max(0, contentHeight - containerHeight)
-        guard scrollable > 0 else {
-            scrollProgress = 0
+    /// `webViewOnScrollGeometryChange` から呼び出して末尾到達を判定。
+    /// 実 max scroll = `contentHeight + insetBottom - containerHeight`。
+    /// `insetBottom` は safeAreaInset.bottom 等で、contentHeight だけでは
+    /// 最大スクロール量を正確に計算できない（bounce 領域として下方に scroll できる）。
+    /// WebView が初期化直後で contentHeight が 0 の場合は判定不能なので false。
+    func reportProgress(offsetY: CGFloat, containerHeight: CGFloat, contentHeight: CGFloat, insetBottom: CGFloat) {
+        guard contentHeight > 0 else {
+            isAtBottom = false
             return
         }
-        let p = Double(min(max(offsetY / scrollable, 0), 1))
-        scrollProgress = p
+        let maxOffsetY = contentHeight + insetBottom - containerHeight
+        // contentHeight が小さくて maxOffsetY <= 0 の場合（コンテンツが画面に収まる短さ）は
+        // 最初から末尾扱いにする（AI 要約のような短い content 用）。
+        if maxOffsetY <= 0 {
+            isAtBottom = true
+            return
+        }
+        // 5pt の余裕は floating-point 誤差・bounce 中の僅かなズレを吸収するため。
+        let tolerance: CGFloat = 5
+        isAtBottom = offsetY >= maxOffsetY - tolerance
     }
 }
 
@@ -1350,7 +1376,8 @@ fileprivate struct ConfiguredWebView: View {
                 scrollState?.reportProgress(
                     offsetY: new.offsetY,
                     containerHeight: new.containerHeight,
-                    contentHeight: new.contentHeight
+                    contentHeight: new.contentHeight,
+                    insetBottom: new.insetBottom
                 )
             }
             #endif
