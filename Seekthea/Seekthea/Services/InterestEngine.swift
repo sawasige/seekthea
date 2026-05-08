@@ -16,6 +16,8 @@ struct ScoreBreakdown {
     var impressionCount: Int = 0
     var keywordWeight: Double = 0.4
     var semanticWeight: Double = 0.6
+    /// 除外キーワードでマッチした場合のヒット情報（あれば totalScore は強制的に 0）
+    var excludedMatches: [(keyword: String, matchType: String)] = []
 }
 
 /// ユーザーの興味に基づいて記事をスコアリングする
@@ -59,9 +61,18 @@ class InterestEngine {
         // 5. 興味の英語キーワードを収集
         let interestEnKeywords = buildEnglishInterestKeywords(context: context)
 
-        // 5. 全記事をスコアリング
+        // 6. 除外キーワードを収集
+        let excludedKeywords = fetchExcludedKeywords(context: context)
+
+        // 7. 全記事をスコアリング
         let articles = (try? context.fetch(FetchDescriptor<Article>())) ?? []
         for article in articles {
+            // 除外キーワードに一致する記事はスコア 0（実質非表示）
+            if matchesExcluded(article: article, excluded: excludedKeywords) {
+                article.relevanceScore = 0
+                continue
+            }
+
             let keywordScore = computeKeywordScore(article: article, topics: allTopics)
             let semanticScore = computeSemanticScore(article: article, interestEnKeywords: interestEnKeywords, wordEmbedding: wordEmbedding)
 
@@ -89,6 +100,14 @@ class InterestEngine {
     /// 1記事だけrelevanceScoreを再計算して保存
     func rescore(article: Article) {
         let context = modelContainer.mainContext
+
+        let excludedKeywords = fetchExcludedKeywords(context: context)
+        if matchesExcluded(article: article, excluded: excludedKeywords) {
+            article.relevanceScore = 0
+            try? context.save()
+            return
+        }
+
         let interests = (try? context.fetch(FetchDescriptor<UserInterest>())) ?? []
         let interestTopics = Dictionary(uniqueKeysWithValues: interests.map { ($0.topic.lowercased(), $0.weight) })
         let learnedTopics = learnFromHistory(context: context)
@@ -117,6 +136,10 @@ class InterestEngine {
     func explainScore(for article: Article) -> ScoreBreakdown {
         let context = modelContainer.mainContext
         var breakdown = ScoreBreakdown()
+
+        // 除外キーワードのマッチを先に判定（マッチしたら以降の計算は飾り）
+        let excludedKeywords = fetchExcludedKeywords(context: context)
+        breakdown.excludedMatches = excludedMatchInfo(article: article, excluded: excludedKeywords)
 
         // トピック収集
         let interests = (try? context.fetch(FetchDescriptor<UserInterest>())) ?? []
@@ -197,7 +220,12 @@ class InterestEngine {
             total *= breakdown.impressionPenalty
         }
 
-        breakdown.totalScore = min(max(total, 0), 1.0)
+        // 除外マッチがあればスコアを 0 に（実質非表示）
+        if !breakdown.excludedMatches.isEmpty {
+            breakdown.totalScore = 0
+        } else {
+            breakdown.totalScore = min(max(total, 0), 1.0)
+        }
         return breakdown
     }
 
@@ -292,6 +320,44 @@ class InterestEngine {
         }
 
         return min(score / (score + 1.5), 1.0)
+    }
+
+    // MARK: - 除外キーワード
+
+    /// 除外キーワードを取得（小文字・空文字除去済み）
+    private func fetchExcludedKeywords(context: ModelContext) -> [String] {
+        let excluded = (try? context.fetch(FetchDescriptor<ExcludedKeyword>())) ?? []
+        return excluded
+            .map { $0.keyword.lowercased() }
+            .filter { !$0.isEmpty }
+    }
+
+    /// 記事が除外キーワードに一致するか判定
+    private func matchesExcluded(article: Article, excluded: [String]) -> Bool {
+        guard !excluded.isEmpty else { return false }
+        let titleLower = article.title.lowercased()
+        let articleKeywords = article.keywords.map { $0.lowercased() }
+        for ex in excluded {
+            if titleLower.contains(ex) { return true }
+            if articleKeywords.contains(where: { $0.contains(ex) || ex.contains($0) }) { return true }
+        }
+        return false
+    }
+
+    /// 除外マッチの詳細を返す（スコア内訳画面用）
+    private func excludedMatchInfo(article: Article, excluded: [String]) -> [(keyword: String, matchType: String)] {
+        guard !excluded.isEmpty else { return [] }
+        var matches: [(keyword: String, matchType: String)] = []
+        let titleLower = article.title.lowercased()
+        let articleKeywords = article.keywords.map { $0.lowercased() }
+        for ex in excluded {
+            if titleLower.contains(ex) {
+                matches.append((ex, "タイトル"))
+            } else if articleKeywords.contains(where: { $0.contains(ex) || ex.contains($0) }) {
+                matches.append((ex, "キーワード"))
+            }
+        }
+        return matches
     }
 
     // MARK: - 行動から興味を学習

@@ -19,6 +19,8 @@ enum DataDeduplicator {
         dedupUserCategories(context)
         await Task.yield()
         dedupUserInterests(context)
+        await Task.yield()
+        dedupExcludedKeywords(context)
         try? context.save()
         onProgress?(nil)
     }
@@ -95,6 +97,25 @@ enum DataDeduplicator {
             guard !key.isEmpty else { continue }
             if seen.contains(key) {
                 context.delete(interest)
+            } else {
+                seen.insert(key)
+            }
+        }
+    }
+
+    private static func dedupExcludedKeywords(_ context: ModelContext) {
+        let excluded = (try? context.fetch(
+            FetchDescriptor<ExcludedKeyword>(sortBy: [SortDescriptor(\.addedAt)])
+        )) ?? []
+        var seen = Set<String>()
+        for ex in excluded {
+            let key = ex.keyword.lowercased().trimmingCharacters(in: .whitespaces)
+            guard !key.isEmpty else {
+                context.delete(ex)
+                continue
+            }
+            if seen.contains(key) {
+                context.delete(ex)
             } else {
                 seen.insert(key)
             }

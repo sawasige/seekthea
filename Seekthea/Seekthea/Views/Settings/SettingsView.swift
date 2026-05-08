@@ -220,6 +220,7 @@ struct SettingsView: View {
             try modelContext.delete(model: DiscoveredDomain.self)
             try modelContext.delete(model: UserCategory.self)
             try modelContext.delete(model: UserInterest.self)
+            try modelContext.delete(model: ExcludedKeyword.self)
             try modelContext.save()
         } catch {
             print("Failed to reset data: \(error)")

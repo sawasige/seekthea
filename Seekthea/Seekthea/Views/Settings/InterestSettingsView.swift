@@ -4,6 +4,7 @@ import SwiftData
 struct InterestSettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \UserInterest.addedAt) private var interests: [UserInterest]
+    @Query(sort: \ExcludedKeyword.addedAt) private var excludedKeywords: [ExcludedKeyword]
     @State private var newTopic = ""
     @State private var learnedTopics: [(topic: String, weight: Double)] = []
     @State private var translatingTopics: Set<String> = []
@@ -108,19 +109,37 @@ struct InterestSettingsView: View {
                 }
             }
             if !learnedTopics.isEmpty {
-                Section("行動から学習した興味") {
+                Section {
                     ForEach(learnedTopics, id: \.topic) { item in
+                        learnedTopicRow(item)
+                    }
+                } header: {
+                    Text("行動から学習した興味")
+                } footer: {
+                    Text("既読・お気に入りから自動で見つけたトピック。「興味に追加」で手動側に昇格して重みを調整、「除外」で表示しないように。")
+                }
+            }
+
+            if !excludedKeywords.isEmpty {
+                Section {
+                    ForEach(excludedKeywords, id: \.id) { ex in
                         HStack {
-                            Text(item.topic)
-                            Spacer()
-                            ProgressView(value: item.weight)
-                                .frame(width: 80)
-                            Text(String(format: "×%.2f", item.weight))
-                                .font(.caption).monospacedDigit()
+                            Image(systemName: "nosign")
                                 .foregroundStyle(.secondary)
-                                .frame(width: 44, alignment: .trailing)
+                            Text(ex.keyword)
+                            Spacer()
                         }
                     }
+                    .onDelete { offsets in
+                        for index in offsets {
+                            modelContext.delete(excludedKeywords[index])
+                        }
+                        try? modelContext.save()
+                    }
+                } header: {
+                    Text("除外キーワード")
+                } footer: {
+                    Text("これらのキーワードを含む記事はフィードに表示されません。スワイプで解除できます。")
                 }
             }
         }
@@ -136,10 +155,58 @@ struct InterestSettingsView: View {
     private func loadLearnedTopics() {
         let engine = InterestEngine(modelContainer: modelContext.container)
         let raw = engine.learnFromHistory(context: modelContext)
+        let manualTopics = Set(interests.map { $0.topic.lowercased() })
+        let excludedSet = Set(excludedKeywords.map { $0.keyword.lowercased() })
+        // 既に手動側にあるトピック・除外済みキーワードは「学習中」リストから除く
         learnedTopics = raw
+            .filter { !manualTopics.contains($0.key.lowercased()) && !excludedSet.contains($0.key.lowercased()) }
             .sorted { $0.value > $1.value }
             .prefix(20)
             .map { (topic: $0.key, weight: $0.value) }
+    }
+
+    @ViewBuilder
+    private func learnedTopicRow(_ item: (topic: String, weight: Double)) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(item.topic)
+                Spacer()
+                ProgressView(value: item.weight)
+                    .frame(width: 80)
+                Text(String(format: "×%.2f", item.weight))
+                    .font(.caption).monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, alignment: .trailing)
+            }
+            HStack(spacing: 12) {
+                Spacer()
+                Button {
+                    addTopic(item.topic)
+                    loadLearnedTopics()
+                } label: {
+                    Label("興味に追加", systemImage: "plus.circle")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
+                Button(role: .destructive) {
+                    excludeTopic(item.topic)
+                    loadLearnedTopics()
+                } label: {
+                    Label("除外", systemImage: "nosign")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
+            }
+        }
+    }
+
+    private func excludeTopic(_ keyword: String) {
+        let trimmed = keyword.lowercased().trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        let existing = Set(excludedKeywords.map { $0.keyword.lowercased() })
+        guard !existing.contains(trimmed) else { return }
+        modelContext.insert(ExcludedKeyword(keyword: trimmed))
+        try? modelContext.save()
     }
 
     private func addTopic(_ topic: String, en: String = "") {
