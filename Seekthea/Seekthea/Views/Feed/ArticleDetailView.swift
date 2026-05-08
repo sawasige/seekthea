@@ -7,6 +7,84 @@ import UIKit
 import AppKit
 #endif
 
+// MARK: - ArticleDetailContainer
+
+/// 記事詳細のラッパー。前の/次の記事カードからの遷移を受けて、
+/// `currentArticle` を差し替える。差し替え時には `.id(article.id)` により
+/// `ArticleDetailView` の @State が完全リセットされ、新しい記事として読み込み直される。
+///
+/// 前後の記事は `ArticleNavigationContext.shared` のスナップショットから解決する。
+struct ArticleDetailContainer: View {
+    let initialArticle: Article
+    /// 戻る時の zoom transition の source 解決用 namespace。
+    /// FeedView のカードにも同じ namespace で `matchedTransitionSource` が貼られている。
+    let zoomNamespace: Namespace.ID?
+    @State private var currentArticle: Article
+
+    init(initialArticle: Article, zoomNamespace: Namespace.ID? = nil) {
+        self.initialArticle = initialArticle
+        self.zoomNamespace = zoomNamespace
+        self._currentArticle = State(initialValue: initialArticle)
+    }
+
+    var body: some View {
+        let neighbors = ArticleNavigationContext.shared.neighbors(of: currentArticle)
+        ArticleDetailView(
+            article: currentArticle,
+            previousArticle: neighbors.previous,
+            nextArticle: neighbors.next,
+            onNavigatePrev: {
+                if let p = neighbors.previous {
+                    // セッション保護に登録（フィードに戻った時にこの記事も
+                    // 元の位置に留まるように。FeedView の openArticle と同等処理）。
+                    ArticleNavigationContext.shared.markVisited(p.id)
+                    // SwiftUI の更新サイクル内で .id() による identity 変更を起こすと
+                    // 描画ツリーの torn down と onTap 元の view 破棄が同期して
+                    // クラッシュすることがある。次の runloop に逃がす。
+                    Task { @MainActor in currentArticle = p }
+                }
+            },
+            onNavigateNext: {
+                if let n = neighbors.next {
+                    ArticleNavigationContext.shared.markVisited(n.id)
+                    Task { @MainActor in currentArticle = n }
+                }
+            }
+        )
+        .id(currentArticle.id)
+        // currentArticle に追従する zoom transition。
+        // 詳細でカード遷移して C を見ていた場合、戻る時 A ではなく C のカードに
+        // 縮小アニメーションするように。
+        #if !os(macOS)
+        .applyZoomTransitionIfPossible(sourceID: currentArticle.id, namespace: zoomNamespace)
+        #endif
+        // 詳細表示中の記事 id を共有して、フィード側で先回りスクロールできるように。
+        .onAppear {
+            ArticleNavigationContext.shared.setCurrentArticle(currentArticle.id)
+        }
+        .onChange(of: currentArticle.id) { _, newID in
+            ArticleNavigationContext.shared.setCurrentArticle(newID)
+        }
+        .onDisappear {
+            ArticleNavigationContext.shared.setCurrentArticle(nil)
+        }
+    }
+}
+
+#if !os(macOS)
+private extension View {
+    /// 名前空間がある時だけ navigationTransition を適用するヘルパー。
+    @ViewBuilder
+    func applyZoomTransitionIfPossible(sourceID: UUID, namespace: Namespace.ID?) -> some View {
+        if let namespace {
+            self.navigationTransition(.zoom(sourceID: sourceID, in: namespace))
+        } else {
+            self
+        }
+    }
+}
+#endif
+
 // MARK: - 表示モード
 
 private enum DetailViewMode: String, CaseIterable {
@@ -28,15 +106,19 @@ private enum DetailViewMode: String, CaseIterable {
 struct ArticleDetailView: View {
     @Environment(\.modelContext) private var modelContext
     let article: Article
+    var previousArticle: Article? = nil
+    var nextArticle: Article? = nil
+    var onNavigatePrev: (() -> Void)? = nil
+    var onNavigateNext: (() -> Void)? = nil
     @State private var extractedArticle: ReadabilityExtractor.Article?
     @State private var isLoading = true
     @State private var viewMode: DetailViewMode = .reader
     @State private var loadingStage: String = "記事ページを取得中..."
     @State private var showFailureNotice = false
     @State private var showScoreBreakdown = false
-    @State private var webPage = makeConfiguredWebPage()
-    @State private var readerPage = makeConfiguredWebPage()
-    @State private var summaryPage = makeConfiguredWebPage()
+    @State private var webPage = ManagedWKWebView()
+    @State private var readerPage = ManagedWKWebView()
+    @State private var summaryPage = ManagedWKWebView()
     /// Reader / Web / AI要約 の各 WebView が初期状態（記事URL or 自前HTML）から
     /// 別 URL に遷移したかどうか。ナビ済みのモードではモードピッカーを隠して
     /// 戻る／リロードのバーだけを表示する。
@@ -90,6 +172,12 @@ struct ArticleDetailView: View {
         }
         .task {
             await loadContent()
+        }
+        // モード切替時は末尾判定をリセット。新モードの WebView から
+        // 改めて contentSize / offset が報告されるまで、stale な値で
+        // 前後カードがちらつかないように。
+        .onChange(of: viewMode) {
+            scrollState.isAtBottom = false
         }
         .sheet(isPresented: $showScoreBreakdown) {
             ScoreBreakdownView(article: article, modelContainer: modelContext.container)
@@ -189,6 +277,28 @@ struct ArticleDetailView: View {
         }
         .animation(.easeInOut(duration: 0.25), value: loadingStage)
         .animation(.easeInOut(duration: 0.3), value: showFailureNotice)
+        .overlay(alignment: .bottom) {
+            if shouldShowPrevNextCards {
+                PrevNextCardsOverlay(
+                    previous: previousArticle,
+                    next: nextArticle,
+                    isAtBottom: scrollState.isAtBottom,
+                    onTapPrev: { onNavigatePrev?() },
+                    onTapNext: { onNavigateNext?() }
+                )
+            }
+        }
+    }
+
+    /// 前後カードを表示すべき状況かどうか。
+    /// - ロード中（リーダー抽出中）は隠す
+    /// - リーダー抽出失敗 → Web フォールバックでは表示しない（記事と重なるため）
+    /// - Web モードでも表示しない（同上）
+    /// - リーダー / AI 要約モードで、抽出済みの場合のみ表示
+    private var shouldShowPrevNextCards: Bool {
+        guard !isLoading else { return false }
+        guard extractedArticle != nil else { return false }
+        return viewMode != .web
     }
 
     #if os(macOS)
@@ -200,7 +310,8 @@ struct ArticleDetailView: View {
                     article: article,
                     extracted: extracted,
                     page: readerPage,
-                    hasNavigated: $readerHasNavigated
+                    hasNavigated: $readerHasNavigated,
+                    scrollState: scrollState
                 )
                 .safeAreaInset(edge: .bottom) {
                     if readerHasNavigated {
@@ -212,7 +323,8 @@ struct ArticleDetailView: View {
                 AISummaryView(
                     article: article,
                     page: summaryPage,
-                    hasNavigated: $summaryHasNavigated
+                    hasNavigated: $summaryHasNavigated,
+                    scrollState: scrollState
                 )
                 .safeAreaInset(edge: .bottom) {
                     if summaryHasNavigated {
@@ -440,10 +552,132 @@ private struct LoadingPreviewView: View {
                 }
             }
             .padding(20)
-            .padding(.bottom, 80)
+            .padding(.bottom, 200)
             .frame(maxWidth: 720)
             .frame(maxWidth: .infinity)
         }
+    }
+}
+
+// MARK: - 前後記事カード Overlay
+
+/// 記事末尾近くまでスクロールすると左下と右下に fade-in する前後記事カード。
+/// タップで `currentArticle` が差し替わる（その場で記事遷移）。
+fileprivate struct PrevNextCardsOverlay: View {
+    let previous: Article?
+    let next: Article?
+    let isAtBottom: Bool
+    let onTapPrev: () -> Void
+    let onTapNext: () -> Void
+
+    /// 実コンテンツの末尾に達した時のみ表示。
+    /// 徐々に出てくると読書中に視線を奪うので「最後まで読み切った時」だけはっきり出す。
+    private var opacity: Double {
+        isAtBottom ? 1 : 0
+    }
+
+    private var bottomPadding: CGFloat {
+        #if os(macOS)
+        return 24
+        #else
+        return 100
+        #endif
+    }
+
+    var body: some View {
+        if previous == nil && next == nil {
+            EmptyView()
+        } else {
+            HStack(alignment: .bottom, spacing: 8) {
+                if let prev = previous {
+                    NavArticleCard(article: prev, direction: .previous, action: onTapPrev)
+                }
+                Spacer(minLength: 0)
+                if let next = next {
+                    NavArticleCard(article: next, direction: .next, action: onTapNext)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, bottomPadding)
+            .opacity(opacity)
+            .allowsHitTesting(opacity > 0.5)
+            .animation(.easeInOut(duration: 0.25), value: opacity)
+        }
+    }
+}
+
+fileprivate struct NavArticleCard: View {
+    let article: Article
+    let direction: Direction
+    let action: () -> Void
+
+    enum Direction {
+        case previous, next
+    }
+
+    private var label: String {
+        direction == .previous ? "前の記事" : "次の記事"
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                if direction == .previous {
+                    Image(systemName: "chevron.left")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                thumbnail
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text(article.title)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+                if direction == .next {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(8)
+            .frame(maxWidth: 220, alignment: .leading)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .shadow(color: .black.opacity(0.15), radius: 8, y: 2)
+        }
+        .buttonStyle(.plain)
+        #if os(visionOS)
+        .hoverEffect()
+        #endif
+    }
+
+    @ViewBuilder
+    private var thumbnail: some View {
+        if let url = article.displayImageURL {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().scaledToFill()
+                default:
+                    placeholder
+                }
+            }
+            .frame(width: 36, height: 36)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        } else {
+            placeholder
+        }
+    }
+
+    private var placeholder: some View {
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .fill(.quaternary)
+            .frame(width: 36, height: 36)
     }
 }
 
@@ -451,8 +685,8 @@ private struct LoadingPreviewView: View {
 
 fileprivate struct AISummaryView: View {
     let article: Article
-    /// WebPage は親に持ち上げてある（ナビ済み状態を親と共有するため）。
-    let page: WebPage
+    /// WebView インスタンスは親に持ち上げてある（ナビ済み状態を親と共有するため）。
+    let page: ManagedWKWebView
     @Binding var hasNavigated: Bool
     var scrollState: ScrollState? = nil
 
@@ -566,7 +800,7 @@ fileprivate struct AISummaryView: View {
             line-height: 1.8;
             color: #1d1d1f;
             background: #fff;
-            padding: 20px 20px 80px;
+            padding: 20px 20px 200px;
             max-width: 720px;
             margin: 0 auto;
             -webkit-text-size-adjust: 100%;
@@ -752,9 +986,9 @@ private struct ShimmerView: View {
 private struct DetailPagingView: UIViewControllerRepresentable {
     let article: Article
     let extracted: ReadabilityExtractor.Article
-    let webPage: WebPage
-    let readerPage: WebPage
-    let summaryPage: WebPage
+    let webPage: ManagedWKWebView
+    let readerPage: ManagedWKWebView
+    let summaryPage: ManagedWKWebView
     @Binding var readerHasNavigated: Bool
     @Binding var webHasNavigated: Bool
     @Binding var summaryHasNavigated: Bool
@@ -895,9 +1129,9 @@ private struct DetailModeButton: View {
 fileprivate struct ReaderView: View {
     let article: Article
     let extracted: ReadabilityExtractor.Article
-    /// WebPage は親に持ち上げてある。本文中の <a> をタップして外部 URL に移動したかを
-    /// 親に通知する必要があるため、戻る／リロードのバーは親側 (iosContent) で表示する。
-    let page: WebPage
+    /// WebView インスタンスは親に持ち上げてある。本文中の <a> をタップして外部 URL に
+    /// 移動したかを親に通知する必要があるため、戻る／リロードのバーは親側 (iosContent) で表示する。
+    let page: ManagedWKWebView
     @Binding var hasNavigated: Bool
     var scrollState: ScrollState? = nil
 
@@ -943,7 +1177,7 @@ fileprivate struct ReaderView: View {
             color: #1d1d1f;
             background: #fff;
             margin: 0;
-            padding: 20px 20px 80px;
+            padding: 20px 20px 200px;
             max-width: 720px;
             margin: 0 auto;
             -webkit-text-size-adjust: 100%;
@@ -1039,6 +1273,8 @@ fileprivate struct ReaderView: View {
 @Observable
 final class ScrollState {
     var barsHidden: Bool = false
+    /// 実コンテンツの末尾に viewport が到達したか（前後カード表示用）。
+    var isAtBottom: Bool = false
 
     func reportScroll(oldY: CGFloat, newY: CGFloat) {
         let delta = newY - oldY
@@ -1047,59 +1283,208 @@ final class ScrollState {
             barsHidden = delta > 0
         }
     }
+
+    /// WKWebView の `scrollView` から直接呼ばれる。
+    /// 実 max scroll = `contentHeight + insetBottom - containerHeight`。
+    /// `insetBottom` は `scrollView.adjustedContentInset.bottom`（safeAreaInset の
+    /// mode picker / home indicator 分。SwiftUI WebView では取れない値）。
+    func reportProgress(offsetY: CGFloat, containerHeight: CGFloat, contentHeight: CGFloat, insetBottom: CGFloat) {
+        guard contentHeight > 0 else {
+            isAtBottom = false
+            return
+        }
+        let maxOffsetY = contentHeight + insetBottom - containerHeight
+        if maxOffsetY <= 0 {
+            isAtBottom = true
+            return
+        }
+        let tolerance: CGFloat = 5
+        isAtBottom = offsetY >= maxOffsetY - tolerance
+    }
 }
 
-// MARK: - ConfiguredWebView（共通ラッパー：scroll連動・新ウィンドウ処理など）
+// MARK: - WKWebView ラッパー
 
-/// `target="_blank"` などの新規ウィンドウ要求を Safari で開くナビゲーション判定。
-/// `action.target` が nil なら新規ウィンドウへの遷移要求なので、現在の WebView では開かず
-/// 外部ブラウザに渡す。
+/// target="_blank" や window.open() などの新規ウィンドウ要求を Safari に逃がす delegate。
 @MainActor
-fileprivate struct ExternalWindowOpener: WebPage.NavigationDeciding {
-    mutating func decidePolicy(
-        for action: WebPage.NavigationAction,
-        preferences: inout WebPage.NavigationPreferences
+final class WebNavDelegate: NSObject, WKNavigationDelegate, WKUIDelegate {
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction
     ) async -> WKNavigationActionPolicy {
-        if action.target == nil, let url = action.request.url {
-            #if os(iOS) || os(visionOS)
-            await UIApplication.shared.open(url)
-            #elseif os(macOS)
-            NSWorkspace.shared.open(url)
-            #endif
+        // targetFrame が nil = 新規ウィンドウへの遷移。現在の WebView で開かず外部に。
+        if navigationAction.targetFrame == nil, let url = navigationAction.request.url {
+            await openExternally(url)
             return .cancel
         }
         return .allow
     }
-}
 
-/// `target="_blank"` のリンクを Safari で開くようにした WebPage を生成。
-@MainActor
-fileprivate func makeConfiguredWebPage() -> WebPage {
-    WebPage(navigationDecider: ExternalWindowOpener())
-}
+    func webView(
+        _ webView: WKWebView,
+        createWebViewWith configuration: WKWebViewConfiguration,
+        for navigationAction: WKNavigationAction,
+        windowFeatures: WKWindowFeatures
+    ) -> WKWebView? {
+        // window.open() などで decidePolicy を経由しない経路用のフォールバック。
+        if let url = navigationAction.request.url {
+            Task { await openExternally(url) }
+        }
+        return nil
+    }
 
-/// アプリ内で WebPage を表示する共通ラッパー。
-/// - スクロールに連動してナビバーを隠す挙動
-/// など、すべての WebView 利用箇所で揃えたい設定をここに集約する。
-fileprivate struct ConfiguredWebView: View {
-    let page: WebPage
-    var scrollState: ScrollState? = nil
-
-    var body: some View {
-        WebView(page)
-            #if !os(macOS)
-            .webViewOnScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { oldY, newY in
-                scrollState?.reportScroll(oldY: oldY, newY: newY)
-            }
-            #endif
+    private func openExternally(_ url: URL) async {
+        #if os(iOS) || os(visionOS)
+        await UIApplication.shared.open(url)
+        #elseif os(macOS)
+        NSWorkspace.shared.open(url)
+        #endif
     }
 }
 
-// MARK: - ArticleWebView（iOS 26/macOS 26 WebView + WebPage）
+/// WKWebView を SwiftUI で扱うために @Observable で包む wrapper。
+/// iOS 26 SwiftUI の `WebPage` と同等の API（load(html:) / callJavaScript /
+/// url 観測 / backForwardList 等）を提供しつつ、WebPage では取れない
+/// `scrollView.adjustedContentInset` などの UIKit 情報にもアクセスできる。
+/// （前後カードの表示判定で本物の最大スクロール位置が必要なため）
+@MainActor
+@Observable
+final class ManagedWKWebView {
+    @ObservationIgnored let webView: WKWebView
+    var url: URL?
+    var isLoading: Bool = false
+
+    @ObservationIgnored private let navDelegate: WebNavDelegate
+    @ObservationIgnored private var urlObs: NSKeyValueObservation?
+    @ObservationIgnored private var loadingObs: NSKeyValueObservation?
+
+    init() {
+        let config = WKWebViewConfiguration()
+        let wv = WKWebView(frame: .zero, configuration: config)
+        let nd = WebNavDelegate()
+        wv.navigationDelegate = nd
+        wv.uiDelegate = nd
+        self.webView = wv
+        self.navDelegate = nd
+
+        // KVO 経由で WebPage 互換の url / isLoading を更新する。
+        // observe コールバックは KVO スレッド（多くは UI スレッド）で来るが、
+        // @MainActor isolation を確実にするため Task で MainActor へ。
+        self.urlObs = wv.observe(\.url, options: [.initial, .new]) { [weak self] wv, _ in
+            let newURL = wv.url
+            Task { @MainActor [weak self] in self?.url = newURL }
+        }
+        self.loadingObs = wv.observe(\.isLoading, options: [.initial, .new]) { [weak self] wv, _ in
+            let newLoading = wv.isLoading
+            Task { @MainActor [weak self] in self?.isLoading = newLoading }
+        }
+    }
+
+    func load(html: String, baseURL: URL?) {
+        webView.loadHTMLString(html, baseURL: baseURL)
+    }
+
+    func load(_ request: URLRequest) {
+        webView.load(request)
+    }
+
+    func load(_ item: WKBackForwardListItem) {
+        webView.go(to: item)
+    }
+
+    func reload() { webView.reload() }
+    func stopLoading() { webView.stopLoading() }
+
+    func callJavaScript(_ js: String) async throws -> Any? {
+        try await webView.callAsyncJavaScript(js, in: nil, contentWorld: .page)
+    }
+
+    var backForwardList: WKBackForwardList { webView.backForwardList }
+}
+
+#if canImport(UIKit)
+/// SwiftUI の view tree に WKWebView を埋める Representable。
+/// `manager.webView` をそのままホストする。複数の WrappedWKWebView が
+/// 同じ manager を持つことは無い前提（モード毎に別 manager を割り当てる）。
+struct WrappedWKWebView: UIViewRepresentable {
+    let manager: ManagedWKWebView
+    var scrollState: ScrollState? = nil
+
+    func makeUIView(context: Context) -> WKWebView {
+        context.coordinator.attach(scrollState: scrollState, to: manager.webView)
+        return manager.webView
+    }
+
+    func updateUIView(_ uiView: WKWebView, context: Context) {
+        context.coordinator.scrollState = scrollState
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    @MainActor
+    class Coordinator: NSObject {
+        var scrollState: ScrollState?
+        private var offsetObs: NSKeyValueObservation?
+        private var lastOffsetY: CGFloat = 0
+
+        func attach(scrollState: ScrollState?, to webView: WKWebView) {
+            self.scrollState = scrollState
+            let sv = webView.scrollView
+            self.offsetObs = sv.observe(\.contentOffset, options: [.new]) { [weak self] sv, _ in
+                let newY = sv.contentOffset.y
+                let containerH = sv.bounds.size.height
+                let contentH = sv.contentSize.height
+                let insetB = sv.adjustedContentInset.bottom
+                Task { @MainActor [weak self] in
+                    self?.report(offsetY: newY, containerH: containerH, contentH: contentH, insetB: insetB)
+                }
+            }
+        }
+
+        private func report(offsetY: CGFloat, containerH: CGFloat, contentH: CGFloat, insetB: CGFloat) {
+            scrollState?.reportScroll(oldY: lastOffsetY, newY: offsetY)
+            scrollState?.reportProgress(
+                offsetY: offsetY,
+                containerHeight: containerH,
+                contentHeight: contentH,
+                insetBottom: insetB
+            )
+            lastOffsetY = offsetY
+        }
+    }
+}
+#elseif canImport(AppKit)
+/// macOS 用。WKWebView を NSView としてホストするだけ。
+/// scroll 観測は UIScrollView と機構が違うので未対応（前後カード自体は機能する）。
+struct WrappedWKWebView: NSViewRepresentable {
+    let manager: ManagedWKWebView
+    var scrollState: ScrollState? = nil
+
+    func makeNSView(context: Context) -> WKWebView {
+        manager.webView
+    }
+
+    func updateNSView(_ nsView: WKWebView, context: Context) {}
+}
+#endif
+
+/// アプリ内で WKWebView を表示する共通ラッパー。
+fileprivate struct ConfiguredWebView: View {
+    let page: ManagedWKWebView
+    var scrollState: ScrollState? = nil
+
+    var body: some View {
+        WrappedWKWebView(manager: page, scrollState: scrollState)
+    }
+}
+
+// MARK: - ArticleWebView（WKWebView + ManagedWKWebView）
 
 struct ArticleWebView: View {
     let url: URL
-    let page: WebPage
+    let page: ManagedWKWebView
     var hasNavigated: Binding<Bool>? = nil
     let scrollState: ScrollState
 
@@ -1119,7 +1504,7 @@ struct ArticleWebView: View {
 // MARK: - WebNavBar（戻る・リロードの浮遊バー）
 
 struct WebNavBar: View {
-    let page: WebPage
+    let page: ManagedWKWebView
     /// ネイティブの戻る履歴（backForwardList）が空のときに代わりに呼ぶ閉包。
     /// 例: リーダーで `load(html:)` した後にリンク先へ移動した場合、その時点の
     /// backList は空のままなので戻る手段が無くなる。これを使ってリーダーHTMLの
