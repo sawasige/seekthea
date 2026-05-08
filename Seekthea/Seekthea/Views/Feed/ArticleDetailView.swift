@@ -669,7 +669,9 @@ fileprivate struct PrevNextCardsOverlay: View {
 
     private var bottomPadding: CGFloat {
         #if os(macOS)
-        return 24
+        // ロード中の status capsule が contentView 下から 20pt + 高さ ~50pt なので
+        // その上に cards を載せるためには 80pt 以上必要。少し余裕を取って 88。
+        return 88
         #else
         return 100
         #endif
