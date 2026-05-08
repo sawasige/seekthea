@@ -291,6 +291,10 @@ struct FeedView: View {
     @State private var sourceFilter: SourceFilter? = nil
     @State private var lockedSortKeys: [UUID: Double] = [:]
     @State private var lockedHistoryDates: [UUID: Date] = [:]
+    /// 記事詳細を開いた時点でフィードのリスト全体を凍結するフラグ。
+    /// 真の間 `updateCachedData` は早期 return し、cachedDisplayArticles は更新されない。
+    /// 解除は user 起動の refresh（pull-to-refresh / refresh button / bg→fg / mode・category 変更）でのみ。
+    @State private var listLocked = false
     @State private var wasBackgrounded = false
     @State private var hasInitialRefreshed = false
     @State private var scoreBreakdownArticle: Article?
@@ -393,6 +397,13 @@ struct FeedView: View {
     }
 
     private func updateCachedData() {
+        // 記事詳細を開いている間（および戻った直後）はリスト全体を凍結。
+        // 戻った時に開く前と完全に同じ並びで見えるように。
+        // 解除は明示的な refresh 系操作（pull-to-refresh / mode 変更 / bg→fg 等）でのみ。
+        if listLocked {
+            return
+        }
+
         // @AppStorage の wrappedValue は struct のため、[self] キャプチャしたクロージャから
         // 呼ぶと（classifyInBackground のコールバック等）キャプチャ時点の値で固定されてしまう。
         // UserDefaults から直接読んで最新値を取得する。
@@ -597,6 +608,7 @@ struct FeedView: View {
                     flushImpressions()
                     scrollState.hideAmount = 0
                     scrollProxy?.scrollTo("scrollTop", anchor: .top)
+                    listLocked = false
                     withAnimation(.easeInOut(duration: 0.35)) {
                         updateCachedData()
                     }
@@ -605,12 +617,14 @@ struct FeedView: View {
                     flushImpressions()
                     scrollState.hideAmount = 0
                     scrollProxy?.scrollTo("scrollTop", anchor: .top)
+                    listLocked = false
                     updateCachedData()
                 }
                 .onChange(of: sourceFilter) {
                     flushImpressions()
                     scrollState.hideAmount = 0
                     scrollProxy?.scrollTo("scrollTop", anchor: .top)
+                    listLocked = false
                     updateCachedData()
                 }
                 .onChange(of: isSwiping) {
@@ -621,7 +635,15 @@ struct FeedView: View {
                     }
                 }
                 .onChange(of: filterSortModeRaw) {
+                    listLocked = false
                     updateCachedData()
+                }
+                // 詳細表示中の記事が変わった時、フィードを裏でその位置までスクロールしておく。
+                // 戻る時の zoom 縮小先（matchedTransitionSource）が画面外だと
+                // アニメーションが目的のカードに合わないため。
+                .onChange(of: ArticleNavigationContext.shared.currentArticleID) { _, newID in
+                    guard let id = newID else { return }
+                    scrollProxy?.scrollTo(id, anchor: .center)
                 }
                 .navigationTitle("Seekthea")
                 #if !os(macOS)
@@ -634,6 +656,7 @@ struct FeedView: View {
                             ArticleNavigationContext.shared.clearSession()
                             lockedSortKeys.removeAll()
                             lockedHistoryDates.removeAll()
+                            listLocked = false
                             Task { await refreshAll() }
                         } label: {
                             Image(systemName: "arrow.clockwise")
@@ -700,6 +723,7 @@ struct FeedView: View {
                             lockedSortKeys.removeAll()
                             lockedHistoryDates.removeAll()
                             ArticleNavigationContext.shared.clearSession()
+                            listLocked = false
                         }
                         reloadArticles()
                         updateCachedData()
@@ -714,6 +738,7 @@ struct FeedView: View {
                     clearStaleSourceFilter()
                     // 即時にDB状態を表示へ反映（Source削除時の cascade 結果やフィルタ更新）。
                     // RSS再取得は重いので別タスクで非同期に。
+                    listLocked = false
                     reloadArticles()
                     updateCachedData()
                     Task { await refreshAll() }
@@ -724,12 +749,9 @@ struct FeedView: View {
                     }
                 }
                 .navigationDestination(for: Article.self) { article in
-                    let container = ArticleDetailContainer(initialArticle: article)
-                    #if os(macOS)
-                    container
-                    #else
-                    container.navigationTransition(.zoom(sourceID: article.id, in: zoomNamespace))
-                    #endif
+                    // zoom transition は Container 内で currentArticle.id に追従させるため、
+                    // ここでは付けず namespace だけ渡す。
+                    ArticleDetailContainer(initialArticle: article, zoomNamespace: zoomNamespace)
                 }
                 .sheet(item: $scoreBreakdownArticle) { article in
                     ScoreBreakdownView(article: article, modelContainer: modelContainer)
@@ -840,6 +862,7 @@ struct FeedView: View {
                 ArticleNavigationContext.shared.clearSession()
                 lockedSortKeys.removeAll()
                 lockedHistoryDates.removeAll()
+                listLocked = false
                 await refreshAll()
             }
         }
@@ -887,6 +910,8 @@ struct FeedView: View {
         pendingImpressions[article.id] = nil
         // 詳細画面の前後ナビ用に、開いた瞬間のフィード表示順をスナップショット
         ArticleNavigationContext.shared.snapshot(cachedDisplayArticles)
+        // リスト全体を凍結。戻った時に同じ並びで見えるように。
+        listLocked = true
         navigationPath.append(article)
     }
 

@@ -16,10 +16,14 @@ import AppKit
 /// 前後の記事は `ArticleNavigationContext.shared` のスナップショットから解決する。
 struct ArticleDetailContainer: View {
     let initialArticle: Article
+    /// 戻る時の zoom transition の source 解決用 namespace。
+    /// FeedView のカードにも同じ namespace で `matchedTransitionSource` が貼られている。
+    let zoomNamespace: Namespace.ID?
     @State private var currentArticle: Article
 
-    init(initialArticle: Article) {
+    init(initialArticle: Article, zoomNamespace: Namespace.ID? = nil) {
         self.initialArticle = initialArticle
+        self.zoomNamespace = zoomNamespace
         self._currentArticle = State(initialValue: initialArticle)
     }
 
@@ -48,8 +52,38 @@ struct ArticleDetailContainer: View {
             }
         )
         .id(currentArticle.id)
+        // currentArticle に追従する zoom transition。
+        // 詳細でカード遷移して C を見ていた場合、戻る時 A ではなく C のカードに
+        // 縮小アニメーションするように。
+        #if !os(macOS)
+        .applyZoomTransitionIfPossible(sourceID: currentArticle.id, namespace: zoomNamespace)
+        #endif
+        // 詳細表示中の記事 id を共有して、フィード側で先回りスクロールできるように。
+        .onAppear {
+            ArticleNavigationContext.shared.setCurrentArticle(currentArticle.id)
+        }
+        .onChange(of: currentArticle.id) { _, newID in
+            ArticleNavigationContext.shared.setCurrentArticle(newID)
+        }
+        .onDisappear {
+            ArticleNavigationContext.shared.setCurrentArticle(nil)
+        }
     }
 }
+
+#if !os(macOS)
+private extension View {
+    /// 名前空間がある時だけ navigationTransition を適用するヘルパー。
+    @ViewBuilder
+    func applyZoomTransitionIfPossible(sourceID: UUID, namespace: Namespace.ID?) -> some View {
+        if let namespace {
+            self.navigationTransition(.zoom(sourceID: sourceID, in: namespace))
+        } else {
+            self
+        }
+    }
+}
+#endif
 
 // MARK: - 表示モード
 

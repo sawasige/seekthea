@@ -25,6 +25,11 @@ final class ArticleNavigationContext {
     /// 同じセッション保護を受けたいため。
     private(set) var sessionReadIDs: Set<UUID> = []
 
+    /// 現在詳細表示中の記事 id（前後カードで navigate した先を含む）。
+    /// FeedView がこれを observe して、戻った時の zoom 着地点が画面外に
+    /// ならないように事前にフィードをスクロールする。
+    private(set) var currentArticleID: UUID? = nil
+
     private init() {}
 
     func snapshot(_ articles: [Article]) {
@@ -37,6 +42,12 @@ final class ArticleNavigationContext {
         sessionReadIDs.insert(articleID)
     }
 
+    /// 現在詳細表示中の記事を更新（または nil でクリア）。
+    /// FeedView 側はこの変化に追従してスクロールを合わせる。
+    func setCurrentArticle(_ articleID: UUID?) {
+        currentArticleID = articleID
+    }
+
     /// セッション保護を解除（バックグラウンド復帰時 / 明示的リフレッシュ時）。
     func clearSession() {
         sessionReadIDs = []
@@ -45,6 +56,7 @@ final class ArticleNavigationContext {
     func clear() {
         articles = []
         sessionReadIDs = []
+        currentArticleID = nil
     }
 
     /// `article` の前後（リスト上の隣接）を返す。
