@@ -27,7 +27,7 @@ struct InterestSettingsView: View {
 
     var body: some View {
         Form {
-            Section("設定中の興味") {
+            Section("手動設定の興味") {
                 if interests.isEmpty {
                     Text("興味トピックを追加すると、関連記事が優先表示されます")
                         .foregroundStyle(.secondary)
@@ -116,9 +116,9 @@ struct InterestSettingsView: View {
                         learnedTopicRow(item)
                     }
                 } header: {
-                    Text("行動から学習した興味")
+                    Text("自動学習の興味")
                 } footer: {
-                    Text("既読・お気に入りから自動で見つけたトピック。「興味に追加」で手動の興味に移して重みを調整できます。「除外」は誤学習の取り消しで、興味スコアの計算に使われなくなります。")
+                    Text("既読・お気に入りから自動で見つけたトピックで、現在のおすすめスコアに反映されています。「手動設定に昇格」で重みを調整できる手動側に移動。「学習を取り消す」で誤学習を解除します。")
                 }
             }
 
@@ -191,7 +191,7 @@ struct InterestSettingsView: View {
                     addTopic(item.topic)
                     loadLearnedTopics()
                 } label: {
-                    Label("興味に追加", systemImage: "plus.circle")
+                    Label("手動設定に昇格", systemImage: "arrow.up.circle")
                         .labelStyle(TightLabelStyle())
                         .font(.caption)
                 }
@@ -200,7 +200,7 @@ struct InterestSettingsView: View {
                     excludeTopic(item.topic)
                     loadLearnedTopics()
                 } label: {
-                    Label("除外", systemImage: "nosign")
+                    Label("学習を取り消す", systemImage: "arrow.uturn.backward")
                         .labelStyle(TightLabelStyle())
                         .font(.caption)
                 }
