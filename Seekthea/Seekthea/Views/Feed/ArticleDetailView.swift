@@ -666,25 +666,42 @@ fileprivate struct PrevNextCardsOverlay: View {
         #endif
     }
 
+    /// macOS は scroll 末尾検出を実装していないので、常に表示扱い。
+    /// iOS / visionOS は scrollState.isAtBottom に従う。
+    private var effectiveVisible: Bool {
+        #if os(macOS)
+        return true
+        #else
+        return isAtBottom
+        #endif
+    }
+
     var body: some View {
         if previous == nil && next == nil {
             EmptyView()
         } else {
             HStack(alignment: .bottom, spacing: 10) {
+                Spacer(minLength: 0)
                 if let prev = previous {
-                    NavArticleCard(article: prev, direction: .previous, action: onTapPrev, isVisible: isAtBottom)
+                    NavArticleCard(article: prev, direction: .previous, action: onTapPrev, isVisible: effectiveVisible)
+                        .frame(maxWidth: 280)
                 } else {
-                    Spacer().frame(maxWidth: .infinity)
+                    Color.clear.frame(maxWidth: 280, maxHeight: 1)
                 }
                 if let next = next {
-                    NavArticleCard(article: next, direction: .next, action: onTapNext, isVisible: isAtBottom)
+                    NavArticleCard(article: next, direction: .next, action: onTapNext, isVisible: effectiveVisible)
+                        .frame(maxWidth: 280)
                 } else {
-                    Spacer().frame(maxWidth: .infinity)
+                    Color.clear.frame(maxWidth: 280, maxHeight: 1)
                 }
+                Spacer(minLength: 0)
             }
             .padding(.horizontal, 12)
             .padding(.bottom, bottomPadding)
-            .allowsHitTesting(isAtBottom)
+            .allowsHitTesting(effectiveVisible)
+            // 補助ナビゲーション用の小さな card なので Dynamic Type の
+            // accessibility サイズまでは追従させない（画面より大きくなるのを防ぐ）。
+            .dynamicTypeSize(...DynamicTypeSize.xxLarge)
         }
     }
 }
@@ -722,40 +739,48 @@ fileprivate struct NavArticleCard: View {
 
     var body: some View {
         Button(action: action) {
-            ZStack(alignment: .bottomLeading) {
-                imageBackground
+            // Card のサイズはテキスト content が駆動する。
+            // 画像とグラデは .background で「サイズに寄与しない layer」として
+            // 重ねるので、AsyncImage が原寸まで膨らんで card を画面外に
+            // はみ出させたり、固定 height が JP の line-height で足りなく
+            // なったりすることが無い。
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 4) {
+                    if direction == .previous {
+                        Image(systemName: chevron)
+                            .font(.caption2.weight(.bold))
+                    }
+                    Text(label)
+                        .font(.caption2.weight(.semibold))
+                    if direction == .next {
+                        Image(systemName: chevron)
+                            .font(.caption2.weight(.bold))
+                    }
+                }
+                .foregroundStyle(.white.opacity(0.85))
+
+                Text(article.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // 短い記事 / 1 行 title でも card が極端に小さくならないように
+            // 最低 96pt は確保。content が大きい時は自然に伸びる。
+            .frame(minHeight: 96, alignment: .bottomLeading)
+            .background {
                 LinearGradient(
                     colors: [.clear, .black.opacity(0.55), .black.opacity(0.9)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
-                        if direction == .previous {
-                            Image(systemName: chevron)
-                                .font(.caption2.weight(.bold))
-                        }
-                        Text(label)
-                            .font(.caption2.weight(.semibold))
-                        if direction == .next {
-                            Image(systemName: chevron)
-                                .font(.caption2.weight(.bold))
-                        }
-                    }
-                    .foregroundStyle(.white.opacity(0.85))
-
-                    Text(article.title)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 96)
+            .background {
+                imageBackground
+            }
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
