@@ -1300,6 +1300,15 @@ final class ScrollState {
     /// 実コンテンツの末尾に viewport が到達したか（前後カード表示用）。
     /// 「ほぼ末尾」という曖昧さを避けるため、絶対距離 (pt) で判定する。
     var isAtBottom: Bool = false
+    /// SwiftUI 側で測った WebView の bottom inset。
+    /// ScrollGeometry の `contentInsets.bottom` は WebView の adjustedContentInset を反映せず
+    /// 0 を返すため、GeometryReader で実測した値で補完する。
+    var knownBottomInset: CGFloat = 0
+    /// 直近の scroll geometry。`knownBottomInset` 更新時にも判定をやり直すため保持。
+    private var lastOffsetY: CGFloat = 0
+    private var lastContainerHeight: CGFloat = 0
+    private var lastContentHeight: CGFloat = 0
+    private var lastReportedInsetBottom: CGFloat = 0
 
     func reportScroll(oldY: CGFloat, newY: CGFloat) {
         let delta = newY - oldY
@@ -1311,24 +1320,31 @@ final class ScrollState {
 
     /// `webViewOnScrollGeometryChange` から呼び出して末尾到達を判定。
     /// 実 max scroll = `contentHeight + insetBottom - containerHeight`。
-    /// `insetBottom` は safeAreaInset.bottom 等で、contentHeight だけでは
-    /// 最大スクロール量を正確に計算できない（bounce 領域として下方に scroll できる）。
+    /// `insetBottom` は ScrollGeometry 側の値 (大抵 0)、`knownBottomInset` は SwiftUI で実測した値。
+    /// 大きい方を採用する。
     /// WebView が初期化直後で contentHeight が 0 の場合は判定不能なので false。
     func reportProgress(offsetY: CGFloat, containerHeight: CGFloat, contentHeight: CGFloat, insetBottom: CGFloat) {
-        guard contentHeight > 0 else {
+        lastOffsetY = offsetY
+        lastContainerHeight = containerHeight
+        lastContentHeight = contentHeight
+        lastReportedInsetBottom = insetBottom
+        recomputeIsAtBottom()
+    }
+
+    /// `knownBottomInset` が更新された時に最新の geometry で判定をやり直す。
+    func recomputeIsAtBottom() {
+        guard lastContentHeight > 0 else {
             isAtBottom = false
             return
         }
-        let maxOffsetY = contentHeight + insetBottom - containerHeight
-        // contentHeight が小さくて maxOffsetY <= 0 の場合（コンテンツが画面に収まる短さ）は
-        // 最初から末尾扱いにする（AI 要約のような短い content 用）。
+        let effectiveInset = max(lastReportedInsetBottom, knownBottomInset)
+        let maxOffsetY = lastContentHeight + effectiveInset - lastContainerHeight
         if maxOffsetY <= 0 {
             isAtBottom = true
             return
         }
-        // 5pt の余裕は floating-point 誤差・bounce 中の僅かなズレを吸収するため。
         let tolerance: CGFloat = 5
-        isAtBottom = offsetY >= maxOffsetY - tolerance
+        isAtBottom = lastOffsetY >= maxOffsetY - tolerance
     }
 }
 
@@ -1379,6 +1395,15 @@ fileprivate struct ConfiguredWebView: View {
                     contentHeight: new.contentHeight,
                     insetBottom: new.insetBottom
                 )
+            }
+            // SwiftUI 側で実測した safeArea.bottom を ScrollState に渡す。
+            // ScrollGeometry の contentInsets.bottom は WebView の adjustedContentInset を
+            // 反映しないため、これで補完する。
+            .onGeometryChange(for: CGFloat.self, of: { $0.safeAreaInsets.bottom }) { newValue in
+                scrollState?.knownBottomInset = newValue
+                scrollState?.recomputeIsAtBottom()
+                // TODO: REMOVE_DEBUG
+                print("[inset] safeAreaBottom=\(Int(newValue))")
             }
             #endif
     }
