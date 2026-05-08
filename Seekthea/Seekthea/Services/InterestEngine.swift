@@ -59,7 +59,7 @@ class InterestEngine {
         // 5. 興味の英語キーワードを収集
         let interestEnKeywords = buildEnglishInterestKeywords(context: context)
 
-        // 5. 全記事をスコアリング
+        // 6. 全記事をスコアリング
         let articles = (try? context.fetch(FetchDescriptor<Article>())) ?? []
         for article in articles {
             let keywordScore = computeKeywordScore(article: article, topics: allTopics)
@@ -89,6 +89,7 @@ class InterestEngine {
     /// 1記事だけrelevanceScoreを再計算して保存
     func rescore(article: Article) {
         let context = modelContainer.mainContext
+
         let interests = (try? context.fetch(FetchDescriptor<UserInterest>())) ?? []
         let interestTopics = Dictionary(uniqueKeysWithValues: interests.map { ($0.topic.lowercased(), $0.weight) })
         let learnedTopics = learnFromHistory(context: context)
@@ -228,11 +229,17 @@ class InterestEngine {
 
         // UserInterestの英語トピック（明示的な興味、重み高め）
         let interests = (try? context.fetch(FetchDescriptor<UserInterest>())) ?? []
+        let manualEnSet = Set(interests
+            .filter { !$0.topicEn.isEmpty }
+            .map { $0.topicEn.lowercased() })
         for interest in interests {
             if !interest.topicEn.isEmpty {
                 counts[interest.topicEn.lowercased(), default: 0] += interest.weight * 4.0
             }
         }
+
+        // 除外キーワード（学習側を取り消すフィルタ）
+        let excluded = fetchExcludedKeywords(context: context)
 
         // お気に入り記事の英語キーワード
         let favPredicate = #Predicate<Article> { $0.isFavorite }
@@ -246,14 +253,20 @@ class InterestEngine {
         readDescriptor.fetchLimit = 100
         let readArticles = (try? context.fetch(readDescriptor)) ?? []
 
+        // 学習側の英語キーワード集計時、手動と除外に該当するものはスキップ
+        // （手動側の重みは上で × 4.0 で別途加算済み）
         for article in favorites {
             for kw in article.keywordsEn {
-                counts[kw.lowercased(), default: 0] += 3.0
+                let key = kw.lowercased()
+                if manualEnSet.contains(key) || excluded.contains(key) { continue }
+                counts[key, default: 0] += 3.0
             }
         }
         for article in readArticles {
             for kw in article.keywordsEn {
-                counts[kw.lowercased(), default: 0] += 1.0
+                let key = kw.lowercased()
+                if manualEnSet.contains(key) || excluded.contains(key) { continue }
+                counts[key, default: 0] += 1.0
             }
         }
 
@@ -294,8 +307,21 @@ class InterestEngine {
         return min(score / (score + 1.5), 1.0)
     }
 
+    // MARK: - 除外キーワード
+
+    /// 除外キーワードを取得（小文字・空文字除去済み）
+    private func fetchExcludedKeywords(context: ModelContext) -> Set<String> {
+        let excluded = (try? context.fetch(FetchDescriptor<ExcludedKeyword>())) ?? []
+        return Set(excluded
+            .map { $0.keyword.lowercased() }
+            .filter { !$0.isEmpty })
+    }
+
     // MARK: - 行動から興味を学習
 
+    /// 既読・お気に入り記事から興味キーワードを学習する。
+    /// 手動で追加された UserInterest と除外キーワードに一致するものは結果から除外
+    /// （手動が学習を上書き、除外は学習を取り消す意図）
     func learnFromHistory(context: ModelContext) -> [String: Double] {
         let favPredicate = #Predicate<Article> { $0.isFavorite }
         let favorites = (try? context.fetch(FetchDescriptor(predicate: favPredicate))) ?? []
@@ -327,9 +353,16 @@ class InterestEngine {
             }
         }
 
+        // 手動で追加されているトピックと除外キーワードは学習結果から除く
+        let manualTopics = Set(((try? context.fetch(FetchDescriptor<UserInterest>())) ?? [])
+            .map { $0.topic.lowercased() })
+        let excluded = fetchExcludedKeywords(context: context)
+
         let maxCount = topicCounts.values.max() ?? 1.0
         return topicCounts
             .filter { $0.value >= 2.0 }
+            .filter { !manualTopics.contains($0.key) }
+            .filter { !excluded.contains($0.key) }
             .mapValues { $0 / maxCount }
     }
 }

@@ -6,7 +6,10 @@ import UniformTypeIdentifiers
 /// Seekthea のユーザー設定と記事履歴の JSON バックアップ／復元
 @MainActor
 enum SettingsBackup {
-    static let currentVersion = 1
+    /// バックアップフォーマットのバージョン
+    /// - 1: sources / categories / interests / articleHistory
+    /// - 2: + excludedKeywords
+    static let currentVersion = 2
 
     // MARK: - 公開API
 
@@ -27,6 +30,9 @@ enum SettingsBackup {
         let interests = ((try? context.fetch(FetchDescriptor<UserInterest>(sortBy: [SortDescriptor(\.addedAt)]))) ?? []).map {
             InterestBackup(topic: $0.topic, topicEn: $0.topicEn, weight: $0.weight)
         }
+        let excludedKeywords = ((try? context.fetch(FetchDescriptor<ExcludedKeyword>(sortBy: [SortDescriptor(\.addedAt)]))) ?? []).map {
+            ExcludedKeywordBackup(keyword: $0.keyword)
+        }
         // 記事履歴は isFavorite / isRead / impressionCount>0 のいずれかを持つものだけ
         let allArticles = (try? context.fetch(FetchDescriptor<Article>())) ?? []
         let history: [ArticleHistoryBackup] = allArticles.compactMap { a in
@@ -45,7 +51,8 @@ enum SettingsBackup {
             sources: sources,
             categories: categories,
             interests: interests,
-            articleHistory: history
+            articleHistory: history,
+            excludedKeywords: excludedKeywords
         )
 
         let encoder = JSONEncoder()
@@ -104,6 +111,18 @@ enum SettingsBackup {
             summary.interestsAdded += 1
         }
 
+        // Excluded keywords (v2 以降のバックアップにのみ含まれる)
+        if let excludedBackups = payload.excludedKeywords {
+            let existingExcluded = (try? context.fetch(FetchDescriptor<ExcludedKeyword>())) ?? []
+            let existingKeywords = Set(existingExcluded.map { $0.keyword.lowercased() })
+            for ex in excludedBackups {
+                let key = ex.keyword.lowercased()
+                guard !key.isEmpty, !existingKeywords.contains(key) else { continue }
+                context.insert(ExcludedKeyword(keyword: ex.keyword))
+                summary.excludedAdded += 1
+            }
+        }
+
         // Article history: articleURL でマッチさせて OR/max マージ
         let allArticles = (try? context.fetch(FetchDescriptor<Article>())) ?? []
         let articlesByURL = Dictionary(grouping: allArticles, by: \.articleURL)
@@ -135,6 +154,8 @@ enum SettingsBackup {
         let categories: [CategoryBackup]
         let interests: [InterestBackup]
         let articleHistory: [ArticleHistoryBackup]
+        /// v2 以降。古い v1 バックアップでは nil
+        let excludedKeywords: [ExcludedKeywordBackup]?
     }
 
     struct SourceBackup: Codable {
@@ -164,12 +185,17 @@ enum SettingsBackup {
         let impressionCount: Int
     }
 
+    struct ExcludedKeywordBackup: Codable {
+        let keyword: String
+    }
+
     struct RestoreSummary {
         var sourcesAdded: Int = 0
         var categoriesAdded: Int = 0
         var categoriesUpdated: Int = 0
         var interestsAdded: Int = 0
         var articlesUpdated: Int = 0
+        var excludedAdded: Int = 0
 
         var summaryText: String {
             var parts: [String] = []
@@ -177,6 +203,7 @@ enum SettingsBackup {
             if categoriesAdded > 0 { parts.append("カテゴリ \(categoriesAdded)件追加") }
             if categoriesUpdated > 0 { parts.append("カテゴリ説明 \(categoriesUpdated)件更新") }
             if interestsAdded > 0 { parts.append("興味 \(interestsAdded)件追加") }
+            if excludedAdded > 0 { parts.append("除外キーワード \(excludedAdded)件追加") }
             if articlesUpdated > 0 { parts.append("記事履歴 \(articlesUpdated)件更新") }
             return parts.isEmpty ? "変更なし" : parts.joined(separator: "、")
         }

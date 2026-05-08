@@ -4,6 +4,7 @@ import SwiftData
 struct InterestSettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \UserInterest.addedAt) private var interests: [UserInterest]
+    @Query(sort: \ExcludedKeyword.addedAt) private var excludedKeywords: [ExcludedKeyword]
     @State private var newTopic = ""
     @State private var learnedTopics: [(topic: String, weight: Double)] = []
     @State private var translatingTopics: Set<String> = []
@@ -26,7 +27,7 @@ struct InterestSettingsView: View {
 
     var body: some View {
         Form {
-            Section("設定中の興味") {
+            Section("手動設定の興味") {
                 if interests.isEmpty {
                     Text("興味トピックを追加すると、関連記事が優先表示されます")
                         .foregroundStyle(.secondary)
@@ -63,6 +64,8 @@ struct InterestSettingsView: View {
                         modelContext.delete(interests[index])
                     }
                     try? modelContext.save()
+                    // 手動興味を消すと、その topic が自動興味として再登場する可能性がある
+                    loadLearnedTopics()
                 }
             }
 
@@ -108,19 +111,39 @@ struct InterestSettingsView: View {
                 }
             }
             if !learnedTopics.isEmpty {
-                Section("行動から学習した興味") {
+                Section {
                     ForEach(learnedTopics, id: \.topic) { item in
+                        learnedTopicRow(item)
+                    }
+                } header: {
+                    Text("自動学習の興味")
+                } footer: {
+                    Text("既読・お気に入りから自動で見つけたトピックで、現在のおすすめスコアに反映されています。「手動設定に昇格」で重みを調整できる手動側に移動。「学習を取り消す」で誤学習を解除します。")
+                }
+            }
+
+            if !excludedKeywords.isEmpty {
+                Section {
+                    ForEach(excludedKeywords, id: \.id) { ex in
                         HStack {
-                            Text(item.topic)
-                            Spacer()
-                            ProgressView(value: item.weight)
-                                .frame(width: 80)
-                            Text(String(format: "×%.2f", item.weight))
-                                .font(.caption).monospacedDigit()
+                            Image(systemName: "nosign")
                                 .foregroundStyle(.secondary)
-                                .frame(width: 44, alignment: .trailing)
+                            Text(ex.keyword)
+                            Spacer()
                         }
                     }
+                    .onDelete { offsets in
+                        for index in offsets {
+                            modelContext.delete(excludedKeywords[index])
+                        }
+                        try? modelContext.save()
+                        // 除外を解除すると、その keyword が自動興味として再登場する可能性がある
+                        loadLearnedTopics()
+                    }
+                } header: {
+                    Text("学習対象から外したキーワード")
+                } footer: {
+                    Text("AI が学習した興味から外したキーワード。興味スコアの計算には使われません（フィードからは消えません）。スワイプで解除できます。")
                 }
             }
         }
@@ -131,26 +154,91 @@ struct InterestSettingsView: View {
         #endif
         .navigationTitle("興味トピック")
         .onAppear { loadLearnedTopics() }
+        // CloudKit 同期等で外部から手動興味・除外リストが変わった時の安全網
+        .onChange(of: interests.count) { loadLearnedTopics() }
+        .onChange(of: excludedKeywords.count) { loadLearnedTopics() }
     }
 
     private func loadLearnedTopics() {
         let engine = InterestEngine(modelContainer: modelContext.container)
         let raw = engine.learnFromHistory(context: modelContext)
+        let manualTopics = Set(interests.map { $0.topic.lowercased() })
+        let excludedSet = Set(excludedKeywords.map { $0.keyword.lowercased() })
+        // 既に手動側にあるトピック・除外済みキーワードは「学習中」リストから除く
         learnedTopics = raw
+            .filter { !manualTopics.contains($0.key.lowercased()) && !excludedSet.contains($0.key.lowercased()) }
             .sorted { $0.value > $1.value }
             .prefix(20)
             .map { (topic: $0.key, weight: $0.value) }
+    }
+
+    @ViewBuilder
+    private func learnedTopicRow(_ item: (topic: String, weight: Double)) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(item.topic)
+                Spacer()
+                ProgressView(value: item.weight)
+                    .frame(width: 80)
+                Text(String(format: "×%.2f", item.weight))
+                    .font(.caption).monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, alignment: .trailing)
+            }
+            HStack(spacing: 12) {
+                Spacer()
+                Button {
+                    addTopic(item.topic)
+                    loadLearnedTopics()
+                } label: {
+                    Label("手動設定に昇格", systemImage: "arrow.up.circle")
+                        .labelStyle(TightLabelStyle())
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
+                Button(role: .destructive) {
+                    excludeTopic(item.topic)
+                    loadLearnedTopics()
+                } label: {
+                    Label("学習を取り消す", systemImage: "arrow.uturn.backward")
+                        .labelStyle(TightLabelStyle())
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
+            }
+        }
+    }
+
+    private func excludeTopic(_ keyword: String) {
+        let trimmed = keyword.lowercased().trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        let existing = Set(excludedKeywords.map { $0.keyword.lowercased() })
+        guard !existing.contains(trimmed) else { return }
+        modelContext.insert(ExcludedKeyword(keyword: trimmed))
+        try? modelContext.save()
+        // 自動興味リストを更新（除外したトピックを消す）
+        loadLearnedTopics()
     }
 
     private func addTopic(_ topic: String, en: String = "") {
         guard !topic.isEmpty else { return }
         let existing = Set(interests.map(\.topic))
         guard !existing.contains(topic) else { return }
+
+        // 同名の除外キーワードがあれば解除（手動追加が優先する）
+        let topicLower = topic.lowercased()
+        for excluded in excludedKeywords where excluded.keyword.lowercased() == topicLower {
+            modelContext.delete(excluded)
+        }
+
         let providedEn = en.trimmingCharacters(in: .whitespaces)
         let needsTranslation = providedEn.isEmpty && containsNonASCII(topic)
         let interest = UserInterest(topic: topic, topicEn: providedEn.isEmpty ? topic : providedEn)
         modelContext.insert(interest)
         try? modelContext.save()
+
+        // 自動興味リストを更新（手動に昇格したトピックを消す）
+        loadLearnedTopics()
 
         // プリセット外の非ASCIIトピックはバックグラウンドでAI翻訳
         if needsTranslation {
@@ -174,6 +262,20 @@ struct InterestSettingsView: View {
     /// - 日本語など非ASCIIトピックで topicEn が同じ（=翻訳されてない）の時
     private func isTranslationMissing(_ interest: UserInterest) -> Bool {
         containsNonASCII(interest.topic) && interest.topic == interest.topicEn
+    }
+}
+
+// MARK: - TightLabelStyle
+
+/// アイコンとテキストを 3pt 間隔で詰めて並べる Label スタイル。
+/// 標準の `.automatic` だとボタン内で隙間が広く感じるので。
+private struct TightLabelStyle: LabelStyle {
+    var spacing: CGFloat = 3
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: spacing) {
+            configuration.icon
+            configuration.title
+        }
     }
 }
 
