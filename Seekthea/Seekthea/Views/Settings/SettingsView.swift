@@ -12,6 +12,9 @@ struct SettingsView: View {
     @State private var isImportingBackup = false
     @State private var backupError: String?
     @State private var newDiscoveryCount: Int = 0
+    @State private var isExportingOPML = false
+    @State private var opmlDocument = OPMLDocument()
+    @State private var isImportingOPML = false
 
     private var modelContainer: ModelContainer {
         modelContext.container
@@ -72,6 +75,19 @@ struct SettingsView: View {
                 Text("バックアップ")
             } footer: {
                 Text("ソース・カテゴリ・興味トピック・お気に入り／既読状態を JSONファイルにまとめて、iCloud Drive や Files に保存できます。復元時は既存データに統合されます（重複は追加されません）。記事本文はバックアップ対象外です。")
+            }
+
+            Section {
+                Button("OPMLでエクスポート") {
+                    prepareOPMLExport()
+                }
+                Button("OPMLでインポート") {
+                    isImportingOPML = true
+                }
+            } header: {
+                Text("OPML")
+            } footer: {
+                Text("他のRSSリーダー (Reeder / NetNewsWire / Feedly など) とソース一覧を移行するためのフォーマット。エクスポートは現在のソース、インポートは選択したファイル内の RSSフィードを取り込みます（重複は自動でスキップ）。")
             }
 
             Section {
@@ -149,6 +165,26 @@ struct SettingsView: View {
             case .failure(let err): backupError = err.localizedDescription
             }
         }
+        .fileExporter(
+            isPresented: $isExportingOPML,
+            document: opmlDocument,
+            contentType: OPMLDocument.writableContentTypes.first ?? .xml,
+            defaultFilename: Self.defaultOPMLFilename()
+        ) { result in
+            switch result {
+            case .success: showToast("OPMLを保存しました")
+            case .failure(let err): backupError = err.localizedDescription
+            }
+        }
+        .fileImporter(
+            isPresented: $isImportingOPML,
+            allowedContentTypes: OPMLDocument.readableContentTypes
+        ) { result in
+            switch result {
+            case .success(let url): importOPML(from: url)
+            case .failure(let err): backupError = err.localizedDescription
+            }
+        }
         .alert("バックアップエラー", isPresented: Binding(
             get: { backupError != nil },
             set: { if !$0 { backupError = nil } }
@@ -163,6 +199,30 @@ struct SettingsView: View {
         let df = DateFormatter()
         df.dateFormat = "yyyyMMdd-HHmm"
         return "seekthea-backup-\(df.string(from: Date()))"
+    }
+
+    private static func defaultOPMLFilename() -> String {
+        let df = DateFormatter()
+        df.dateFormat = "yyyyMMdd"
+        return "seekthea-sources-\(df.string(from: Date()))"
+    }
+
+    private func prepareOPMLExport() {
+        opmlDocument = OPMLDocument(data: OPML.export(context: modelContext))
+        isExportingOPML = true
+    }
+
+    private func importOPML(from url: URL) {
+        let needsStop = url.startAccessingSecurityScopedResource()
+        defer { if needsStop { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let data = try Data(contentsOf: url)
+            let feeds = try OPML.parse(data: data)
+            let summary = OPML.importFeeds(feeds, into: modelContext)
+            showToast(summary.summaryText)
+        } catch {
+            backupError = error.localizedDescription
+        }
     }
 
     private func prepareExport() {
