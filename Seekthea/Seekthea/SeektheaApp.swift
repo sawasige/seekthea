@@ -4,6 +4,8 @@ import SwiftData
 @main
 struct SeektheaApp: App {
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("feedMode") private var feedMode: FeedMode = .forYou
+    @AppStorage("useCompactLayout") private var useCompactLayout = false
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -87,6 +89,34 @@ struct SeektheaApp: App {
 
                 // iCloudアカウント状態をチェック
                 Task { await CloudSyncStatus.shared.refresh() }
+            }
+        }
+        .commands {
+            // File > New (⌘N) は本アプリに「新規作成」概念が無いので隠す
+            CommandGroup(replacing: .newItem) { }
+            CommandMenu("表示") {
+                Button("更新") {
+                    NotificationCenter.default.post(name: .refreshFeedRequested, object: nil)
+                }
+                .keyboardShortcut("r", modifiers: .command)
+
+                Divider()
+
+                Button("おすすめ") { feedMode = .forYou }
+                    .keyboardShortcut("1", modifiers: .command)
+                Button("新着") { feedMode = .latest }
+                    .keyboardShortcut("2", modifiers: .command)
+                Button("お気に入り") { feedMode = .favorites }
+                    .keyboardShortcut("3", modifiers: .command)
+                Button("閲覧履歴") { feedMode = .history }
+                    .keyboardShortcut("4", modifiers: .command)
+
+                Divider()
+
+                Button(useCompactLayout ? "通常レイアウト" : "コンパクトレイアウト") {
+                    useCompactLayout.toggle()
+                }
+                .keyboardShortcut("c", modifiers: [.command, .shift])
             }
         }
     }

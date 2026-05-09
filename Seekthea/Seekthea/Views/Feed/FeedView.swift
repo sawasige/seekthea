@@ -671,7 +671,6 @@ struct FeedView: View {
                             Image(systemName: "arrow.clockwise")
                         }
                         .disabled(viewModel?.isLoading ?? false)
-                        .keyboardShortcut("r", modifiers: .command)
                     }
                     #endif
                     #if !os(iOS)
@@ -715,6 +714,13 @@ struct FeedView: View {
                 .onReceive(NotificationCenter.default.publisher(for: .onboardingCompleted)) { _ in
                     Task { await refreshAll() }
                 }
+                .modifier(RefreshNotificationHandler {
+                    ArticleNavigationContext.shared.clearSession()
+                    lockedSortKeys.removeAll()
+                    lockedHistoryDates.removeAll()
+                    listLocked = false
+                    Task { await refreshAll() }
+                })
                 .onReceive(NotificationCenter.default.publisher(for: .discoveryCompleted)) { _ in
                     newSuggestionCount = DiscoveryManager.shared.uncheckedSuggestionCount(in: modelContext)
                 }
@@ -900,14 +906,7 @@ struct FeedView: View {
         .modifier(FeedKeyboardModifier(
             listFocused: $listFocused,
             onMove: { dx, dy in moveKeyboardSelectionSpatial(dx: dx, dy: dy) },
-            onOpen: { openKeyboardSelected() },
-            onRefresh: {
-                ArticleNavigationContext.shared.clearSession()
-                lockedSortKeys.removeAll()
-                lockedHistoryDates.removeAll()
-                listLocked = false
-                Task { await refreshAll() }
-            }
+            onOpen: { openKeyboardSelected() }
         ))
     }
 
@@ -1198,6 +1197,21 @@ struct FeedView: View {
     }
 }
 
+// MARK: - RefreshNotificationHandler
+
+/// `.refreshFeedRequested` 通知を購読してアクションを発火する小さい ViewModifier。
+/// FeedView.body のチェーンに直接 .onReceive を増やすと型チェッカーが timeout する
+/// ため切り出している。
+private struct RefreshNotificationHandler: ViewModifier {
+    let action: () -> Void
+
+    func body(content: Content) -> some View {
+        content.onReceive(NotificationCenter.default.publisher(for: .refreshFeedRequested)) { _ in
+            action()
+        }
+    }
+}
+
 // MARK: - FeedKeyboardModifier
 
 /// 物理キーボード操作のショートカットを ScrollView に取り付ける ViewModifier。
@@ -1208,7 +1222,6 @@ private struct FeedKeyboardModifier: ViewModifier {
     /// (dx, dy) で方向を渡す。dx>0=右、dx<0=左、dy>0=下、dy<0=上。
     let onMove: (Int, Int) -> Void
     let onOpen: () -> Void
-    let onRefresh: () -> Void
 
     func body(content: Content) -> some View {
         content
@@ -1239,16 +1252,6 @@ private struct FeedKeyboardModifier: ViewModifier {
                 onOpen()
                 return .handled
             }
-            .background(
-                // 隠し Button に ⌘R ショートカットを付ける。iOS / iPadOS の物理
-                // キーボード接続時にも有効。macOS / visionOS は toolbar 側の
-                // 更新ボタンに同じショートカットを付与しているので二重 OK。
-                Button("更新", action: onRefresh)
-                    .keyboardShortcut("r", modifiers: .command)
-                    .opacity(0)
-                    .frame(width: 0, height: 0)
-                    .accessibilityHidden(true)
-            )
     }
 }
 
@@ -1639,4 +1642,9 @@ struct ReviewPromptAlert: ViewModifier {
             Text("いつも使ってくれてありがとうございます。よかったら App Store でひと言いただけると、今後の励みになります。")
         }
     }
+}
+
+extension Notification.Name {
+    /// 表示メニューや外部キーボードショートカットからフィード更新を要求するときに投げる
+    static let refreshFeedRequested = Notification.Name("refreshFeedRequested")
 }
