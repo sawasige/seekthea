@@ -196,6 +196,20 @@ struct ArticleDetailView: View {
                 engine.rescore(article: article)
             }
         }
+        // 物理キーボードで s / f → お気に入りトグル。
+        // WebView が focus を奪うとここまで届かないので、SwiftUI chrome に
+        // 焦点がある時のみ有効（モード Picker / toolbar 操作直後など）。
+        .focusable()
+        .focusEffectDisabled()
+        .onKeyPress { press in
+            guard press.modifiers.isEmpty else { return .ignored }
+            if press.key == KeyEquivalent("s") || press.key == KeyEquivalent("f") {
+                article.isFavorite.toggle()
+                try? modelContext.save()
+                return .handled
+            }
+            return .ignored
+        }
     }
 
     @ViewBuilder

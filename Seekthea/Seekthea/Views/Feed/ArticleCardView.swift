@@ -6,6 +6,7 @@ struct ArticleCardView: View {
     /// （reused view 内部での observation が伝わらないケースの保険）
     let displayImageURL: URL?
     var showScore: Bool = false
+    var isSelected: Bool = false
 
     #if os(macOS)
     private let titleFont: Font = .title3.weight(.semibold)
@@ -109,6 +110,19 @@ struct ArticleCardView: View {
                     .padding(8)
             }
         }
+        .overlay {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.accentColor.opacity(0.10))
+                    .allowsHitTesting(false)
+            }
+        }
+        .shadow(
+            color: isSelected ? Color.accentColor.opacity(0.35) : .clear,
+            radius: isSelected ? 14 : 0,
+            y: isSelected ? 4 : 0
+        )
+        .animation(.easeInOut(duration: 0.15), value: isSelected)
         .task {
             if displayImageURL == nil {
                 if let ogImage = await FeedFetcher.fetchOGImage(from: article.articleURL) {
