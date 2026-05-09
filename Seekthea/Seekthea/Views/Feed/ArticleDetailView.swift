@@ -765,11 +765,11 @@ fileprivate struct NavArticleCard: View {
                             .font(.caption2.weight(.bold))
                     }
                 }
-                .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(.primary.opacity(0.75))
 
                 Text(article.title)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -780,11 +780,18 @@ fileprivate struct NavArticleCard: View {
             // 最低 96pt は確保。content が大きい時は自然に伸びる。
             .frame(minHeight: 96, alignment: .bottomLeading)
             .background {
-                LinearGradient(
-                    colors: [.clear, .black.opacity(0.55), .black.opacity(0.9)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                // 上は透明、下に向かって `.regularMaterial` が濃くなるグラデーション。
+                // ライト / ダークモードで OS が自動で適応するので、画像がよく見えつつ
+                // 下部のテキストが両モードで読める。
+                Rectangle()
+                    .fill(.regularMaterial)
+                    .mask {
+                        LinearGradient(
+                            colors: [.clear, .black.opacity(0.6), .black],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    }
             }
             .background {
                 imageBackground
@@ -792,9 +799,9 @@ fileprivate struct NavArticleCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(0.18), lineWidth: 0.5)
+                    .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
             }
-            .shadow(color: .black.opacity(0.28), radius: 14, y: 4)
+            .shadow(color: .black.opacity(0.22), radius: 14, y: 4)
             .scaleEffect(isPressed ? 0.96 : (isVisible ? 1.0 : 0.92))
             .opacity(isVisible ? 1 : 0)
             .offset(x: isVisible ? 0 : hiddenOffsetX, y: isVisible ? 0 : 24)
