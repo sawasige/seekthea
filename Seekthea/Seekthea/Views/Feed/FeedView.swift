@@ -302,6 +302,12 @@ struct FeedView: View {
     @State private var impressionTimers: [UUID: Task<Void, Never>] = [:]
     @State private var sessionImpressed: Set<UUID> = []
     @State private var lastNavigationPathCount = 0
+    /// キーボード操作で選択中の記事 id。マウス/タッチ操作では更新しない（純粋にキーボードナビ用）。
+    /// nil の間は装飾しない。最初のキー操作で先頭/末尾の記事に着く。
+    @State private var keyboardSelectedID: UUID? = nil
+    /// グリッド幅。↑↓ の移動量（列数）を View 幅 / カード最小幅 から算出するのに使う。
+    @State private var gridWidth: CGFloat = 0
+    @FocusState private var listFocused: Bool
     @Namespace private var zoomNamespace
 
     private let impressionDwellSeconds: Double = 1.0
@@ -609,6 +615,7 @@ struct FeedView: View {
                     scrollState.hideAmount = 0
                     scrollProxy?.scrollTo("scrollTop", anchor: .top)
                     listLocked = false
+                    keyboardSelectedID = nil
                     withAnimation(.easeInOut(duration: 0.35)) {
                         updateCachedData()
                     }
@@ -618,6 +625,7 @@ struct FeedView: View {
                     scrollState.hideAmount = 0
                     scrollProxy?.scrollTo("scrollTop", anchor: .top)
                     listLocked = false
+                    keyboardSelectedID = nil
                     updateCachedData()
                 }
                 .onChange(of: sourceFilter) {
@@ -625,6 +633,7 @@ struct FeedView: View {
                     scrollState.hideAmount = 0
                     scrollProxy?.scrollTo("scrollTop", anchor: .top)
                     listLocked = false
+                    keyboardSelectedID = nil
                     updateCachedData()
                 }
                 .onChange(of: isSwiping) {
@@ -662,6 +671,7 @@ struct FeedView: View {
                             Image(systemName: "arrow.clockwise")
                         }
                         .disabled(viewModel?.isLoading ?? false)
+                        .keyboardShortcut("r", modifiers: .command)
                     }
                     #endif
                     #if !os(iOS)
@@ -825,17 +835,37 @@ struct FeedView: View {
                                 }
                             } label: {
                                 if useCompactLayout {
-                                    CompactArticleCardView(article: article, displayImageURL: article.displayImageURL, showScore: feedMode == .forYou)
+                                    CompactArticleCardView(
+                                        article: article,
+                                        displayImageURL: article.displayImageURL,
+                                        showScore: feedMode == .forYou,
+                                        isSelected: keyboardSelectedID == article.id
+                                    )
                                 } else {
-                                    ArticleCardView(article: article, displayImageURL: article.displayImageURL, showScore: feedMode == .forYou)
+                                    ArticleCardView(
+                                        article: article,
+                                        displayImageURL: article.displayImageURL,
+                                        showScore: feedMode == .forYou,
+                                        isSelected: keyboardSelectedID == article.id
+                                    )
                                 }
                             }
                             .buttonStyle(.plain)
+                            // SwiftUI の grid focus 移動が ↑↓←→ を消費して
+                            // FeedKeyboardModifier に届かなくなるのを防ぐ。
+                            // 選択 state は keyboardSelectedID で別管理しているので、
+                            // 個別ボタン側の focus 機能は無効化して問題ない。
+                            .focusable(false)
                             .matchedTransitionSource(id: article.id, in: zoomNamespace)
                             .contextMenu { contextMenuItems(for: article) }
                             .onAppear { startImpressionTimer(for: article) }
                             .onDisappear { cancelImpressionTimer(for: article.id) }
                         }
+                    }
+                    .onGeometryChange(for: CGFloat.self) { proxy in
+                        proxy.size.width
+                    } action: { newWidth in
+                        gridWidth = newWidth
                     }
                     .padding(.horizontal)
                     .padding(.bottom, 20)
@@ -867,6 +897,18 @@ struct FeedView: View {
             }
         }
         .contentMargins(.top, headerHeight, for: .scrollIndicators)
+        .modifier(FeedKeyboardModifier(
+            listFocused: $listFocused,
+            onMove: { dx, dy in moveKeyboardSelectionSpatial(dx: dx, dy: dy) },
+            onOpen: { openKeyboardSelected() },
+            onRefresh: {
+                ArticleNavigationContext.shared.clearSession()
+                lockedSortKeys.removeAll()
+                lockedHistoryDates.removeAll()
+                listLocked = false
+                Task { await refreshAll() }
+            }
+        ))
     }
 
     private var headerView: some View {
@@ -913,6 +955,75 @@ struct FeedView: View {
         // リスト全体を凍結。戻った時に同じ並びで見えるように。
         listLocked = true
         navigationPath.append(article)
+    }
+
+    // MARK: - キーボードナビゲーション
+
+    private func openKeyboardSelected() {
+        guard let id = keyboardSelectedID,
+              let article = cachedDisplayArticles.first(where: { $0.id == id }) else {
+            // 未選択でも最初の Space/Return は先頭を開く操作として扱う
+            if let first = cachedDisplayArticles.first {
+                keyboardSelectedID = first.id
+                openArticle(first)
+            }
+            return
+        }
+        openArticle(article)
+    }
+
+    /// row-major に並んだ cachedDisplayArticles をインデックス算術で動かす。
+    /// ←→ は ±1、↑↓ は ±列数。列数は gridWidth とカード最小幅から計算。
+    private func moveKeyboardSelectionSpatial(dx: Int, dy: Int) {
+        let articles = cachedDisplayArticles
+        guard !articles.isEmpty else { return }
+        guard let id = keyboardSelectedID,
+              let currentIdx = articles.firstIndex(where: { $0.id == id }) else {
+            // 未選択時は flow 順での先頭/末尾に飛ぶ
+            let first = (dy > 0 || dx > 0) ? articles.first : articles.last
+            if let first { selectAndScroll(to: first.id) }
+            return
+        }
+
+        let cols = max(1, currentColumnCount())
+        let delta = dx != 0 ? dx : dy * cols
+        let newIdx = max(0, min(articles.count - 1, currentIdx + delta))
+        if newIdx != currentIdx {
+            selectAndScroll(to: articles[newIdx].id)
+        }
+    }
+
+    /// `columns` の定義に合わせた現在の列数を返す。
+    /// .flexible() 配列なら配列長、.adaptive() なら gridWidth / minimum で計算。
+    private func currentColumnCount() -> Int {
+        #if os(macOS)
+        return adaptiveColumnCount(minimum: 280, spacing: 16)
+        #else
+        if useCompactLayout {
+            let isPhone = UIDevice.current.userInterfaceIdiom == .phone
+            if isPhone {
+                return verticalSizeClass == .compact ? 3 : 2
+            } else {
+                return adaptiveColumnCount(minimum: 170, spacing: 8)
+            }
+        }
+        if horizontalSizeClass == .regular {
+            return adaptiveColumnCount(minimum: 260, spacing: 12)
+        }
+        return 1
+        #endif
+    }
+
+    private func adaptiveColumnCount(minimum: CGFloat, spacing: CGFloat) -> Int {
+        guard gridWidth > 0 else { return 1 }
+        return max(1, Int((gridWidth + spacing) / (minimum + spacing)))
+    }
+
+    private func selectAndScroll(to id: UUID) {
+        keyboardSelectedID = id
+        withAnimation(.easeInOut(duration: 0.2)) {
+            scrollProxy?.scrollTo(id, anchor: .center)
+        }
     }
 
     // MARK: - Impression tracking
@@ -1084,6 +1195,60 @@ struct FeedView: View {
                 newSuggestionCount = DiscoveryManager.shared.uncheckedSuggestionCount(in: modelContext)
             }
         )
+    }
+}
+
+// MARK: - FeedKeyboardModifier
+
+/// 物理キーボード操作のショートカットを ScrollView に取り付ける ViewModifier。
+/// FeedView.body のチェーンが長くなりすぎて型チェッカーがタイムアウトするのを避けるため、
+/// focus / onKeyPress / onAppear をまとめて切り出している。
+private struct FeedKeyboardModifier: ViewModifier {
+    @FocusState.Binding var listFocused: Bool
+    /// (dx, dy) で方向を渡す。dx>0=右、dx<0=左、dy>0=下、dy<0=上。
+    let onMove: (Int, Int) -> Void
+    let onOpen: () -> Void
+    let onRefresh: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .focusable()
+            .focusEffectDisabled()
+            .focused($listFocused)
+            .onAppear { listFocused = true }
+            // macOS で arrow キーは AppKit の moveUp:/moveDown: 等のコマンドに
+            // 変換されるため、catch-all `.onKeyPress { ... }` だと拾えない。
+            // 明示的に keys を指定して登録するとちゃんと届く。
+            .onKeyPress(keys: [.upArrow, KeyEquivalent("k")]) { _ in
+                onMove(0, -1)
+                return .handled
+            }
+            .onKeyPress(keys: [.downArrow, KeyEquivalent("j")]) { _ in
+                onMove(0, 1)
+                return .handled
+            }
+            .onKeyPress(keys: [.leftArrow, KeyEquivalent("h")]) { _ in
+                onMove(-1, 0)
+                return .handled
+            }
+            .onKeyPress(keys: [.rightArrow, KeyEquivalent("l")]) { _ in
+                onMove(1, 0)
+                return .handled
+            }
+            .onKeyPress(keys: [.space, .return]) { _ in
+                onOpen()
+                return .handled
+            }
+            .background(
+                // 隠し Button に ⌘R ショートカットを付ける。iOS / iPadOS の物理
+                // キーボード接続時にも有効。macOS / visionOS は toolbar 側の
+                // 更新ボタンに同じショートカットを付与しているので二重 OK。
+                Button("更新", action: onRefresh)
+                    .keyboardShortcut("r", modifiers: .command)
+                    .opacity(0)
+                    .frame(width: 0, height: 0)
+                    .accessibilityHidden(true)
+            )
     }
 }
 

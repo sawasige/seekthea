@@ -6,6 +6,7 @@ struct ArticleCardView: View {
     /// （reused view 内部での observation が伝わらないケースの保険）
     let displayImageURL: URL?
     var showScore: Bool = false
+    var isSelected: Bool = false
 
     #if os(macOS)
     private let titleFont: Font = .title3.weight(.semibold)
@@ -94,8 +95,17 @@ struct ArticleCardView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 120)
         .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .contentShape(RoundedRectangle(cornerRadius: 12))
+        // 選択時の塗りは clipShape の手前に積んで、コンテンツと一緒に丸く切り抜く。
+        // これを overlay {} で外側に置くと、clipShape との間でサブピクセルの
+        // 角ずれが起きて「角でハイライトがはみ出す」ように見える。
+        .overlay {
+            if isSelected {
+                Color.accentColor.opacity(0.18)
+                    .allowsHitTesting(false)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .clipped()
         .opacity(article.isRead ? 0.6 : 1.0)
         .overlay(alignment: .topTrailing) {
@@ -109,6 +119,18 @@ struct ArticleCardView: View {
                     .padding(8)
             }
         }
+        .overlay {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.accentColor, lineWidth: 3)
+                    .allowsHitTesting(false)
+            }
+        }
+        .shadow(
+            color: isSelected ? Color.accentColor.opacity(0.55) : .clear,
+            radius: isSelected ? 18 : 0,
+            y: isSelected ? 6 : 0
+        )
         .task {
             if displayImageURL == nil {
                 if let ogImage = await FeedFetcher.fetchOGImage(from: article.articleURL) {

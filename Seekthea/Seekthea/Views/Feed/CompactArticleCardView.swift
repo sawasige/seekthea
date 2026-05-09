@@ -22,6 +22,7 @@ struct CompactArticleCardView: View {
     /// 親で article.displayImageURL を読むことで Observation を確実に親に走らせる
     let displayImageURL: URL?
     var showScore: Bool = false
+    var isSelected: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -90,8 +91,14 @@ struct CompactArticleCardView: View {
         }
         .frame(maxWidth: .infinity)
         .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            if isSelected {
+                Color.accentColor.opacity(0.18)
+                    .allowsHitTesting(false)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .clipped()
         .opacity(article.isRead ? 0.6 : 1.0)
         .overlay(alignment: .topTrailing) {
@@ -105,6 +112,18 @@ struct CompactArticleCardView: View {
                     .padding(4)
             }
         }
+        .overlay {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Color.accentColor, lineWidth: 2.5)
+                    .allowsHitTesting(false)
+            }
+        }
+        .shadow(
+            color: isSelected ? Color.accentColor.opacity(0.55) : .clear,
+            radius: isSelected ? 14 : 0,
+            y: isSelected ? 4 : 0
+        )
         .task {
             if displayImageURL == nil {
                 if let ogImage = await FeedFetcher.fetchOGImage(from: article.articleURL) {
