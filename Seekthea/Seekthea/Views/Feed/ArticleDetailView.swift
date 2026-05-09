@@ -601,6 +601,8 @@ private struct UIKitScrollHost<Content: View>: UIViewRepresentable {
         let host = UIHostingController(rootView: content())
         host.view.translatesAutoresizingMaskIntoConstraints = false
         host.view.backgroundColor = .clear
+        // SwiftUI 側の `.ignoresSafeArea()` を効かせるために container 扱いを外す。
+        host.safeAreaRegions = []
         sv.addSubview(host.view)
         NSLayoutConstraint.activate([
             host.view.topAnchor.constraint(equalTo: sv.contentLayoutGuide.topAnchor),
@@ -1184,30 +1186,45 @@ private struct DetailPagingView: UIViewControllerRepresentable {
             let vc: UIViewController
             switch mode {
             case .reader:
-                vc = UIHostingController(rootView: ReaderView(
+                let host = UIHostingController(rootView: ReaderView(
                     article: parent.article,
                     extracted: parent.extracted,
                     page: parent.readerPage,
                     hasNavigated: parent.$readerHasNavigated,
                     scrollState: parent.scrollState
                 ))
+                applyTransparency(host)
+                vc = host
             case .aiSummary:
-                vc = UIHostingController(rootView: AISummaryView(
+                let host = UIHostingController(rootView: AISummaryView(
                     article: parent.article,
                     page: parent.summaryPage,
                     hasNavigated: parent.$summaryHasNavigated,
                     scrollState: parent.scrollState
                 ))
+                applyTransparency(host)
+                vc = host
             case .web:
-                vc = UIHostingController(rootView: ArticleWebView(
+                let host = UIHostingController(rootView: ArticleWebView(
                     url: parent.article.articleURL,
                     page: parent.webPage,
                     hasNavigated: parent.$webHasNavigated,
                     scrollState: parent.scrollState
                 ))
+                applyTransparency(host)
+                vc = host
             }
             controllers[mode] = vc
             return vc
+        }
+
+        /// UIHostingController を透過にしつつ container safe area の自動取り扱いを切る。
+        /// - 不透明 view が safe area まで色を塗ってしまう問題と
+        /// - 内部の SwiftUI `.ignoresSafeArea()` が hosting 越しに無視される問題
+        /// の両方を解決する。
+        private func applyTransparency<Content: View>(_ host: UIHostingController<Content>) {
+            host.view.backgroundColor = .clear
+            host.safeAreaRegions = []
         }
 
         private func mode(for viewController: UIViewController) -> DetailViewMode? {
@@ -1578,6 +1595,16 @@ final class ManagedWKWebView {
         let nd = WebNavDelegate()
         wv.navigationDelegate = nd
         wv.uiDelegate = nd
+
+        // SwiftUI の WebView 互換の見た目に揃える。raw WKWebView のデフォルトだと
+        // isOpaque = true で safe area まで真っ白／真っ黒に塗られてしまい、
+        // .ignoresSafeArea で広げてもフルスクリーンに見えなくなる。
+        #if os(iOS) || os(visionOS)
+        wv.isOpaque = false
+        wv.backgroundColor = .clear
+        wv.scrollView.backgroundColor = .clear
+        #endif
+
         self.webView = wv
         self.navDelegate = nd
 
