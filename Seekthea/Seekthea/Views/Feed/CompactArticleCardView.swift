@@ -91,8 +91,14 @@ struct CompactArticleCardView: View {
         }
         .frame(maxWidth: .infinity)
         .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            if isSelected {
+                Color.accentColor.opacity(0.18)
+                    .allowsHitTesting(false)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .clipped()
         .opacity(article.isRead ? 0.6 : 1.0)
         .overlay(alignment: .topTrailing) {
@@ -108,17 +114,16 @@ struct CompactArticleCardView: View {
         }
         .overlay {
             if isSelected {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.accentColor.opacity(0.10))
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Color.accentColor, lineWidth: 2.5)
                     .allowsHitTesting(false)
             }
         }
         .shadow(
-            color: isSelected ? Color.accentColor.opacity(0.35) : .clear,
-            radius: isSelected ? 10 : 0,
-            y: isSelected ? 3 : 0
+            color: isSelected ? Color.accentColor.opacity(0.55) : .clear,
+            radius: isSelected ? 14 : 0,
+            y: isSelected ? 4 : 0
         )
-        .animation(.easeInOut(duration: 0.15), value: isSelected)
         .task {
             if displayImageURL == nil {
                 if let ogImage = await FeedFetcher.fetchOGImage(from: article.articleURL) {

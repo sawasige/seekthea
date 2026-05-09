@@ -105,6 +105,7 @@ private enum DetailViewMode: String, CaseIterable {
 
 struct ArticleDetailView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     let article: Article
     var previousArticle: Article? = nil
     var nextArticle: Article? = nil
@@ -209,6 +210,18 @@ struct ArticleDetailView: View {
                 return .handled
             }
             return .ignored
+        }
+        // 戻るショートカット。⌘[ と Esc の両方で navigation を pop。
+        // .keyboardShortcut は window-wide なので WebView の focus にも影響されない。
+        .background {
+            ZStack {
+                Button("戻る") { dismiss() }
+                    .keyboardShortcut("[", modifiers: .command)
+                Button("戻る") { dismiss() }
+                    .keyboardShortcut(.escape, modifiers: [])
+            }
+            .opacity(0)
+            .accessibilityHidden(true)
         }
     }
 
