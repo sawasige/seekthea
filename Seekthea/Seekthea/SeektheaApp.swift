@@ -118,6 +118,73 @@ struct SeektheaApp: App {
                 }
                 .keyboardShortcut("c", modifiers: [.command, .shift])
             }
+            CommandMenu("記事") {
+                ArticleCommandsContent()
+            }
         }
+
+        #if os(macOS)
+        // ⌘, で開く設定ウィンドウ。同じ SettingsView を別ウィンドウで開く形。
+        Settings {
+            NavigationStack {
+                SettingsView()
+            }
+            .modelContainer(sharedModelContainer)
+            .frame(minWidth: 520, minHeight: 600)
+        }
+        #endif
+    }
+}
+
+/// 「記事」メニューの中身。詳細表示中の記事 (FocusedValue) に対して操作する。
+/// CommandMenu の中身は @ViewBuilder なので、@Environment や @FocusedValue を持つ
+/// View struct として切り出している。
+private struct ArticleCommandsContent: View {
+    @FocusedValue(\.currentArticle) private var article
+    @FocusedValue(\.articleDetailActions) private var actions
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        Button(article?.isFavorite == true ? "お気に入りから外す" : "お気に入りに追加") {
+            article?.isFavorite.toggle()
+        }
+        .keyboardShortcut("d", modifiers: .command)
+        .disabled(article == nil)
+
+        Button("ブラウザで開く") {
+            if let url = article?.articleURL { openURL(url) }
+        }
+        .keyboardShortcut("b", modifiers: [.command, .shift])
+        .disabled(article == nil)
+
+        if let article {
+            ShareLink(item: article.articleURL) {
+                Label("共有", systemImage: "square.and.arrow.up")
+            }
+        } else {
+            Button("共有") { }.disabled(true)
+        }
+
+        Divider()
+
+        // 表示モード切替。Picker は CommandMenu 内では submenu として描画され、
+        // 現在のモードに自動でチェックマークが付く。
+        Picker("表示モード", selection: Binding(
+            get: { actions?.currentMode ?? .reader },
+            set: { actions?.setMode($0) }
+        )) {
+            ForEach(DetailViewMode.allCases, id: \.self) { mode in
+                Text(mode.rawValue).tag(mode)
+            }
+        }
+        .disabled(actions == nil)
+
+        Divider()
+
+        Button("AI処理を再実行") { actions?.reprocessAI() }
+            .disabled(actions == nil)
+
+        Button("スコアの内訳") { actions?.showScoreBreakdown() }
+            .disabled(actions == nil)
     }
 }
