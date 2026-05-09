@@ -87,7 +87,7 @@ private extension View {
 
 // MARK: - 表示モード
 
-private enum DetailViewMode: String, CaseIterable {
+enum DetailViewMode: String, CaseIterable {
     case reader = "リーダー"
     case aiSummary = "AI要約"
     case web = "Web"
@@ -98,6 +98,39 @@ private enum DetailViewMode: String, CaseIterable {
         case .aiSummary: "sparkles"
         case .web: "globe"
         }
+    }
+}
+
+// MARK: - FocusedValue
+
+/// 現在開いている記事を CommandMenu に伝えるための FocusedValue。
+/// ArticleDetailView が `.focusedSceneValue(\.currentArticle, article)` で
+/// 公開し、SeektheaApp.commands {} が読み取って「記事」メニューを enable/disable する。
+struct CurrentArticleFocusKey: FocusedValueKey {
+    typealias Value = Article
+}
+
+/// 詳細表示画面の表示モードや AI再実行 / スコア内訳など、ArticleDetailView 内の
+/// state / method に依存するアクションを CommandMenu から呼ぶための FocusedValue。
+struct ArticleDetailActions {
+    var currentMode: DetailViewMode
+    var setMode: (DetailViewMode) -> Void
+    var reprocessAI: () -> Void
+    var showScoreBreakdown: () -> Void
+}
+
+struct ArticleDetailActionsFocusKey: FocusedValueKey {
+    typealias Value = ArticleDetailActions
+}
+
+extension FocusedValues {
+    var currentArticle: Article? {
+        get { self[CurrentArticleFocusKey.self] }
+        set { self[CurrentArticleFocusKey.self] = newValue }
+    }
+    var articleDetailActions: ArticleDetailActions? {
+        get { self[ArticleDetailActionsFocusKey.self] }
+        set { self[ArticleDetailActionsFocusKey.self] = newValue }
     }
 }
 
@@ -223,6 +256,15 @@ struct ArticleDetailView: View {
             .opacity(0)
             .accessibilityHidden(true)
         }
+        // 「記事」メニューが現在記事を操作対象にするための FocusedValue。
+        // 詳細表示中だけセットされ、フィードに戻ると nil になりメニューが disabled になる。
+        .focusedSceneValue(\.currentArticle, article)
+        .focusedSceneValue(\.articleDetailActions, ArticleDetailActions(
+            currentMode: viewMode,
+            setMode: { viewMode = $0 },
+            reprocessAI: { Task { await reprocessAI() } },
+            showScoreBreakdown: { showScoreBreakdown = true }
+        ))
     }
 
     @ViewBuilder
