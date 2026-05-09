@@ -18,7 +18,8 @@ struct ContentView: View {
         FeedView(modelContainer: modelContainer)
             .task {
                 ReviewPromptManager.recordFirstLaunchIfNeeded()
-                CloudSyncObserver.shared.setup(modelContainer: modelContainer)
+                // CloudSyncObserver.setup は SeektheaApp の ModelContainer
+                // 作成直後に呼ばれているのでここでは不要（再呼出は no-op）。
                 await DataDeduplicator.run(in: modelContext)
                 await checkSyncAndSeed()
             }
