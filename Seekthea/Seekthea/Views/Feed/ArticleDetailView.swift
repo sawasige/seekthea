@@ -522,6 +522,10 @@ private struct LoadingPreviewView: View {
         UIKitScrollHost(scrollState: scrollState) {
             previewContent
         }
+        // 他のモード（リーダー / AI 要約 / Web）と揃えて safe area まで
+        // コンテンツが広がるように。`safeAreaRegions = []` だけだと
+        // UIScrollView の frame 自体が safe area 内に留まるので不十分。
+        .ignoresSafeArea()
         #else
         // macOS は NSScrollView の挙動が素直で natural max ≒ contentSize - container
         // なので SwiftUI ScrollView + onScrollGeometryChange で済む。
@@ -601,7 +605,8 @@ private struct UIKitScrollHost<Content: View>: UIViewRepresentable {
         let host = UIHostingController(rootView: content())
         host.view.translatesAutoresizingMaskIntoConstraints = false
         host.view.backgroundColor = .clear
-        // SwiftUI 側の `.ignoresSafeArea()` を効かせるために container 扱いを外す。
+        // SwiftUI 側の safe area 設定を hosting 越しでも効かせるため container 扱いを外す。
+        // LoadingPreviewView でも他モードと揃えてコンテンツが safe area まで広がる。
         host.safeAreaRegions = []
         sv.addSubview(host.view)
         NSLayoutConstraint.activate([
