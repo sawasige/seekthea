@@ -38,23 +38,38 @@ final class CloudSyncObserver {
     }
 
     private func handle(event: NSPersistentCloudKitContainer.Event) {
-        guard event.type == .import else { return }
         if event.endDate == nil {
-            // import 開始
-            isImporting = true
-            statusMessage = "iCloud から取り込み中..."
+            // 開始
+            switch event.type {
+            case .setup:
+                statusMessage = "iCloud と接続中..."
+            case .import:
+                isImporting = true
+                statusMessage = "iCloud から取り込み中..."
+            default:
+                break
+            }
         } else {
-            // import 完了
-            isImporting = false
-            lastImportEndDate = event.endDate
-            if event.succeeded, let container = modelContainer {
-                Task { @MainActor in
-                    await DataDeduplicator.run(in: container.mainContext) { [weak self] msg in
-                        self?.statusMessage = msg
+            // 完了
+            switch event.type {
+            case .import:
+                isImporting = false
+                lastImportEndDate = event.endDate
+                if event.succeeded, let container = modelContainer {
+                    Task { @MainActor in
+                        await DataDeduplicator.run(in: container.mainContext) { [weak self] msg in
+                            self?.statusMessage = msg
+                        }
                     }
+                } else {
+                    statusMessage = nil
                 }
-            } else {
+            case .setup:
+                // setup 完了は次の import 開始ですぐ上書きされるが、
+                // 何も来ない可能性もあるので一旦消す。
                 statusMessage = nil
+            default:
+                break
             }
         }
     }

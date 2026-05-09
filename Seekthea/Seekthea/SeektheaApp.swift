@@ -24,7 +24,15 @@ struct SeektheaApp: App {
                 cloudKitDatabase: .automatic
             )]
         ) {
-            Task { @MainActor in CloudSyncStatus.shared.setContainerInitialized(cloudKitEnabled: true) }
+            // CloudSyncObserver の通知購読を ModelContainer 作成直後に同期で行う。
+            // ContentView.task まで遅延させると、初回 install/reinstall 直後の
+            // setup/import イベントを取りこぼして「同期中」ステータスが
+            // 表示されないことがある。SwiftUI App の static let 初期化は
+            // main thread なので MainActor.assumeIsolated で OK。
+            MainActor.assumeIsolated {
+                CloudSyncStatus.shared.setContainerInitialized(cloudKitEnabled: true)
+                CloudSyncObserver.shared.setup(modelContainer: container)
+            }
             return container
         }
 
@@ -64,7 +72,7 @@ struct SeektheaApp: App {
             ContentView()
         }
         .modelContainer(sharedModelContainer)
-        .onChange(of: scenePhase) { _, newPhase in
+        .onChange(of: scenePhase, initial: true) { _, newPhase in
             if newPhase == .active {
                 // フォアグラウンド復帰時にCloudKit同期を促す
                 let context = sharedModelContainer.mainContext
