@@ -139,6 +139,8 @@ struct SeektheaApp: App {
 /// 「記事」メニューの中身。詳細表示中の記事 (FocusedValue) に対して操作する。
 /// CommandMenu の中身は @ViewBuilder なので、@Environment や @FocusedValue を持つ
 /// View struct として切り出している。
+/// 値は ArticleDetailView 側で `.focusedSceneValue(_:_:)` (scene level) で publish。
+/// reader 側も `@FocusedValue` で揃える。
 private struct ArticleCommandsContent: View {
     @FocusedValue(\.currentArticle) private var article
     @FocusedValue(\.articleDetailActions) private var actions

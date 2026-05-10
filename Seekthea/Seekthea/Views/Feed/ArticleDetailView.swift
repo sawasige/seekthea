@@ -139,6 +139,7 @@ extension FocusedValues {
 struct ArticleDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     let article: Article
     var previousArticle: Article? = nil
     var nextArticle: Article? = nil
@@ -233,37 +234,43 @@ struct ArticleDetailView: View {
         // 物理キーボードで s / f → お気に入りトグル。
         // WebView が focus を奪うとここまで届かないので、SwiftUI chrome に
         // 焦点がある時のみ有効（モード Picker / toolbar 操作直後など）。
-        .focusable()
-        .focusEffectDisabled()
-        .onKeyPress { press in
-            guard press.modifiers.isEmpty else { return .ignored }
-            if press.key == KeyEquivalent("s") || press.key == KeyEquivalent("f") {
+        // iOS では .focusable() を付けると WebView との focus 競合で
+        // 記事を開いた瞬間に UITraitCollection 更新中に crash することがあるため、
+        // macOS / visionOS のみ有効にする。
+        .modifier(ArticleDetailKeyboardModifier(
+            onToggleFavorite: {
                 article.isFavorite.toggle()
                 try? modelContext.save()
-                return .handled
             }
-            return .ignored
-        }
+        ))
         // 戻るショートカット。⌘[ と Esc の両方で navigation を pop。
         // .keyboardShortcut は window-wide なので WebView の focus にも影響されない。
-        .background {
-            ZStack {
-                Button("戻る") { dismiss() }
-                    .keyboardShortcut("[", modifiers: .command)
-                Button("戻る") { dismiss() }
-                    .keyboardShortcut(.escape, modifiers: [])
-            }
-            .opacity(0)
-            .accessibilityHidden(true)
-        }
+        // iOS では追加で ⌘D / ⌘⇧B も詳細ビュー内 Button に持たせる。
+        // CommandMenu 側 (App.commands) の同じショートカットは @FocusedValue が
+        // iPad 上で navigation destination の値を拾えず disabled になるため。
+        // macOS / visionOS は CommandMenu が動くのでこちらは不要。
+        .modifier(ArticleDetailShortcutsModifier(
+            article: article,
+            onBack: { dismiss() },
+            onToggleFavorite: {
+                article.isFavorite.toggle()
+                try? modelContext.save()
+            },
+            onOpenInBrowser: { openURL(article.articleURL) }
+        ))
         // 「記事」メニューが現在記事を操作対象にするための FocusedValue。
         // 詳細表示中だけセットされ、フィードに戻ると nil になりメニューが disabled になる。
-        .focusedSceneValue(\.currentArticle, article)
-        .focusedSceneValue(\.articleDetailActions, ArticleDetailActions(
-            currentMode: viewMode,
-            setMode: { viewMode = $0 },
-            reprocessAI: { Task { await reprocessAI() } },
-            showScoreBreakdown: { showScoreBreakdown = true }
+        // iOS では body 評価毎に閉包付き ArticleDetailActions を再生成すると、
+        // FocusedValue 経路でメモリが膨張し続けて 2 回目以降のオープン時に
+        // 数分フリーズ → OOM クラッシュする問題が出るため、macOS / visionOS のみ。
+        .modifier(ArticleFocusedValueModifier(
+            article: article,
+            actions: ArticleDetailActions(
+                currentMode: viewMode,
+                setMode: { viewMode = $0 },
+                reprocessAI: { Task { await reprocessAI() } },
+                showScoreBreakdown: { showScoreBreakdown = true }
+            )
         ))
     }
 
@@ -1928,3 +1935,80 @@ struct FlowLayout: Layout {
     }
 }
 
+/// 詳細ビュー内の hidden Button で keyboardShortcut をハンドルするラッパー。
+/// 戻る (⌘[ / Esc) は全プラットフォームで持つ。iOS / iPadOS は CommandMenu の
+/// @FocusedValue が navigation destination の値を拾えない問題があるので、
+/// ⌘D (お気に入り) / ⌘⇧B (ブラウザで開く) もここで直接ハンドルする。
+private struct ArticleDetailShortcutsModifier: ViewModifier {
+    let article: Article
+    let onBack: () -> Void
+    let onToggleFavorite: () -> Void
+    let onOpenInBrowser: () -> Void
+
+    func body(content: Content) -> some View {
+        content.background {
+            ZStack {
+                Button("戻る", action: onBack)
+                    .keyboardShortcut("[", modifiers: .command)
+                Button("戻る", action: onBack)
+                    .keyboardShortcut(.escape, modifiers: [])
+                #if os(iOS)
+                Button("お気に入り", action: onToggleFavorite)
+                    .keyboardShortcut("d", modifiers: .command)
+                Button("ブラウザで開く", action: onOpenInBrowser)
+                    .keyboardShortcut("b", modifiers: [.command, .shift])
+                #endif
+            }
+            .opacity(0)
+            .accessibilityHidden(true)
+        }
+    }
+}
+
+/// 「記事」CommandMenu に詳細画面の article / actions を伝えるラッパー。
+/// `currentArticle` は単なる Article 参照なので全プラットフォームで有効。
+/// `articleDetailActions` は body 毎に閉包を再生成するため、iOS では
+/// FocusedValue 経路でメモリが膨張し続けて 2 回目以降の記事オープン時に
+/// OOM クラッシュする問題があり、macOS / visionOS のみで有効。
+/// （iOS でもメニューの「お気に入り」「ブラウザで開く」「共有」は currentArticle
+/// だけで動くので、表示モード切替 / AI 再実行 / スコア内訳のショートカットだけ失う）
+private struct ArticleFocusedValueModifier: ViewModifier {
+    let article: Article
+    let actions: ArticleDetailActions
+
+    func body(content: Content) -> some View {
+        #if os(macOS) || os(visionOS)
+        content
+            .focusedSceneValue(\.currentArticle, article)
+            .focusedSceneValue(\.articleDetailActions, actions)
+        #else
+        content
+            .focusedSceneValue(\.currentArticle, article)
+        #endif
+    }
+}
+
+/// 記事詳細での物理キーボード操作。.focusable() + .onKeyPress を持つが、
+/// iOS では WebView の focus と衝突して UITraitCollection 更新中に crash する
+/// ため、macOS / visionOS のみで有効にする。
+private struct ArticleDetailKeyboardModifier: ViewModifier {
+    let onToggleFavorite: () -> Void
+
+    func body(content: Content) -> some View {
+        #if os(macOS) || os(visionOS)
+        content
+            .focusable()
+            .focusEffectDisabled()
+            .onKeyPress { press in
+                guard press.modifiers.isEmpty else { return .ignored }
+                if press.key == KeyEquivalent("s") || press.key == KeyEquivalent("f") {
+                    onToggleFavorite()
+                    return .handled
+                }
+                return .ignored
+            }
+        #else
+        content
+        #endif
+    }
+}
