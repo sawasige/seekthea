@@ -120,14 +120,23 @@ actor GoogleNewsDiscovery {
             }
         }
 
+        // detect リトライ間隔（前回試行から 7 日経たないと再試行しない）
+        let detectRetryCutoff = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? .distantPast
+        // 1回しか言及されてないノイズは候補から除外（2回以上の言及があれば信頼）
+        let mentionThreshold = 2
+
         let predicate = #Predicate<DiscoveredDomain> {
-            !$0.isRejected && !$0.isSuggested
+            !$0.isRejected
+                && !$0.isSuggested
+                && $0.mentionCount >= mentionThreshold
+                && ($0.lastDetectAttemptAt == nil || $0.lastDetectAttemptAt! < detectRetryCutoff)
         }
         guard let candidates = try? context.fetch(FetchDescriptor(predicate: predicate)) else { return }
 
         var found = 0
         for (index, candidate) in candidates.enumerated() {
             onProgress?("RSS検出中... (\(index + 1)/\(candidates.count))\(found > 0 ? " \(found)件発見" : "")")
+            candidate.lastDetectAttemptAt = Date()
             guard let siteURL = URL(string: "https://\(candidate.domain)") else { continue }
             if let feedURL = await RSSDetector.detectFeed(from: siteURL) {
                 // 既知 feedURL（登録済み or プリセット）と一致したら候補から外す
