@@ -1882,14 +1882,27 @@ struct WrappedWKWebView: UIViewRepresentable {
                 let containerH = sv.bounds.size.height
                 let contentH = sv.contentSize.height
                 let insetB = sv.adjustedContentInset.bottom
+                // ロード完了時にコンテンツサイズが確定して contentOffset が
+                // 初期値に飛ぶような「プログラム的な変化」を「ユーザーが下スクロールした」と
+                // 誤認しないよう、ドラッグ/慣性スクロール中だけ scroll として扱う。
+                // 末尾判定（reportProgress）は内部状態の更新だけなので常に流す。
+                let userInitiated = sv.isDragging || sv.isDecelerating
                 Task { @MainActor [weak self] in
-                    self?.report(offsetY: newY, containerH: containerH, contentH: contentH, insetB: insetB)
+                    self?.report(
+                        offsetY: newY,
+                        containerH: containerH,
+                        contentH: contentH,
+                        insetB: insetB,
+                        userInitiated: userInitiated
+                    )
                 }
             }
         }
 
-        private func report(offsetY: CGFloat, containerH: CGFloat, contentH: CGFloat, insetB: CGFloat) {
-            scrollState?.reportScroll(oldY: lastOffsetY, newY: offsetY)
+        private func report(offsetY: CGFloat, containerH: CGFloat, contentH: CGFloat, insetB: CGFloat, userInitiated: Bool) {
+            if userInitiated {
+                scrollState?.reportScroll(oldY: lastOffsetY, newY: offsetY)
+            }
             scrollState?.reportProgress(
                 offsetY: offsetY,
                 containerHeight: containerH,
