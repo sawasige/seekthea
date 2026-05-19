@@ -151,6 +151,11 @@ struct ArticleDetailView: View {
     @State private var loadingStage: String = "記事ページを取得中..."
     @State private var showFailureNotice = false
     @State private var showScoreBreakdown = false
+    /// リーダー抽出失敗後、Web タブの WKWebView が読み込み完了したら
+    /// その DOM に対して Readability を再注入してリトライする。
+    /// 多重実行防止フラグ（in-flight）と1記事1回フラグ。
+    @State private var isRetryingFromWebPage = false
+    @State private var didTryWebPageExtraction = false
     @State private var webPage = ManagedWKWebView()
     @State private var readerPage = ManagedWKWebView()
     @State private var summaryPage = ManagedWKWebView()
@@ -207,6 +212,14 @@ struct ArticleDetailView: View {
         }
         .task {
             await loadContent()
+        }
+        // リーダー失敗後、Web タブで元記事ページがロード完了したら
+        // 読み込み済みの DOM に Readability を注入してリトライする。
+        // 失敗→Webへフォールバックの体験で、追加のネットワーク取得なしに救済する。
+        .onChange(of: webPage.isLoading) { _, newIsLoading in
+            if !newIsLoading {
+                Task { await tryExtractFromWebPage() }
+            }
         }
         // モード切替時 / 抽出完了時は末尾判定をリセット。新画面の WebView から
         // 改めて contentSize / offset が報告されるまで、stale な値で
@@ -501,6 +514,8 @@ struct ArticleDetailView: View {
         showFailureNotice = false
         loadingStage = "記事ページを取得中..."
         isLoading = true
+        // ユーザーが手動でリトライを選んだので、Webからの自動リトライ枠も復活させる
+        didTryWebPageExtraction = false
         await loadContent()
     }
 
@@ -540,6 +555,100 @@ struct ArticleDetailView: View {
         }
         AIProgressTracker.shared.start(aid, task: task)
         await task.value
+    }
+
+    #if os(iOS) || os(visionOS)
+    /// WKWebView の親 view を入れ替えるような state 変更をする時に、
+    /// スクロール位置（ドキュメント座標での可視先頭）を保存→復元する。
+    /// `adjustedContentInset.top` が変わると同じ `contentOffset.y` でも見た目の
+    /// 表示位置がズレるので、新しい inset に合わせて再計算する。
+    private func preserveScrollAcrossWebViewReparent(_ apply: () -> Void) {
+        let scrollView = webPage.webView.scrollView
+        let oldOffset = scrollView.contentOffset.y
+        let oldInsetTop = scrollView.adjustedContentInset.top
+        let documentTop = oldOffset + oldInsetTop  // ドキュメント先頭基準の可視位置
+
+        apply()
+
+        // SwiftUI が view tree を組み替え、新しい parent への addSubview と
+        // 直後の layout pass で adjustedContentInset が更新されるのを待つ。
+        // 1度では足りないことがあるので 2 段で復元する。
+        Task { @MainActor in
+            for delay in [16, 100] {
+                try? await Task.sleep(for: .milliseconds(delay))
+                let newInsetTop = scrollView.adjustedContentInset.top
+                let restored = max(documentTop - newInsetTop, -newInsetTop)
+                scrollView.setContentOffset(CGPoint(x: 0, y: restored), animated: false)
+            }
+        }
+    }
+    #endif
+
+    /// Web タブの WKWebView が記事ページのロードを完了した時に、その DOM へ
+    /// Readability.js を注入してリーダー抽出をやり直す。
+    /// 1記事につき最初の load 完了時に1回だけ実行する。
+    /// `webHasNavigated` ではなく host match で判定するのは、article.articleURL が
+    /// http→https やトラッキング URL から実体 URL にリダイレクトされた場合でも
+    /// 同一記事として扱いたいため。
+    private func tryExtractFromWebPage() async {
+        guard showFailureNotice,
+              extractedArticle == nil,
+              !isRetryingFromWebPage,
+              !didTryWebPageExtraction,
+              let currentHost = webPage.url?.host(),
+              currentHost == article.articleURL.host(),
+              let script = ReadabilityExtractor.oneShotExtractionScript()
+        else { return }
+
+        isRetryingFromWebPage = true
+        didTryWebPageExtraction = true
+        defer { isRetryingFromWebPage = false }
+
+        let result: Any?
+        do {
+            result = try await webPage.callJavaScript(script)
+        } catch {
+            return
+        }
+        guard let dict = result as? [String: Any],
+              let extracted = ReadabilityExtractor.makeArticle(from: dict)
+        else { return }
+
+        ReaderCache.shared.set(extracted, for: article.id)
+        // 利用者は既に Web モードを見ているので、勝手にリーダーへ切り替えない。
+        // モードピッカーが現れて、必要なら手動で切り替えてもらう。
+
+        // view tree が「fallback ArticleWebView」→「DetailPagingView/Web タブ」に
+        // 組み替わると WKWebView の親 view が変わり、adjustedContentInset の
+        // 再計算でスクロール位置の見た目がズレる。
+        // ドキュメント座標での「可視領域の先頭位置」を保存して、新しい inset に
+        // 合わせて contentOffset を再計算する。
+        #if os(iOS) || os(visionOS)
+        preserveScrollAcrossWebViewReparent {
+            viewMode = .web
+            extractedArticle = extracted
+            showFailureNotice = false
+        }
+        #else
+        viewMode = .web
+        extractedArticle = extracted
+        showFailureNotice = false
+        #endif
+
+        // 全文が取れたので AI 要約も走らせる（loadContent と同じロジック）
+        if AISummaryCache.shared.get(article.id) == nil,
+           !AIProgressTracker.shared.isProcessing(article.id) {
+            article.extractedBody = extracted.textContent
+            let container = modelContext.container
+            let articleID = article.persistentModelID
+            let aid = article.id
+            let task = Task.detached { @MainActor in
+                defer { AIProgressTracker.shared.finish(aid) }
+                let processor = AIProcessor(modelContainer: container)
+                await processor.analyze(articleID: articleID)
+            }
+            AIProgressTracker.shared.start(aid, task: task)
+        }
     }
 
     private func loadContent() async {
