@@ -21,7 +21,7 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 [bundle exec] fastlane ios upload_metadata
 ```
 
-メタデータとスクリーンショットをアップロード
+メタデータとスクリーンショットをアップロード（バージョン未作成なら作成）
 
 ### ios upload_metadata_only
 
@@ -29,7 +29,7 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 [bundle exec] fastlane ios upload_metadata_only
 ```
 
-メタデータのみアップロード（スクリーンショットなし）
+メタデータのみアップロード（バージョン未作成なら作成）
 
 ### ios upload_screenshots
 
@@ -37,7 +37,7 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 [bundle exec] fastlane ios upload_screenshots
 ```
 
-スクリーンショットのみアップロード
+スクリーンショットのみアップロード（既存バージョンへ）
 
 ### ios download_metadata
 
@@ -58,7 +58,7 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 [bundle exec] fastlane mac upload_metadata_only
 ```
 
-macOSメタデータをアップロード
+macOSメタデータをアップロード（バージョン未作成なら作成）
 
 ### mac upload_screenshots
 
@@ -66,7 +66,7 @@ macOSメタデータをアップロード
 [bundle exec] fastlane mac upload_screenshots
 ```
 
-macOSスクリーンショットをアップロード
+macOSスクリーンショットをアップロード（既存バージョンへ）
 
 ----
 
@@ -79,7 +79,7 @@ macOSスクリーンショットをアップロード
 [bundle exec] fastlane visionos upload_metadata_only
 ```
 
-visionOSメタデータをアップロード
+visionOSメタデータをアップロード（バージョン未作成なら作成）
 
 ### visionos upload_screenshots
 
@@ -87,7 +87,7 @@ visionOSメタデータをアップロード
 [bundle exec] fastlane visionos upload_screenshots
 ```
 
-visionOSスクリーンショットをアップロード
+visionOSスクリーンショットをアップロード（既存バージョンへ）
 
 ----
 
