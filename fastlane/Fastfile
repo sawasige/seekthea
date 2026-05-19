@@ -1,37 +1,42 @@
 default_platform(:ios)
 
 platform :ios do
-  desc "メタデータとスクリーンショットをアップロード"
+  desc "メタデータとスクリーンショットをアップロード（バージョン未作成なら作成）"
   lane :upload_metadata do
     setup_api_key
     deliver(
+      app_version: current_app_version,
       skip_binary_upload: true,
-      skip_app_version_update: true,
       skip_screenshots: false,
       overwrite_screenshots: true,
       force: true,
-      run_precheck_before_submit: false
+      run_precheck_before_submit: false,
+      submit_for_review: false,
+      automatic_release: false
     )
   end
 
-  desc "メタデータのみアップロード（スクリーンショットなし）"
+  desc "メタデータのみアップロード（バージョン未作成なら作成）"
   lane :upload_metadata_only do
     setup_api_key
     deliver(
+      app_version: current_app_version,
       skip_binary_upload: true,
-      skip_app_version_update: true,
       skip_screenshots: true,
       force: true,
-      run_precheck_before_submit: false
+      run_precheck_before_submit: false,
+      submit_for_review: false,
+      automatic_release: false
     )
   end
 
-  desc "スクリーンショットのみアップロード"
+  desc "スクリーンショットのみアップロード（既存バージョンへ）"
   lane :upload_screenshots do
     setup_api_key
     deliver(
       skip_binary_upload: true,
       skip_metadata: true,
+      skip_app_version_update: true,
       overwrite_screenshots: true,
       force: true,
       run_precheck_before_submit: false
@@ -47,26 +52,29 @@ platform :ios do
 end
 
 platform :mac do
-  desc "macOSメタデータをアップロード"
+  desc "macOSメタデータをアップロード（バージョン未作成なら作成）"
   lane :upload_metadata_only do
     setup_api_key
     deliver(
+      app_version: current_app_version,
       skip_binary_upload: true,
-      skip_app_version_update: true,
       skip_screenshots: true,
       force: true,
       platform: "osx",
       run_precheck_before_submit: false,
-      precheck_include_in_app_purchases: false
+      precheck_include_in_app_purchases: false,
+      submit_for_review: false,
+      automatic_release: false
     )
   end
 
-  desc "macOSスクリーンショットをアップロード"
+  desc "macOSスクリーンショットをアップロード（既存バージョンへ）"
   lane :upload_screenshots do
     setup_api_key
     deliver(
       skip_binary_upload: true,
       skip_metadata: true,
+      skip_app_version_update: true,
       screenshots_path: "./fastlane/screenshots-mac",
       overwrite_screenshots: true,
       force: true,
@@ -78,26 +86,29 @@ platform :mac do
 end
 
 platform :visionos do
-  desc "visionOSメタデータをアップロード"
+  desc "visionOSメタデータをアップロード（バージョン未作成なら作成）"
   lane :upload_metadata_only do
     setup_api_key
     deliver(
+      app_version: current_app_version,
       skip_binary_upload: true,
-      skip_app_version_update: true,
       skip_screenshots: true,
       force: true,
       platform: "xros",
       run_precheck_before_submit: false,
-      precheck_include_in_app_purchases: false
+      precheck_include_in_app_purchases: false,
+      submit_for_review: false,
+      automatic_release: false
     )
   end
 
-  desc "visionOSスクリーンショットをアップロード"
+  desc "visionOSスクリーンショットをアップロード（既存バージョンへ）"
   lane :upload_screenshots do
     setup_api_key
     deliver(
       skip_binary_upload: true,
       skip_metadata: true,
+      skip_app_version_update: true,
       screenshots_path: "./fastlane/screenshots-visionos",
       overwrite_screenshots: true,
       force: true,
@@ -125,4 +136,13 @@ def setup_api_key
   else
     UI.user_error!("API key not found. Create fastlane/api_key.json from api_key.json.template")
   end
+end
+
+# Xcode project から現在の MARKETING_VERSION を取得する。
+# 全ターゲット（iOS / macOS / visionOS）で同じ値を共有しているので Seekthea ターゲットで読む。
+def current_app_version
+  get_version_number(
+    xcodeproj: "Seekthea/Seekthea.xcodeproj",
+    target: "Seekthea"
+  )
 end
