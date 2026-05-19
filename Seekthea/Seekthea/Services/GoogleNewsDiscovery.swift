@@ -86,48 +86,60 @@ actor GoogleNewsDiscovery {
     }
 
     private func detectFeedsForCandidates(context: ModelContext, presetFeedURLs: Set<URL>, onProgress: (@Sendable (String) -> Void)? = nil) async {
-        // isSuggested=trueだがRSSが消えたレコードをリセット
-        let brokenPredicate = #Predicate<DiscoveredDomain> {
-            $0.isSuggested && !$0.isRejected
-        }
-        if let broken = try? context.fetch(FetchDescriptor(predicate: brokenPredicate)) {
-            for d in broken where d.detectedFeedURL == nil {
-                d.isSuggested = false
-            }
-        }
-
         // 既知 feedURL（登録済みSource + プリセット）を集める
         let allSources = (try? context.fetch(FetchDescriptor<Source>())) ?? []
         var knownFeedURLs = Set(allSources.map(\.feedURL))
         knownFeedURLs.formUnion(presetFeedURLs)
 
-        // 既に suggested 済みの feedURL（発見内重複排除用）
+        // 既存の suggested レコードを一括検証して
+        // (1) RSS リンク消失 (2) 登録済みと重複 (3) 空フィード(items=0) のいずれかならリセット
+        // 生き残った feedURL は発見内重複排除用に集める
         let suggestedPredicate = #Predicate<DiscoveredDomain> {
             $0.isSuggested && !$0.isRejected
         }
-        var suggestedFeedURLs = Set(
-            (try? context.fetch(FetchDescriptor(predicate: suggestedPredicate)))?
-                .compactMap(\.detectedFeedURL) ?? []
-        )
-
-        // 既存の suggested レコードのうち、既知 feedURL と一致するものは候補から外す
+        var suggestedFeedURLs = Set<URL>()
         if let existingSuggested = try? context.fetch(FetchDescriptor(predicate: suggestedPredicate)) {
             for d in existingSuggested {
-                if let feed = d.detectedFeedURL, knownFeedURLs.contains(feed) {
+                guard let feedURL = d.detectedFeedURL else {
                     d.isSuggested = false
-                    suggestedFeedURLs.remove(feed)
+                    continue
                 }
+                if knownFeedURLs.contains(feedURL) {
+                    d.isSuggested = false
+                    continue
+                }
+                // 空フィードと確定したらリセットして再 detect 対象に戻す
+                // (例: WordPress のコメントフィードが拾われていたケース)
+                // ネットワークエラーで metadata=nil の場合は判断保留
+                if let metadata = await RSSDetector.feedMetadata(from: feedURL),
+                   metadata.itemCount == 0 {
+                    d.isSuggested = false
+                    d.detectedFeedURL = nil
+                    d.feedTitle = nil
+                    d.lastDetectAttemptAt = nil
+                    continue
+                }
+                suggestedFeedURLs.insert(feedURL)
             }
         }
 
+        // detect リトライ間隔（前回試行から 7 日経たないと再試行しない）
+        let detectRetryCutoff = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? .distantPast
+        // 1回しか言及されてないノイズは候補から除外（2回以上の言及があれば信頼）
+        let mentionThreshold = 2
+
         let predicate = #Predicate<DiscoveredDomain> {
-            !$0.isRejected && !$0.isSuggested
+            !$0.isRejected
+                && !$0.isSuggested
+                && $0.mentionCount >= mentionThreshold
+                && ($0.lastDetectAttemptAt == nil || $0.lastDetectAttemptAt! < detectRetryCutoff)
         }
         guard let candidates = try? context.fetch(FetchDescriptor(predicate: predicate)) else { return }
 
         var found = 0
         for (index, candidate) in candidates.enumerated() {
             onProgress?("RSS検出中... (\(index + 1)/\(candidates.count))\(found > 0 ? " \(found)件発見" : "")")
+            candidate.lastDetectAttemptAt = Date()
             guard let siteURL = URL(string: "https://\(candidate.domain)") else { continue }
             if let feedURL = await RSSDetector.detectFeed(from: siteURL) {
                 // 既知 feedURL（登録済み or プリセット）と一致したら候補から外す
@@ -138,8 +150,14 @@ actor GoogleNewsDiscovery {
                 if suggestedFeedURLs.contains(feedURL) {
                     continue
                 }
+                // 記事が 0 件のフィード（lmaga.jp, mantan-web.jp 等）は提案しない
+                // lastDetectAttemptAt は既に記録済みなので 7日間は再試行されない
+                guard let metadata = await RSSDetector.feedMetadata(from: feedURL),
+                      metadata.itemCount > 0 else {
+                    continue
+                }
                 candidate.detectedFeedURL = feedURL
-                candidate.feedTitle = await RSSDetector.feedTitle(from: feedURL)
+                candidate.feedTitle = metadata.title
                 candidate.isSuggested = true
                 suggestedFeedURLs.insert(feedURL)
                 found += 1
