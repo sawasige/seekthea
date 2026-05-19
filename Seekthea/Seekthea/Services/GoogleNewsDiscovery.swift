@@ -86,37 +86,40 @@ actor GoogleNewsDiscovery {
     }
 
     private func detectFeedsForCandidates(context: ModelContext, presetFeedURLs: Set<URL>, onProgress: (@Sendable (String) -> Void)? = nil) async {
-        // isSuggested=trueだがRSSが消えたレコードをリセット
-        let brokenPredicate = #Predicate<DiscoveredDomain> {
-            $0.isSuggested && !$0.isRejected
-        }
-        if let broken = try? context.fetch(FetchDescriptor(predicate: brokenPredicate)) {
-            for d in broken where d.detectedFeedURL == nil {
-                d.isSuggested = false
-            }
-        }
-
         // 既知 feedURL（登録済みSource + プリセット）を集める
         let allSources = (try? context.fetch(FetchDescriptor<Source>())) ?? []
         var knownFeedURLs = Set(allSources.map(\.feedURL))
         knownFeedURLs.formUnion(presetFeedURLs)
 
-        // 既に suggested 済みの feedURL（発見内重複排除用）
+        // 既存の suggested レコードを一括検証して
+        // (1) RSS リンク消失 (2) 登録済みと重複 (3) 空フィード(items=0) のいずれかならリセット
+        // 生き残った feedURL は発見内重複排除用に集める
         let suggestedPredicate = #Predicate<DiscoveredDomain> {
             $0.isSuggested && !$0.isRejected
         }
-        var suggestedFeedURLs = Set(
-            (try? context.fetch(FetchDescriptor(predicate: suggestedPredicate)))?
-                .compactMap(\.detectedFeedURL) ?? []
-        )
-
-        // 既存の suggested レコードのうち、既知 feedURL と一致するものは候補から外す
+        var suggestedFeedURLs = Set<URL>()
         if let existingSuggested = try? context.fetch(FetchDescriptor(predicate: suggestedPredicate)) {
             for d in existingSuggested {
-                if let feed = d.detectedFeedURL, knownFeedURLs.contains(feed) {
+                guard let feedURL = d.detectedFeedURL else {
                     d.isSuggested = false
-                    suggestedFeedURLs.remove(feed)
+                    continue
                 }
+                if knownFeedURLs.contains(feedURL) {
+                    d.isSuggested = false
+                    continue
+                }
+                // 空フィードと確定したらリセットして再 detect 対象に戻す
+                // (例: WordPress のコメントフィードが拾われていたケース)
+                // ネットワークエラーで metadata=nil の場合は判断保留
+                if let metadata = await RSSDetector.feedMetadata(from: feedURL),
+                   metadata.itemCount == 0 {
+                    d.isSuggested = false
+                    d.detectedFeedURL = nil
+                    d.feedTitle = nil
+                    d.lastDetectAttemptAt = nil
+                    continue
+                }
+                suggestedFeedURLs.insert(feedURL)
             }
         }
 
