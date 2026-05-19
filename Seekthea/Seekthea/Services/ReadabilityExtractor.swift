@@ -88,12 +88,90 @@ class ReadabilityExtractor: NSObject, WKNavigationDelegate {
     // MARK: - Private
 
     private func loadReadabilityJS() -> String? {
+        Self.cachedReadabilityJS
+    }
+
+    /// Readability.js のバンドル内容（プロセス内で一度だけ読み込んでキャッシュ）
+    static let cachedReadabilityJS: String? = {
         guard let url = Bundle.main.url(forResource: "Readability", withExtension: "js"),
               let js = try? String(contentsOf: url, encoding: .utf8) else {
             print("[Reader] Readability.js not found in bundle")
             return nil
         }
         return js
+    }()
+
+    /// 既に読み込み済みの WKWebView に対して `callAsyncJavaScript` で実行するための
+    /// 一発抽出スクリプト。成功時は記事フィールドの辞書、失敗時は nil を返す。
+    /// 8 秒タイムアウトで一度失敗した記事を Web タブのロード完了後にリトライする用途。
+    static func oneShotExtractionScript() -> String? {
+        guard let js = cachedReadabilityJS else { return nil }
+        return """
+        \(js)
+
+        function __seekthea_cleanDOM(doc) {
+            var selectors = [
+                'aside', 'nav', 'footer',
+                '[role="complementary"]', '[role="navigation"]', '[role="banner"]', '[role="contentinfo"]',
+                '.sidebar', '.side-bar', '.side',
+                '.related', '.related-articles', '.recommend', '.recommended', '.recommendation',
+                '.ranking', '.popular', '.trending',
+                '.ad', '.ads', '.advertisement', '.adsbygoogle', '[class*="-ad"]', '[id^="ad-"]',
+                '.share', '.shares', '.social', '.sns',
+                '.comments', '.comment-list',
+                '.breadcrumb', '.breadcrumbs',
+                '.newsletter', '.subscribe'
+            ];
+            try {
+                doc.querySelectorAll(selectors.join(',')).forEach(function(el) {
+                    if (el.parentNode) el.parentNode.removeChild(el);
+                });
+            } catch(e) { /* セレクタ失敗は無視して続行 */ }
+        }
+
+        try {
+            var documentClone = document.cloneNode(true);
+            __seekthea_cleanDOM(documentClone);
+            var reader = new Readability(documentClone, { linkDensityModifier: 0.5 });
+            var article = reader.parse();
+            if (!article) return null;
+            return {
+                title: article.title || '',
+                content: article.content || '',
+                textContent: article.textContent || '',
+                excerpt: article.excerpt || '',
+                byline: article.byline || '',
+                siteName: article.siteName || ''
+            };
+        } catch(e) {
+            return null;
+        }
+        """
+    }
+
+    /// `oneShotExtractionScript` の結果（[String: Any]）から Article を組み立てる。
+    /// instance 版と同じ品質フィルタ（textContent ≥ 100 / consent ページ除外）を適用。
+    static func makeArticle(from dict: [String: Any]) -> Article? {
+        let textContent = dict["textContent"] as? String ?? ""
+        guard textContent.count >= 100 else { return nil }
+        if Self.looksLikeConsentPage(textContent) { return nil }
+        return Article(
+            title: dict["title"] as? String ?? "",
+            content: dict["content"] as? String ?? "",
+            textContent: textContent,
+            excerpt: dict["excerpt"] as? String ?? "",
+            byline: (dict["byline"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+            siteName: (dict["siteName"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        )
+    }
+
+    static func looksLikeConsentPage(_ text: String) -> Bool {
+        let keywords = [
+            "ご利用意向の確認", "受信契約を締結", "利用規約に同意",
+            "cookieの使用に同意", "チェックをすると次に進めます",
+            "ご契約の手続きをお願い",
+        ]
+        return keywords.contains { text.contains($0) }
     }
 
     private func buildExtractionScript() -> String {
@@ -215,20 +293,11 @@ extension ReadabilityExtractor: WKScriptMessageHandler {
 
             if article.textContent.count < 100 {
                 self.finish(nil)
-            } else if self.looksLikeConsentPage(article.textContent) {
+            } else if Self.looksLikeConsentPage(article.textContent) {
                 self.finish(nil)
             } else {
                 self.finish(article)
             }
         }
-    }
-
-    private func looksLikeConsentPage(_ text: String) -> Bool {
-        let keywords = [
-            "ご利用意向の確認", "受信契約を締結", "利用規約に同意",
-            "cookieの使用に同意", "チェックをすると次に進めます",
-            "ご契約の手続きをお願い",
-        ]
-        return keywords.contains { text.contains($0) }
     }
 }
