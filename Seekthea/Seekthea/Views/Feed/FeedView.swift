@@ -596,69 +596,77 @@ struct FeedView: View {
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            mainContent
-                .overlay {
-                    if cachedDisplayArticles.isEmpty {
-                        if viewModel == nil || viewModel?.isLoading == true {
-                            ProgressView("読み込み中...")
-                        } else {
-                            ContentUnavailableView(
-                                emptyFeedTitle,
-                                systemImage: emptyFeedIcon,
-                                description: Text(emptyFeedHint)
-                            )
-                        }
+            applyLifecycleModifiers(feedContentWithObservers)
+        }
+    }
+
+    /// Body のモディファイア連鎖が長すぎて型推論がタイムアウトするのを避けるため、
+    /// 状態変化観測群と、データライフサイクル群（task / overlay / sheet 等）を別の
+    /// 計算式に分けてコンパイラに分担させる。
+    private var feedContentWithObservers: some View {
+        mainContent
+            .overlay {
+                if cachedDisplayArticles.isEmpty {
+                    if viewModel == nil || viewModel?.isLoading == true {
+                        ProgressView("読み込み中...")
+                    } else {
+                        ContentUnavailableView(
+                            emptyFeedTitle,
+                            systemImage: emptyFeedIcon,
+                            description: Text(emptyFeedHint)
+                        )
                     }
                 }
-                .onChange(of: feedMode) {
-                    flushImpressions()
-                    scrollState.hideAmount = 0
-                    scrollProxy?.scrollTo("scrollTop", anchor: .top)
-                    listLocked = false
-                    keyboardSelectedID = nil
-                    withAnimation(.easeInOut(duration: 0.35)) {
-                        updateCachedData()
+            }
+            .onChange(of: feedMode) {
+                flushImpressions()
+                scrollState.hideAmount = 0
+                scrollProxy?.scrollTo("scrollTop", anchor: .top)
+                listLocked = false
+                keyboardSelectedID = nil
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    updateCachedData()
+                }
+            }
+            .onChange(of: selectedCategory) {
+                flushImpressions()
+                scrollState.hideAmount = 0
+                scrollProxy?.scrollTo("scrollTop", anchor: .top)
+                listLocked = false
+                keyboardSelectedID = nil
+                updateCachedData()
+            }
+            .onChange(of: sourceFilter) {
+                flushImpressions()
+                scrollState.hideAmount = 0
+                scrollProxy?.scrollTo("scrollTop", anchor: .top)
+                listLocked = false
+                keyboardSelectedID = nil
+                updateCachedData()
+            }
+            .onChange(of: isSwiping) {
+                if isSwiping, scrollState.hideAmount < 0 {
+                    withAnimation(.snappy(duration: 0.2)) {
+                        scrollState.hideAmount = 0
                     }
                 }
-                .onChange(of: selectedCategory) {
-                    flushImpressions()
-                    scrollState.hideAmount = 0
-                    scrollProxy?.scrollTo("scrollTop", anchor: .top)
-                    listLocked = false
-                    keyboardSelectedID = nil
-                    updateCachedData()
-                }
-                .onChange(of: sourceFilter) {
-                    flushImpressions()
-                    scrollState.hideAmount = 0
-                    scrollProxy?.scrollTo("scrollTop", anchor: .top)
-                    listLocked = false
-                    keyboardSelectedID = nil
-                    updateCachedData()
-                }
-                .onChange(of: isSwiping) {
-                    if isSwiping, scrollState.hideAmount < 0 {
-                        withAnimation(.snappy(duration: 0.2)) {
-                            scrollState.hideAmount = 0
-                        }
-                    }
-                }
-                .onChange(of: filterSortModeRaw) {
-                    listLocked = false
-                    updateCachedData()
-                }
-                // 詳細表示中の記事が変わった時、フィードを裏でその位置までスクロールしておく。
-                // 戻る時の zoom 縮小先（matchedTransitionSource）が画面外だと
-                // アニメーションが目的のカードに合わないため。
-                .onChange(of: ArticleNavigationContext.shared.currentArticleID) { _, newID in
-                    guard let id = newID else { return }
-                    scrollProxy?.scrollTo(id, anchor: .center)
-                }
-                .navigationTitle("Seekthea")
-                #if !os(macOS)
-                .navigationBarTitleDisplayMode(.inline)
-                #endif
-                .toolbar {
+            }
+            .onChange(of: filterSortModeRaw) {
+                listLocked = false
+                updateCachedData()
+            }
+            // 詳細表示中の記事が変わった時、フィードを裏でその位置までスクロールしておく。
+            // 戻る時の zoom 縮小先（matchedTransitionSource）が画面外だと
+            // アニメーションが目的のカードに合わないため。
+            .onChange(of: ArticleNavigationContext.shared.currentArticleID) { _, newID in
+                guard let id = newID else { return }
+                scrollProxy?.scrollTo(id, anchor: .center)
+            }
+            .navigationTitle("Seekthea")
+            #if !os(macOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
                     #if !os(iOS)
                     ToolbarItem(placement: .automatic) {
                         Button {
@@ -695,115 +703,121 @@ struct FeedView: View {
                     }
                     #endif
                 }
-                .task {
-                    if viewModel == nil {
-                        viewModel = FeedViewModel(modelContainer: modelContainer)
-                    }
-                    if !hasInitialRefreshed {
-                        hasInitialRefreshed = true
-                        await refreshAll()
-                    }
+    }
+
+    /// データライフサイクル系の modifier 群。
+    /// `feedContentWithObservers` の連鎖と分離することでコンパイラの型推論負荷を下げる。
+    @ViewBuilder
+    private func applyLifecycleModifiers<V: View>(_ content: V) -> some View {
+        content
+            .task {
+                if viewModel == nil {
+                    viewModel = FeedViewModel(modelContainer: modelContainer)
                 }
-                .onAppear {
-                    if viewModel != nil {
-                        reloadArticles()
-                        updateCachedData()
-                    }
-                    newSuggestionCount = DiscoveryManager.shared.uncheckedSuggestionCount(in: modelContext)
+                if !hasInitialRefreshed {
+                    hasInitialRefreshed = true
+                    await refreshAll()
                 }
-                .onReceive(NotificationCenter.default.publisher(for: .onboardingCompleted)) { _ in
-                    Task { await refreshAll() }
-                }
-                .modifier(RefreshNotificationHandler {
-                    ArticleNavigationContext.shared.clearSession()
-                    lockedSortKeys.removeAll()
-                    lockedHistoryDates.removeAll()
-                    listLocked = false
-                    Task { await refreshAll() }
-                })
-                .onReceive(NotificationCenter.default.publisher(for: .discoveryCompleted)) { _ in
-                    newSuggestionCount = DiscoveryManager.shared.uncheckedSuggestionCount(in: modelContext)
-                }
-                .onReceive(reloadTriggerPublisher) { _ in
+            }
+            .onAppear {
+                if viewModel != nil {
                     reloadArticles()
                     updateCachedData()
                 }
-                .onChange(of: scenePhase) { _, newPhase in
-                    if newPhase == .background {
-                        wasBackgrounded = true
-                    }
-                    if newPhase == .active {
-                        // バックグラウンド復帰時はソート順を再ランキングするためロック解除
-                        if wasBackgrounded {
-                            wasBackgrounded = false
-                            lockedSortKeys.removeAll()
-                            lockedHistoryDates.removeAll()
-                            ArticleNavigationContext.shared.clearSession()
-                            listLocked = false
-                        }
-                        reloadArticles()
-                        updateCachedData()
-                        if shouldAutoRefresh {
-                            Task { await refreshAll() }
-                        }
-                    } else {
-                        flushImpressions()
-                    }
+                newSuggestionCount = DiscoveryManager.shared.uncheckedSuggestionCount(in: modelContext)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .onboardingCompleted)) { _ in
+                Task { await refreshAll() }
+            }
+            .modifier(RefreshNotificationHandler {
+                ArticleNavigationContext.shared.clearSession()
+                lockedSortKeys.removeAll()
+                lockedHistoryDates.removeAll()
+                listLocked = false
+                Task { await refreshAll() }
+            })
+            .onReceive(NotificationCenter.default.publisher(for: .discoveryCompleted)) { _ in
+                newSuggestionCount = DiscoveryManager.shared.uncheckedSuggestionCount(in: modelContext)
+            }
+            .onReceive(reloadTriggerPublisher) { _ in
+                reloadArticles()
+                updateCachedData()
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .background {
+                    wasBackgrounded = true
                 }
-                .onChange(of: activeFeedURLs) {
-                    clearStaleSourceFilter()
-                    // 即時にDB状態を表示へ反映（Source削除時の cascade 結果やフィルタ更新）。
-                    // RSS再取得は重いので別タスクで非同期に。
-                    listLocked = false
+                if newPhase == .active {
+                    // バックグラウンド復帰時はソート順を再ランキングするためロック解除
+                    if wasBackgrounded {
+                        wasBackgrounded = false
+                        lockedSortKeys.removeAll()
+                        lockedHistoryDates.removeAll()
+                        ArticleNavigationContext.shared.clearSession()
+                        listLocked = false
+                    }
                     reloadArticles()
                     updateCachedData()
-                    Task { await refreshAll() }
-                }
-                .onChange(of: hasActiveSource) { _, newValue in
-                    if !newValue {
-                        viewModel?.cancelClassification()
+                    if shouldAutoRefresh {
+                        Task { await refreshAll() }
                     }
+                } else {
+                    flushImpressions()
                 }
-                .navigationDestination(for: Article.self) { article in
-                    // zoom transition は Container 内で currentArticle.id に追従させるため、
-                    // ここでは付けず namespace だけ渡す。
-                    ArticleDetailContainer(initialArticle: article, zoomNamespace: zoomNamespace)
+            }
+            .onChange(of: activeFeedURLs) {
+                clearStaleSourceFilter()
+                // 即時にDB状態を表示へ反映（Source削除時の cascade 結果やフィルタ更新）。
+                // RSS再取得は重いので別タスクで非同期に。
+                listLocked = false
+                reloadArticles()
+                updateCachedData()
+                Task { await refreshAll() }
+            }
+            .onChange(of: hasActiveSource) { _, newValue in
+                if !newValue {
+                    viewModel?.cancelClassification()
                 }
-                .sheet(item: $scoreBreakdownArticle) { article in
-                    ScoreBreakdownView(article: article, modelContainer: modelContainer)
-                }
-                .overlay(alignment: .bottom) {
-                    let feedStatus = viewModel?.statusMessage
-                    let discoveryStatus = DiscoveryManager.shared.statusMessage
-                    let syncStatus = CloudSyncObserver.shared.statusMessage
-                    #if os(iOS)
-                    FeedFloatingFooter(
-                        scrollState: scrollState,
-                        feedStatus: feedStatus,
-                        discoveryStatus: discoveryStatus,
-                        syncStatus: syncStatus,
-                        newSuggestionCount: newSuggestionCount,
-                        modelContainer: modelContainer,
-                        useCompactLayout: $useCompactLayout,
-                        feedMode: $feedMode
-                    )
-                    #else
-                    if feedStatus != nil || discoveryStatus != nil || syncStatus != nil {
-                        VStack(spacing: 4) {
-                            if let status = feedStatus { StatusProgressCapsule(text: status) }
-                            if let status = discoveryStatus { StatusProgressCapsule(text: status) }
-                            if let status = syncStatus { StatusProgressCapsule(text: status) }
-                        }
-                        .padding(.bottom, 20)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            .navigationDestination(for: Article.self) { article in
+                // zoom transition は Container 内で currentArticle.id に追従させるため、
+                // ここでは付けず namespace だけ渡す。
+                ArticleDetailContainer(initialArticle: article, zoomNamespace: zoomNamespace)
+            }
+            .sheet(item: $scoreBreakdownArticle) { article in
+                ScoreBreakdownView(article: article, modelContainer: modelContainer)
+            }
+            .overlay(alignment: .bottom) {
+                let feedStatus = viewModel?.statusMessage
+                let discoveryStatus = DiscoveryManager.shared.statusMessage
+                let syncStatus = CloudSyncObserver.shared.statusMessage
+                #if os(iOS)
+                FeedFloatingFooter(
+                    scrollState: scrollState,
+                    feedStatus: feedStatus,
+                    discoveryStatus: discoveryStatus,
+                    syncStatus: syncStatus,
+                    newSuggestionCount: newSuggestionCount,
+                    modelContainer: modelContainer,
+                    useCompactLayout: $useCompactLayout,
+                    feedMode: $feedMode
+                )
+                #else
+                if feedStatus != nil || discoveryStatus != nil || syncStatus != nil {
+                    VStack(spacing: 4) {
+                        if let status = feedStatus { StatusProgressCapsule(text: status) }
+                        if let status = discoveryStatus { StatusProgressCapsule(text: status) }
+                        if let status = syncStatus { StatusProgressCapsule(text: status) }
                     }
-                    #endif
+                    .padding(.bottom, 20)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                .animation(.easeInOut(duration: 0.3), value: viewModel?.statusMessage)
-                .animation(.easeInOut(duration: 0.3), value: DiscoveryManager.shared.statusMessage)
-                .animation(.easeInOut(duration: 0.3), value: CloudSyncObserver.shared.statusMessage)
-                .modifier(ReviewPromptModifier(navigationPathCount: navigationPath.count))
-        }
+                #endif
+            }
+            .animation(.easeInOut(duration: 0.3), value: viewModel?.statusMessage)
+            .animation(.easeInOut(duration: 0.3), value: DiscoveryManager.shared.statusMessage)
+            .animation(.easeInOut(duration: 0.3), value: CloudSyncObserver.shared.statusMessage)
+            .modifier(ReviewPromptModifier(navigationPathCount: navigationPath.count))
     }
 
     @State private var scrollProxy: ScrollViewProxy?
