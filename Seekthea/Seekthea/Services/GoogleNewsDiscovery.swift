@@ -147,8 +147,14 @@ actor GoogleNewsDiscovery {
                 if suggestedFeedURLs.contains(feedURL) {
                     continue
                 }
+                // 記事が 0 件のフィード（lmaga.jp, mantan-web.jp 等）は提案しない
+                // lastDetectAttemptAt は既に記録済みなので 7日間は再試行されない
+                guard let metadata = await RSSDetector.feedMetadata(from: feedURL),
+                      metadata.itemCount > 0 else {
+                    continue
+                }
                 candidate.detectedFeedURL = feedURL
-                candidate.feedTitle = await RSSDetector.feedTitle(from: feedURL)
+                candidate.feedTitle = metadata.title
                 candidate.isSuggested = true
                 suggestedFeedURLs.insert(feedURL)
                 found += 1

@@ -40,6 +40,8 @@ struct RSSDetector {
         let title: String?
         /// channel/atom alternate link / json homePageURL から取得したサイトURL
         let siteURL: URL?
+        /// フィードに含まれる記事件数。ソース発見時に「空のフィード」を弾くのに使う
+        let itemCount: Int
     }
 
     /// フィードURLからタイトルとサイトURLを取得（RSSでなければnil）
@@ -50,24 +52,28 @@ struct RSSDetector {
 
         let rawTitle: String?
         let rawSiteURL: String?
+        let itemCount: Int
         switch feed {
         case .rss(let rss):
             rawTitle = rss.title
             rawSiteURL = rss.link
+            itemCount = rss.items?.count ?? 0
         case .atom(let atom):
             rawTitle = atom.title
             // alternate（または rel未指定）リンクを優先
             rawSiteURL = atom.links?.first(where: { ($0.attributes?.rel ?? "alternate") == "alternate" })?.attributes?.href
                 ?? atom.links?.first?.attributes?.href
+            itemCount = atom.entries?.count ?? 0
         case .json(let json):
             rawTitle = json.title
             rawSiteURL = json.homePageURL
+            itemCount = json.items?.count ?? 0
         }
 
         let trimmedTitle = rawTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
         let title = (trimmedTitle?.isEmpty == false) ? trimmedTitle : nil
         let siteURL = rawSiteURL.flatMap { URL(string: $0) }
-        return FeedMetadata(title: title, siteURL: siteURL)
+        return FeedMetadata(title: title, siteURL: siteURL, itemCount: itemCount)
     }
 
     /// フィードURLからタイトルを取得（RSSでなければnil）
