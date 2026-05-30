@@ -1,8 +1,24 @@
 import SwiftUI
 import SwiftData
+#if os(macOS)
+import AppKit
+
+/// macOS では実質シングルウィンドウのフィードアプリなので、
+/// メインウィンドウを閉じたらアプリを終了する。
+/// （⌘N での新規ウィンドウは隠しているため、閉じると再表示手段が無くなるのを防ぐ）
+/// 設定ウィンドウ（⌘,）が開いている間はそれが閉じるまで終了しない。
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        true
+    }
+}
+#endif
 
 @main
 struct SeektheaApp: App {
+    #if os(macOS)
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    #endif
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("feedMode") private var feedMode: FeedMode = .forYou
     @AppStorage("useCompactLayout") private var useCompactLayout = false
