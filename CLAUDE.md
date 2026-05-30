@@ -144,9 +144,7 @@ Seekthea/
 │   ├── Resources/
 │   │   ├── preset_sources.json
 │   │   └── licenses.json
-│   ├── Assets.xcassets/
-│   └── ci_scripts/
-│       └── ci_post_clone.sh          // Xcode Cloud用ビルド番号自動設定
+│   └── Assets.xcassets/
 ├── docs/                              // GitHub Pages（ランディングページ等）
 │   ├── index.html
 │   ├── privacy.html
