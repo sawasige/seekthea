@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1422" media="(prefers-color-scheme: dark)">
 <title>利用規約 - Seekthea</title>
 <style>
   body {
@@ -19,6 +21,12 @@
   p, ul { margin: 0.8em 0; }
   ul { padding-left: 1.5em; }
   .updated { color: #888; font-size: 0.85em; }
+  @media (prefers-color-scheme: dark) {
+    body { color: #d7dbe2; background: #0e1422; }
+    h1 { border-bottom-color: #2a3346; }
+    a { color: #ff7a3d; }
+    .updated { color: #8b93a3; }
+  }
 </style>
 </head>
 <body>

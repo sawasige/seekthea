@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#FAFAFA" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0e1422" media="(prefers-color-scheme: dark)">
     <title>Seekthea — パーソナルトレンドアグリゲーター</title>
     <meta name="description" content="ニュース・テック・ソーシャルのトレンドをRSSで収集し、Apple IntelligenceがAI要約。アカウント不要、完全無料のニュースアプリ。">
     <meta property="og:title" content="Seekthea — パーソナルトレンドアグリゲーター">
@@ -18,7 +20,8 @@
     <meta name="twitter:title" content="Seekthea — パーソナルトレンドアグリゲーター">
     <meta name="twitter:description" content="ウェブ全体のトレンドを見通して、探し出すアプリ。">
     <meta name="twitter:image" content="https://sawasige.github.io/seekthea/assets/og-image.png">
-    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="icon" type="image/png" href="assets/logo.png" media="(prefers-color-scheme: light)">
+    <link rel="icon" type="image/png" href="assets/logo-dark.png" media="(prefers-color-scheme: dark)">
     <style>
         * {
             margin: 0;
@@ -38,6 +41,22 @@
             --gold: #c9a961;
         }
 
+        /* ダークモード: アイコンの黒〜ネイビー基調に合わせた暗色パレット。
+           見出しに使う --navy は暗背景では明色へ反転させる。 */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --accent: #ff7a3d;
+                --accent-light: #1c140d;
+                --bg: #0e1422;
+                --text: #e7eaf0;
+                --text-muted: #9aa3b5;
+                --card-bg: #161d2e;
+                --navy: #eaedf5;
+                --navy-deep: #070c16;
+                --gold: #d8bd7a;
+            }
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
             background: var(--bg);
@@ -49,47 +68,78 @@
         .hero {
             text-align: center;
             padding: 40px 20px 60px;
-            background: linear-gradient(180deg, #fff 0%, var(--bg) 100%);
+            background: linear-gradient(180deg, var(--card-bg) 0%, var(--bg) 100%);
         }
 
         .hero-banner {
-            display: block;
-            width: 100%;
+            position: relative;
             max-width: 900px;
             margin: 0 auto 32px;
             border-radius: 16px;
-            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+            overflow: hidden;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.25);
         }
 
-        .logo {
-            width: 96px;
-            height: 96px;
-            border-radius: 22px;
-            box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+        .hero-banner > img {
+            display: block;
+            width: 100%;
+            height: auto;
         }
 
-        .hero h1 {
-            font-size: 3rem;
+        /* テキストロゴのオーバーレイ。ヒーロー画像は右に女神・左上が暗い星空なので
+           左側に配置し、左→右のグラデーションで文字の可読性を確保する。 */
+        .hero-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 56%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: clamp(8px, 1.6vw, 18px);
+            padding: 4% 5%;
+            text-align: center;
+            color: #fff;
+            /* 画像の明るさを損なわないよう背景スクリムは無し。可読性は文字シャドウで担保する */
+        }
+
+        .hero-overlay-lockup {
+            display: flex;
+            align-items: center;
+            gap: clamp(8px, 1.6vw, 18px);
+        }
+
+        .hero-overlay-icon {
+            width: clamp(44px, 7.5vw, 92px);
+            height: clamp(44px, 7.5vw, 92px);
+            border-radius: clamp(9px, 1.5vw, 21px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+        }
+
+        .hero-overlay-name {
+            font-size: clamp(2rem, 6.5vw, 4.5rem);
             font-weight: 800;
-            margin: 24px 0 12px;
             letter-spacing: -0.02em;
-            color: var(--navy);
+            line-height: 1;
+            color: #fff;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.7), 0 2px 20px rgba(0,0,0,0.6);
         }
 
-        .hero .subtitle {
-            font-size: 1.4rem;
-            color: var(--accent);
+        .hero-overlay-tagline {
+            font-size: clamp(0.85rem, 1.6vw, 1.4rem);
             font-weight: 600;
-            margin-bottom: 24px;
+            line-height: 1.5;
+            color: var(--gold);
+            text-shadow: 0 1px 3px rgba(0,0,0,0.75), 0 1px 12px rgba(0,0,0,0.65);
         }
 
-        .hero .tagline {
-            font-size: 1.1rem;
-            color: var(--text-muted);
-            margin-bottom: 32px;
-            max-width: 500px;
-            margin-left: auto;
-            margin-right: auto;
+        /* 狭い画面ではロゴが小さくなりすぎるので幅を少し広げる */
+        @media (max-width: 600px) {
+            .hero-overlay {
+                width: 60%;
+            }
         }
 
         .app-store-badge {
@@ -575,10 +625,24 @@
 </head>
 <body>
     <section class="hero">
-        <img src="assets/og-image.png" alt="Seekthea — ウェブ全体のトレンドを見通して、探し出すアプリ" class="hero-banner">
-        <p class="subtitle">好奇心に、電光石火。</p>
+        <div class="hero-banner">
+            <img src="assets/hero.png" alt="星々と地球の灯りに手を差し伸べる女神テア">
+            <div class="hero-overlay">
+                <div class="hero-overlay-lockup">
+                    <picture>
+                        <source srcset="assets/logo-dark.png" media="(prefers-color-scheme: dark)">
+                        <img src="assets/logo.png" alt="" class="hero-overlay-icon">
+                    </picture>
+                    <span class="hero-overlay-name">Seekthea</span>
+                </div>
+                <p class="hero-overlay-tagline">好奇心に、電光石火。</p>
+            </div>
+        </div>
         <a href="https://apps.apple.com/app/id6762122200">
-            <img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/ja-jp?size=250x83" alt="App Storeからダウンロード" class="app-store-badge">
+            <picture>
+                <source srcset="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/white/ja-jp?size=250x83" media="(prefers-color-scheme: dark)">
+                <img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/ja-jp?size=250x83" alt="App Storeからダウンロード" class="app-store-badge">
+            </picture>
         </a>
     </section>
 
@@ -740,12 +804,18 @@
     <section class="cta">
         <h2>好奇心を、解き放とう。</h2>
         <a href="https://apps.apple.com/app/id6762122200">
-            <img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/ja-jp?size=250x83" alt="App Storeからダウンロード" class="app-store-badge">
+            <picture>
+                <source srcset="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/white/ja-jp?size=250x83" media="(prefers-color-scheme: dark)">
+                <img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/ja-jp?size=250x83" alt="App Storeからダウンロード" class="app-store-badge">
+            </picture>
         </a>
     </section>
 
     <footer>
-        <img src="assets/logo.png" alt="Seekthea" class="footer-logo">
+        <picture>
+            <source srcset="assets/logo-dark.png" media="(prefers-color-scheme: dark)">
+            <img src="assets/logo.png" alt="Seekthea" class="footer-logo">
+        </picture>
         <div class="footer-links">
             <a href="privacy.html">プライバシーポリシー</a>
             <a href="terms.html">利用規約</a>
