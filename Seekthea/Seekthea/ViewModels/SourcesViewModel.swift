@@ -225,6 +225,29 @@ class SourcesViewModel {
         refreshRegisteredURLs()
     }
 
+    /// 提案されたトピックフィードをソースとして追加
+    func acceptTopicFeed(_ feed: DiscoveredTopicFeed) {
+        guard let feedURL = feed.feedURL else { return }
+        guard !registeredFeedURLs.contains(feedURL) else {
+            feed.isAdded = true
+            try? modelContainer.mainContext.save()
+            return
+        }
+        let platformName = feed.platform?.displayName ?? ""
+        let name = feed.feedTitle
+            ?? (platformName.isEmpty ? feed.keyword : "\(feed.keyword) - \(platformName)")
+        let context = modelContainer.mainContext
+        let source = Source(
+            name: name,
+            feedURL: feedURL,
+            siteURL: feed.siteURL
+        )
+        context.insert(source)
+        feed.isAdded = true
+        try? context.save()
+        refreshRegisteredURLs()
+    }
+
     /// プリセットに対応するソースを削除
     func removePresetSource(_ preset: PresetSource) {
         let context = modelContainer.mainContext

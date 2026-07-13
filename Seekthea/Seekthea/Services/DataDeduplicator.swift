@@ -16,6 +16,8 @@ enum DataDeduplicator {
         await Task.yield()
         dedupDiscoveredDomains(context)
         await Task.yield()
+        dedupDiscoveredTopicFeeds(context)
+        await Task.yield()
         dedupUserCategories(context)
         await Task.yield()
         dedupUserInterests(context)
@@ -66,6 +68,32 @@ enum DataDeduplicator {
                 context.delete(d)
             } else {
                 seen[d.domain] = d
+            }
+        }
+    }
+
+    private static func dedupDiscoveredTopicFeeds(_ context: ModelContext) {
+        let feeds = (try? context.fetch(
+            FetchDescriptor<DiscoveredTopicFeed>(sortBy: [SortDescriptor(\.suggestedAt, order: .reverse)])
+        )) ?? []
+        var seen: [String: DiscoveredTopicFeed] = [:]
+        for feed in feeds {
+            let key = feed.keyword.lowercased().trimmingCharacters(in: .whitespaces)
+            guard !key.isEmpty else {
+                context.delete(feed)
+                continue
+            }
+            if let kept = seen[key] {
+                if feed.isRejected { kept.isRejected = true }
+                if feed.isAdded { kept.isAdded = true }
+                if feed.feedURL != nil && kept.feedURL == nil {
+                    kept.platformRaw = feed.platformRaw
+                    kept.feedURL = feed.feedURL
+                    kept.feedTitle = feed.feedTitle
+                }
+                context.delete(feed)
+            } else {
+                seen[key] = feed
             }
         }
     }

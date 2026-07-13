@@ -6,6 +6,7 @@ struct SourcePreviewView: View {
         case preset(PresetSource)
         case registered(Source)
         case discovered(DiscoveredDomain)
+        case topicFeed(DiscoveredTopicFeed)
     }
 
     let mode: Mode
@@ -22,6 +23,7 @@ struct SourcePreviewView: View {
         case .preset(let p): return p.name
         case .registered(let s): return s.displayName
         case .discovered(let d): return d.feedTitle ?? d.domain
+        case .topicFeed(let f): return f.feedTitle ?? f.keyword
         }
     }
 
@@ -36,6 +38,7 @@ struct SourcePreviewView: View {
         case .preset(let p): return p.category
         case .registered(let s): return s.category
         case .discovered: return ""
+        case .topicFeed(let f): return f.platform?.displayName ?? ""
         }
     }
 
@@ -44,6 +47,7 @@ struct SourcePreviewView: View {
         case .preset(let p): return p.feedURL
         case .registered(let s): return s.feedURL
         case .discovered(let d): return d.detectedFeedURL!
+        case .topicFeed(let f): return f.feedURL!
         }
     }
 
@@ -52,6 +56,7 @@ struct SourcePreviewView: View {
         case .preset(let p): return p.siteURL
         case .registered(let s): return s.siteURL
         case .discovered(let d): return URL(string: "https://\(d.domain)")!
+        case .topicFeed(let f): return f.siteURL
         }
     }
 
@@ -206,6 +211,14 @@ struct SourcePreviewView: View {
                     await viewModel?.acceptDiscoveredSource(domain)
                     dismiss()
                 }
+            }
+        case .topicFeed(let feed):
+            Button("追加") {
+                viewModel?.acceptTopicFeed(feed)
+                #if os(iOS)
+                UISelectionFeedbackGenerator().selectionChanged()
+                #endif
+                dismiss()
             }
         }
     }

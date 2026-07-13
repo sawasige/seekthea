@@ -23,6 +23,20 @@ struct DiscoveryView: View {
         order: .reverse
     ) private var skippedDomains: [DiscoveredDomain]
 
+    @Query(
+        filter: #Predicate<DiscoveredTopicFeed> { $0.feedURL != nil && !$0.isRejected && !$0.isAdded },
+        sort: \DiscoveredTopicFeed.suggestedAt,
+        order: .reverse
+    ) private var topicSuggestions: [DiscoveredTopicFeed]
+
+    @Query(
+        filter: #Predicate<DiscoveredTopicFeed> { $0.feedURL != nil && $0.isRejected && !$0.isAdded },
+        sort: \DiscoveredTopicFeed.suggestedAt,
+        order: .reverse
+    ) private var skippedTopicFeeds: [DiscoveredTopicFeed]
+
+    @State private var previewTopicFeed: DiscoveredTopicFeed?
+
     let modelContainer: ModelContainer
 
     private var sortedSuggestions: [DiscoveredDomain] {
@@ -46,6 +60,14 @@ struct DiscoveryView: View {
 
     var body: some View {
         List {
+            if !topicSuggestions.isEmpty {
+                Section("あなたの興味から") {
+                    ForEach(topicSuggestions) { feed in
+                        topicCardRow(feed)
+                    }
+                }
+            }
+
             if !newSuggestions.isEmpty {
                 Section("新着") {
                     ForEach(newSuggestions, id: \.domain) { domain in
@@ -65,17 +87,20 @@ struct DiscoveryView: View {
                 }
             }
 
-            if sortedSuggestions.isEmpty {
+            if sortedSuggestions.isEmpty && topicSuggestions.isEmpty {
                 ContentUnavailableView(
                     "新しいソースはまだありません",
                     systemImage: "sparkle.magnifyingglass",
-                    description: Text("Google Newsから自動的にソースを発見します")
+                    description: Text("トレンドとあなたの興味から自動的にソースを発見します")
                 )
             }
 
-            if !skippedDomains.isEmpty {
+            if !skippedDomains.isEmpty || !skippedTopicFeeds.isEmpty {
                 Section {
                     if showSkipped {
+                        ForEach(skippedTopicFeeds) { feed in
+                            skippedTopicRow(feed)
+                        }
                         ForEach(skippedDomains, id: \.domain) { domain in
                             skippedRow(domain)
                         }
@@ -85,7 +110,7 @@ struct DiscoveryView: View {
                         withAnimation { showSkipped.toggle() }
                     } label: {
                         HStack {
-                            Text("スキップ済み (\(skippedDomains.count))")
+                            Text("スキップ済み (\(skippedDomains.count + skippedTopicFeeds.count))")
                             Spacer()
                             Image(systemName: showSkipped ? "chevron.up" : "chevron.down")
                                 .font(.caption)
@@ -133,6 +158,9 @@ struct DiscoveryView: View {
         .sheet(item: $previewDomain) { domain in
             SourcePreviewView(mode: .discovered(domain), modelContainer: modelContainer)
         }
+        .sheet(item: $previewTopicFeed) { feed in
+            SourcePreviewView(mode: .topicFeed(feed), modelContainer: modelContainer)
+        }
         .task {
             if sourcesViewModel == nil {
                 sourcesViewModel = SourcesViewModel(modelContainer: modelContainer)
@@ -168,6 +196,140 @@ struct DiscoveryView: View {
         .task {
             await loadPreview(for: domain)
         }
+    }
+
+    @ViewBuilder
+    private func topicCardRow(_ feed: DiscoveredTopicFeed) -> some View {
+        Button {
+            previewTopicFeed = feed
+        } label: {
+            topicCardContent(feed)
+        }
+        .buttonStyle(.plain)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+        .listRowBackground(Color.clear)
+        .swipeActions(edge: .trailing) {
+            Button("スキップ", role: .destructive) {
+                feed.isRejected = true
+                try? modelContext.save()
+            }
+        }
+        .task {
+            await loadPreview(for: feed)
+        }
+    }
+
+    private func topicCardContent(_ feed: DiscoveredTopicFeed) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 14) {
+                SourceThumbnailView(siteURL: feed.siteURL, size: 56)
+
+                let displayTitle = feed.feedTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(displayTitle?.isEmpty == false ? displayTitle! : feed.keyword)
+                        .font(.headline)
+                        .lineLimit(1)
+
+                    if let platform = feed.platform {
+                        Text(platform.displayName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                        Text("興味キーワード「\(feed.keyword)」から")
+                            .lineLimit(1)
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+                }
+
+                Spacer()
+
+                Button {
+                    sourcesViewModel?.acceptTopicFeed(feed)
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundStyle(.white, Color.accentColor)
+                        .font(.title)
+                }
+                .buttonStyle(.plain)
+            }
+
+            topicArticlePreview(for: feed)
+        }
+        .padding(14)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    @ViewBuilder
+    private func topicArticlePreview(for feed: DiscoveredTopicFeed) -> some View {
+        if let titles = articlePreviews[previewKey(for: feed)], !titles.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(titles, id: \.self) { title in
+                    HStack(alignment: .top, spacing: 6) {
+                        Text("•").foregroundStyle(.tertiary)
+                        Text(title)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+        } else if loadingPreviews.contains(previewKey(for: feed)) {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(0..<2, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.secondary.opacity(0.15))
+                        .frame(height: 12)
+                }
+            }
+        }
+    }
+
+    private func skippedTopicRow(_ feed: DiscoveredTopicFeed) -> some View {
+        let title = feed.feedTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return HStack(spacing: 12) {
+            SourceThumbnailView(siteURL: feed.siteURL, size: 32)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title?.isEmpty == false ? title! : feed.keyword)
+                    .font(.subheadline)
+                    .lineLimit(1)
+                Text(feed.platform?.displayName ?? feed.keyword)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            Button("復元") {
+                feed.isRejected = false
+                try? modelContext.save()
+            }
+            .font(.subheadline)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+        .listRowBackground(Color.clear)
+    }
+
+    private func previewKey(for feed: DiscoveredTopicFeed) -> String {
+        feed.feedURL?.absoluteString ?? feed.keyword
+    }
+
+    private func loadPreview(for feed: DiscoveredTopicFeed) async {
+        let key = previewKey(for: feed)
+        guard articlePreviews[key] == nil, !loadingPreviews.contains(key),
+              let feedURL = feed.feedURL else { return }
+        loadingPreviews.insert(key)
+        let titles = await RSSDetector.articleTitles(from: feedURL, limit: 3)
+        articlePreviews[key] = titles
+        loadingPreviews.remove(key)
     }
 
     private func skippedRow(_ domain: DiscoveredDomain) -> some View {

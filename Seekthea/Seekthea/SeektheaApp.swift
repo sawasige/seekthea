@@ -28,6 +28,7 @@ struct SeektheaApp: App {
             Source.self,
             Article.self,
             DiscoveredDomain.self,
+            DiscoveredTopicFeed.self,
             UserInterest.self,
             UserCategory.self,
             ExcludedKeyword.self,
