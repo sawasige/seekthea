@@ -69,7 +69,7 @@ struct DiscoveryView: View {
                 ContentUnavailableView(
                     "新しいソースはまだありません",
                     systemImage: "sparkle.magnifyingglass",
-                    description: Text("Google Newsから自動的にソースを発見します")
+                    description: Text("トレンドとあなたの興味から自動的にソースを発見します")
                 )
             }
 
