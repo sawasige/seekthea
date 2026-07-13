@@ -133,11 +133,15 @@ actor GoogleNewsDiscovery {
         // 1回しか言及されてないノイズは候補から除外（2回以上の言及があれば信頼）
         let mentionThreshold = 2
 
+        // SwiftData の #Predicate は強制アンラップ（lastDetectAttemptAt!）を
+        // サポートせず、fetch が実行時に unsupportedPredicate で失敗する。
+        // nil は「未試行」なので distantPast 扱いにして必ず候補に含める
+        let distantPast = Date.distantPast
         let predicate = #Predicate<DiscoveredDomain> {
             !$0.isRejected
                 && !$0.isSuggested
                 && $0.mentionCount >= mentionThreshold
-                && ($0.lastDetectAttemptAt == nil || $0.lastDetectAttemptAt! < detectRetryCutoff)
+                && ($0.lastDetectAttemptAt ?? distantPast) < detectRetryCutoff
         }
         guard let candidates = try? context.fetch(FetchDescriptor(predicate: predicate)) else { return }
 
