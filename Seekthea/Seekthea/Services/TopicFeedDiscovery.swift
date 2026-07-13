@@ -72,17 +72,27 @@ actor TopicFeedDiscovery {
 
     // MARK: - 候補キーワードの収集
 
+    /// キーワードの分野判定。プラットフォームの優先順を決める
+    private enum DevSignal {
+        /// 記事カテゴリの過半が「開発」
+        case dev
+        /// 記事カテゴリが付いているが開発系ではない
+        case nonDev
+        /// カテゴリ情報なし（興味トピックのみ由来、AI未処理環境など）
+        case unknown
+    }
+
     private struct Candidate {
         let keyword: String
         let score: Double
-        let isDev: Bool
+        let devSignal: DevSignal
     }
 
     /// お気に入り・閲覧履歴・明示的な興味からキーワード候補をスコアリングして返す
     private func collectCandidates(context: ModelContext) -> [Candidate] {
         var scores: [String: Double] = [:]
         var devCounts: [String: Int] = [:]
-        var totalCounts: [String: Int] = [:]
+        var categorizedCounts: [String: Int] = [:]
         var categorySpread: [String: Set<String>] = [:]
         // 表示用に元の表記を保持（小文字化キー → 初出の表記）
         var originalForm: [String: String] = [:]
@@ -92,7 +102,9 @@ actor TopicFeedDiscovery {
             let key = trimmed.lowercased()
             guard key.count >= 2, !Self.stopWords.contains(trimmed) else { return }
             scores[key, default: 0] += weight
-            totalCounts[key, default: 0] += 1
+            if !categories.isEmpty {
+                categorizedCounts[key, default: 0] += 1
+            }
             if categories.contains("開発") {
                 devCounts[key, default: 0] += 1
             }
@@ -161,10 +173,15 @@ actor TopicFeedDiscovery {
             // 4カテゴリ以上に横断して出る語は固有の興味ではなく汎用語
             guard (categorySpread[key]?.count ?? 0) < 4 else { return nil }
             guard !sourceNames.contains(where: { $0.contains(key) }) else { return nil }
-            let total = totalCounts[key] ?? 0
+            let categorized = categorizedCounts[key] ?? 0
             let dev = devCounts[key] ?? 0
-            let isDev = total > 0 && Double(dev) / Double(total) >= 0.5
-            return Candidate(keyword: originalForm[key] ?? key, score: score, isDev: isDev)
+            let devSignal: DevSignal
+            if categorized == 0 {
+                devSignal = .unknown
+            } else {
+                devSignal = Double(dev) / Double(categorized) >= 0.5 ? .dev : .nonDev
+            }
+            return Candidate(keyword: originalForm[key] ?? key, score: score, devSignal: devSignal)
         }
         .sorted { $0.score > $1.score }
     }
@@ -199,10 +216,15 @@ actor TopicFeedDiscovery {
     /// カテゴリに応じたプラットフォーム優先順でフィードの実在を検証する
     private func validateFeed(for candidate: Candidate, excluding registeredFeedURLs: Set<URL>) async -> ValidatedFeed? {
         // 開発系キーワードはタグフィードが濃い Qiita/Zenn を優先、
-        // それ以外は任意キーワードで安定して動く Google ニュース検索 → はてブの順
-        let platforms: [TopicFeedPlatform] = candidate.isDev
-            ? [.qiita, .zenn, .googleNews]
-            : [.googleNews, .hatena]
+        // 非開発系は任意キーワードで安定して動く Google ニュース検索 → はてブの順。
+        // カテゴリ情報が無いキーワード（興味トピックのみ由来・AI未処理環境）は
+        // 分野が分からないので、まずタグフィードの実在を試してから検索系に落とす
+        let platforms: [TopicFeedPlatform]
+        switch candidate.devSignal {
+        case .dev: platforms = [.qiita, .zenn, .googleNews]
+        case .nonDev: platforms = [.googleNews, .hatena]
+        case .unknown: platforms = [.qiita, .zenn, .googleNews, .hatena]
+        }
 
         for platform in platforms {
             guard let feedURL = platform.feedURL(for: candidate.keyword) else { continue }
