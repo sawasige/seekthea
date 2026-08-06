@@ -183,7 +183,11 @@ class AIProcessor {
     /// 未分類記事を1件ずつカテゴリ分類
     private var isClassifying = false
 
-    func classifyBatch(onProgress: ((String) -> Void)? = nil, onArticleClassified: (() -> Void)? = nil) async {
+    func classifyBatch(
+        onProgress: ((String) -> Void)? = nil,
+        onArticleClassified: (() -> Void)? = nil,
+        onError: ((String) -> Void)? = nil
+    ) async {
         guard !isClassifying else { return }
         isClassifying = true
         defer { isClassifying = false }
@@ -192,6 +196,14 @@ class AIProcessor {
         let context = modelContainer.mainContext
         let catList = labeledCategoryList
         let catDescBlock = categoryDescriptionsBlock
+
+        // 旧コードはレート制限エラーでも記事を「処理済み（空文字）」にマークしていたため、
+        // その被害を受けた記事を一度だけ未分類に戻して再分類の対象にする
+        let recoveryKey = "requeueRateLimitedArticles_20260802"
+        if !UserDefaults.standard.bool(forKey: recoveryKey) {
+            requeueErroredArticles()
+            UserDefaults.standard.set(true, forKey: recoveryKey)
+        }
 
         while !Task.isCancelled {
             var descriptor = FetchDescriptor<Article>(
@@ -262,6 +274,7 @@ class AIProcessor {
                     // 空文字を入れて「処理済」扱いにしないと、次回も同じ記事を拾って無限ループする
                     article.aiCategory = ""
                     article.aiClassificationError = "other"
+                    onError?("マップ失敗（category='\(result.category)'）: \(article.title)")
                     #if DEBUG
                     print("[AI分類] ⚠️マップ失敗（category='\(result.category)'）: \(article.title)")
                     #endif
@@ -272,9 +285,16 @@ class AIProcessor {
                 onArticleClassified?()
             } catch {
                 let elapsed = Date().timeIntervalSince(startTime)
+                onError?("\(error) （\(String(format: "%.2f", elapsed))秒）: \(article.title)")
                 #if DEBUG
                 print("[AI分類] ✗失敗（\(String(format: "%.2f", elapsed))秒）: \(article.title) — \(error)")
                 #endif
+                // レート制限は一時的エラー（主にバックグラウンド時）。記事をマークすると
+                // 「処理済み」扱いになり二度と分類されないので、未分類のまま中断して
+                // 次回のバッチに委ねる
+                if case LanguageModelSession.GenerationError.rateLimited = error {
+                    break
+                }
                 // 失敗時は空文字をマークして無限ループ防止
                 article.aiCategory = ""
                 if case LanguageModelSession.GenerationError.refusal = error {
@@ -285,6 +305,24 @@ class AIProcessor {
                 try? context.save()
             }
         }
+        #endif
+    }
+
+    /// エラーマークされた記事（refusal以外）を未分類に戻す。
+    /// レート制限のような一時的エラーで「処理済み」扱いになった記事の回復用
+    private func requeueErroredArticles() {
+        let context = modelContainer.mainContext
+        let descriptor = FetchDescriptor<Article>(
+            predicate: #Predicate { $0.aiCategory == "" && $0.aiClassificationError == "other" }
+        )
+        guard let articles = try? context.fetch(descriptor), !articles.isEmpty else { return }
+        for article in articles {
+            article.aiCategory = nil
+            article.aiClassificationError = nil
+        }
+        try? context.save()
+        #if DEBUG
+        print("[AI分類] エラーマークされていた\(articles.count)件を未分類に戻した")
         #endif
     }
 
@@ -376,6 +414,10 @@ class AIProcessor {
             #if DEBUG
             print("[AI再分類] ✗失敗: \(article.title) — \(error)")
             #endif
+            // レート制限は一時的エラーなのでマークせず、未分類のまま次回に委ねる
+            if case LanguageModelSession.GenerationError.rateLimited = error {
+                return
+            }
             article.aiCategory = ""
             if case LanguageModelSession.GenerationError.refusal = error {
                 article.aiClassificationError = "refused"

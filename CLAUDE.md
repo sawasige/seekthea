@@ -104,6 +104,7 @@ Seekthea/
 │   │   ├── AIProgressTracker.swift
 │   │   ├── AISummaryCache.swift
 │   │   ├── ArticleCleanupService.swift
+│   │   ├── BackgroundRefreshManager.swift  // BGProcessingTaskでフェッチ＋AI分類をバックグラウンド実行（iOSのみ）
 │   │   ├── CloudSyncObserver.swift     // CloudKit同期イベント購読、import完了でdedup自動実行
 │   │   ├── CloudSyncStatus.swift
 │   │   ├── DataDeduplicator.swift      // 全モデルの重複排除（起動時/リフレッシュ時/同期時）

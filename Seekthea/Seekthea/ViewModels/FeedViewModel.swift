@@ -44,6 +44,13 @@ class FeedViewModel {
         classifyTask = Task {
             await oldTask?.value
             if Task.isCancelled { return }
+            #if os(macOS)
+            // App Napによるスロットリングを分類中だけ防ぐ
+            let activity = ProcessInfo.processInfo.beginActivity(
+                options: .userInitiated, reason: "AI分類中"
+            )
+            defer { ProcessInfo.processInfo.endActivity(activity) }
+            #endif
             await aiProcessor.classifyBatch(
                 onProgress: { [weak self] message in
                     self?.statusMessage = message

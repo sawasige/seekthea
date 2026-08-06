@@ -85,12 +85,25 @@ struct SeektheaApp: App {
         }
     }()
 
+    init() {
+        #if os(iOS)
+        // バックグラウンド更新タスクの register は didFinishLaunching 前に必要
+        BackgroundRefreshManager.shared.register(modelContainer: sharedModelContainer)
+        #endif
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
         }
         .modelContainer(sharedModelContainer)
         .onChange(of: scenePhase, initial: true) { _, newPhase in
+            #if os(iOS)
+            if newPhase == .background {
+                // バックグラウンド移行時に更新タスクを予約
+                BackgroundRefreshManager.shared.schedule()
+            }
+            #endif
             if newPhase == .active {
                 // フォアグラウンド復帰時にCloudKit同期を促す
                 let context = sharedModelContainer.mainContext
