@@ -23,6 +23,14 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 
 メタデータとスクリーンショットをアップロード（バージョン未作成なら作成）
 
+### ios upload_creative_assets
+
+```sh
+[bundle exec] fastlane ios upload_creative_assets
+```
+
+製品ページのヘッダ・検索結果アセットをアップロードして現在のバージョンに配置（iOS のみ、表示は iOS 27 以降）。画像は `fastlane/creative_assets/<locale>/header_21x9.png`（3840x1646）と `search_3x2.png`（3840x2560）に置く。
+
 ### ios upload_metadata_only
 
 ```sh
