@@ -43,6 +43,11 @@ platform :ios do
     )
   end
 
+  desc "製品ページのヘッダ・検索結果アセットをアップロードして現在のバージョンに配置（iOS のみ、表示は iOS 27 以降）"
+  lane :upload_creative_assets do
+    sh("ruby scripts/upload_creative_assets.rb com.himatsubu.Seekthea #{current_app_version} IOS")
+  end
+
   desc "メタデータをダウンロード"
   lane :download_metadata do
     setup_api_key

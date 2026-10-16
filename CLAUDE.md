@@ -156,6 +156,8 @@ Seekthea/
 │   ├── Fastfile
 │   ├── Appfile
 │   ├── metadata/
+│   ├── creative_assets/ja/            // 製品ページヘッダ(21:9)・検索結果(3:2)アセット
+│   ├── scripts/upload_creative_assets.rb  // ASC API で Asset Library へアップロード＆配置
 │   ├── screenshots/                   // iOS (iPhone + iPad)
 │   ├── screenshots-mac/
 │   └── screenshots-visionos/
