@@ -86,7 +86,7 @@ struct SeektheaApp: App {
     }()
 
     init() {
-        #if os(iOS)
+        #if os(iOS) || os(visionOS)
         // バックグラウンド更新タスクの register は didFinishLaunching 前に必要
         BackgroundRefreshManager.shared.register(modelContainer: sharedModelContainer)
         #endif
@@ -98,7 +98,7 @@ struct SeektheaApp: App {
         }
         .modelContainer(sharedModelContainer)
         .onChange(of: scenePhase, initial: true) { _, newPhase in
-            #if os(iOS)
+            #if os(iOS) || os(visionOS)
             if newPhase == .background {
                 // バックグラウンド移行時に更新タスクを予約
                 BackgroundRefreshManager.shared.schedule()

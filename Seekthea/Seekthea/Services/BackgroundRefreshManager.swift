@@ -1,11 +1,12 @@
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 import Foundation
 import BackgroundTasks
 import SwiftData
 import UIKit
 import os
 
-/// BGProcessingTask でフェッチとAI分類をバックグラウンド実行するマネージャ。
+/// BGProcessingTask でフェッチとAI分類をバックグラウンド実行するマネージャ（iOS / visionOS）。
+/// macOS は BGTaskScheduler が利用不可（API_UNAVAILABLE(macos)）のため対象外。
 /// アプリを開く前に裏で新着処理を進めておくことで、起動直後の
 /// カテゴリフィルタ・おすすめ品質を高める。
 ///
