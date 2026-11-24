@@ -3,14 +3,11 @@ import SwiftData
 #if canImport(FoundationModels)
 import FoundationModels
 
-/// 単一記事のカテゴリ・キーワード分類用
-@Generable
+/// 単一記事のカテゴリ・キーワード分類結果
 struct CategoryResult {
-    @Guide(description: "カテゴリのアルファベット1文字")
+    /// ユーザーカテゴリ名（スキーマで選択肢を強制しているので必ずいずれかになる）
     var category: String
-    @Guide(description: "記事の重要キーワード（日本語、最大5つ）")
     var keywords: [String]
-    @Guide(description: "keywordsの英訳（同じ順序、各1単語の英語）")
     var keywordsEn: [String]
 }
 #endif
@@ -27,26 +24,18 @@ class AIProcessor {
         return (try? context.fetch(descriptor)) ?? []
     }
 
-    /// カテゴリ名一覧（letter のマッピング順）
+    /// カテゴリ名一覧（order 順、重複なし）。スキーマの選択肢にも使う
     private var userCategories: [String] {
         let entities = userCategoryEntities
         if entities.isEmpty {
             return UserCategory.defaults
         }
-        return entities.map(\.name)
-    }
-
-    private static let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-    private var labeledCategoryList: String {
-        userCategories.enumerated().map { idx, name in
-            let label = idx < Self.alphabet.count ? String(Self.alphabet[idx]) : "\(idx)"
-            return "\(label). \(name)"
-        }.joined(separator: "\n")
+        var seen = Set<String>()
+        return entities.map(\.name).filter { !$0.isEmpty && seen.insert($0).inserted }
     }
 
     /// カテゴリ説明ブロック（プロンプトで「参考」セクションとして渡す）
-    /// labeledCategoryList とは別にすることで、AIが説明文を keywords に
+    /// カテゴリ一覧とは別にすることで、AIが説明文を keywords に
     /// そのまま流用してしまうのを防ぐ。aiHint が空のカテゴリはスキップ。
     private var categoryDescriptionsBlock: String {
         let entities = userCategoryEntities
@@ -71,24 +60,65 @@ class AIProcessor {
         return trimmed.count < 30
     }
 
-    /// AIの応答をカテゴリ名に変換する。
-    /// プロンプトでは letter（"A" など）を要求しているが、
-    /// AIが指示を無視してカテゴリ名そのもの（"スポーツ"）を返すことがあるので両方サポート
-    private func categoryName(from labelStr: String) -> String? {
-        let trimmed = labelStr.trimmingCharacters(in: .whitespaces)
-        // letter パターン（"A" → userCategories[0]）
-        if let char = trimmed.uppercased().first,
-           char.isLetter,
-           let idx = Self.alphabet.firstIndex(of: char),
-           idx < userCategories.count {
-            return userCategories[idx]
+    #if canImport(FoundationModels)
+    /// 記事1件をカテゴリ分類し、キーワードを抽出する（一括分類・再分類で共通）。
+    /// カテゴリは DynamicGenerationSchema の anyOf でユーザーカテゴリ名に限定する。
+    /// A/B/C… の記号で選ばせる旧方式は、迷った記事をリスト後方のテック系カテゴリへ
+    /// 寄せる偏りがあった（160記事の比較で 開発 37件 / テクノロジー 2件）。
+    /// 配信元のジャンルはヒントに渡さない。渡すと記事の内容より配信元に引っ張られ、
+    /// カテゴリがソースのジャンルとほぼ同じになる（実ソース122記事の比較で確認）。
+    private func classify(_ article: Article) async throws -> CategoryResult {
+        let categories = userCategories
+        let desc = article.leadText ?? article.ogDescription ?? ""
+        let articleSection: String
+        let keywordInstruction: String
+        if Self.isThinBody(desc) {
+            // 本文が空 or "記事を読む" のような placeholder の時は、AIが
+            // 抽出語を見つけられず【参考】の説明文を流用してしまうので、
+            // タイトルだけから抽出するよう指示し、無理に5つ揃えなくてよいと明示
+            articleSection = "タイトル: \(article.title)"
+            keywordInstruction = "上のタイトルから抽出できる重要語句を日本語で（最大5つ。抽出できる語が少なければ無理に揃えなくてよい）"
+        } else {
+            articleSection = "タイトル: \(article.title)\n内容: \(String(desc.prefix(200)))"
+            keywordInstruction = "上の記事タイトル・内容に実際に登場する重要語句を日本語で最大5つ抽出（カテゴリ参考の語ではなく、記事本文から）"
         }
-        // カテゴリ名そのものパターン（"スポーツ" → "スポーツ"）
-        if userCategories.contains(trimmed) {
-            return trimmed
-        }
-        return nil
+
+        let prompt = """
+        以下の記事を分類し、キーワードを抽出してください。
+
+        【カテゴリ】
+        \(categories.joined(separator: "\n"))
+
+        【参考: 各カテゴリの傾向】
+        \(categoryDescriptionsBlock)
+
+        【記事】
+        \(articleSection)
+
+        【出力】
+        - category: 最も適切なカテゴリ名を1つだけ
+        - keywords: \(keywordInstruction)
+        - keywordsEn: keywordsと同じ順序で各キーワードを英語1単語に翻訳
+        """
+
+        let stringArray = DynamicGenerationSchema(arrayOf: DynamicGenerationSchema(type: String.self))
+        let root = DynamicGenerationSchema(name: "CategoryResult", properties: [
+            .init(name: "category", description: "カテゴリ名",
+                  schema: DynamicGenerationSchema(name: "Category", anyOf: categories)),
+            .init(name: "keywords", description: "記事の重要キーワード（日本語、最大5つ）", schema: stringArray),
+            .init(name: "keywordsEn", description: "keywordsの英訳（同じ順序、各1単語の英語）", schema: stringArray),
+        ])
+        let schema = try GenerationSchema(root: root, dependencies: [])
+
+        let session = LanguageModelSession()
+        let content = try await session.respond(to: prompt, schema: schema).content
+        return CategoryResult(
+            category: try content.value(String.self, forProperty: "category"),
+            keywords: try content.value([String].self, forProperty: "keywords"),
+            keywordsEn: try content.value([String].self, forProperty: "keywordsEn")
+        )
     }
+    #endif
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
@@ -194,8 +224,6 @@ class AIProcessor {
 
         #if canImport(FoundationModels)
         let context = modelContainer.mainContext
-        let catList = labeledCategoryList
-        let catDescBlock = categoryDescriptionsBlock
 
         // 旧コードはレート制限エラーでも記事を「処理済み（空文字）」にマークしていたため、
         // その被害を受けた記事を一度だけ未分類に戻して再分類の対象にする
@@ -218,65 +246,36 @@ class AIProcessor {
             ))) ?? 0
             onProgress?("カテゴリ分類中... 残り\(remaining)件")
 
+            #if DEBUG
             let desc = article.leadText ?? article.ogDescription ?? ""
             let isThin = Self.isThinBody(desc)
-            let articleSection: String
-            let keywordInstruction: String
-            if isThin {
-                // 本文が空 or "記事を読む" のような placeholder の時は、AIが
-                // 抽出語を見つけられず【参考】の説明文を流用してしまうので、
-                // タイトルだけから抽出するよう指示し、無理に5つ揃えなくてよいと明示
-                articleSection = "タイトル: \(article.title)"
-                keywordInstruction = "上のタイトルから抽出できる重要語句を日本語で（最大5つ。抽出できる語が少なければ無理に揃えなくてよい）"
-            } else {
-                articleSection = "タイトル: \(article.title)\n内容: \(String(desc.prefix(200)))"
-                keywordInstruction = "上の記事タイトル・内容に実際に登場する重要語句を日本語で最大5つ抽出（カテゴリ参考の語ではなく、記事本文から）"
-            }
-
-            let session = LanguageModelSession()
-            let prompt = """
-            以下の記事を分類し、キーワードを抽出してください。
-
-            【カテゴリ】
-            \(catList)
-
-            【参考: 各カテゴリの傾向】
-            \(catDescBlock)
-
-            【記事】
-            \(articleSection)
-
-            【出力】
-            - category: 最も適切なカテゴリのアルファベットを1つだけ
-            - keywords: \(keywordInstruction)
-            - keywordsEn: keywordsと同じ順序で各キーワードを英語1単語に翻訳
-            """
+            #endif
             let startTime = Date()
             do {
-                let response = try await session.respond(to: prompt, generating: CategoryResult.self)
+                let result = try await classify(article)
                 let elapsed = Date().timeIntervalSince(startTime)
-                let result = response.content
-                let mappedName = categoryName(from: result.category)
+                let isKnown = userCategories.contains(result.category)
                 #if DEBUG
                 print("[AI分類] ────────────")
-                print("[AI分類] タイトル: \(article.title)")
+                print("[AI分類] タイトル: \(article.title)（\(article.sourceName)）")
                 print("[AI分類] 本文: \(desc.isEmpty ? "(なし)" : String(desc.prefix(200)))\(isThin ? " [thin]" : "")")
                 print("[AI分類] 実行時間: \(String(format: "%.2f", elapsed))秒")
-                print("[AI分類] → カテゴリ: \(result.category) (\(mappedName ?? "未マップ"))")
+                print("[AI分類] → カテゴリ: \(result.category)\(isKnown ? "" : " (未知)")")
                 print("[AI分類] → キーワード(JP): \(result.keywords)")
                 print("[AI分類] → キーワード(EN): \(result.keywordsEn)")
                 #endif
-                if let name = mappedName {
-                    article.aiCategory = name
+                if isKnown {
+                    article.aiCategory = result.category
                     article.aiClassificationError = nil
                 } else {
-                    // letter以外（カテゴリ名そのものなど）が返ってきた時はマップ失敗。
-                    // 空文字を入れて「処理済」扱いにしないと、次回も同じ記事を拾って無限ループする
+                    // スキーマで選択肢を縛っているので通常は起きないが、分類中にカテゴリが
+                    // 編集された場合などに備える。空文字を入れて「処理済」扱いにしないと、
+                    // 次回も同じ記事を拾って無限ループする
                     article.aiCategory = ""
                     article.aiClassificationError = "other"
-                    onError?("マップ失敗（category='\(result.category)'）: \(article.title)")
+                    onError?("未知のカテゴリ（category='\(result.category)'）: \(article.title)")
                     #if DEBUG
-                    print("[AI分類] ⚠️マップ失敗（category='\(result.category)'）: \(article.title)")
+                    print("[AI分類] ⚠️未知のカテゴリ（category='\(result.category)'）: \(article.title)")
                     #endif
                 }
                 article.keywords = result.keywords
@@ -361,50 +360,16 @@ class AIProcessor {
         guard let article = context.model(for: articleID) as? Article else { return }
 
         #if canImport(FoundationModels)
-        let catList = labeledCategoryList
-        let catDescBlock = categoryDescriptionsBlock
-        let desc = article.leadText ?? article.ogDescription ?? ""
-        let isThin = Self.isThinBody(desc)
-        let articleSection: String
-        let keywordInstruction: String
-        if isThin {
-            articleSection = "タイトル: \(article.title)"
-            keywordInstruction = "上のタイトルから抽出できる重要語句を日本語で（最大5つ。抽出できる語が少なければ無理に揃えなくてよい）"
-        } else {
-            articleSection = "タイトル: \(article.title)\n内容: \(String(desc.prefix(200)))"
-            keywordInstruction = "上の記事タイトル・内容に実際に登場する重要語句を日本語で最大5つ抽出（カテゴリ参考の語ではなく、記事本文から）"
-        }
-
-        let prompt = """
-        以下の記事を分類し、キーワードを抽出してください。
-
-        【カテゴリ】
-        \(catList)
-
-        【参考: 各カテゴリの傾向】
-        \(catDescBlock)
-
-        【記事】
-        \(articleSection)
-
-        【出力】
-        - category: 最も適切なカテゴリのアルファベットを1つだけ
-        - keywords: \(keywordInstruction)
-        - keywordsEn: keywordsと同じ順序で各キーワードを英語1単語に翻訳
-        """
         do {
-            let session = LanguageModelSession()
-            let response = try await session.respond(to: prompt, generating: CategoryResult.self)
-            let result = response.content
-            let mappedName = categoryName(from: result.category)
-            if let name = mappedName {
-                article.aiCategory = name
+            let result = try await classify(article)
+            if userCategories.contains(result.category) {
+                article.aiCategory = result.category
                 article.aiClassificationError = nil
             } else {
                 article.aiCategory = ""
                 article.aiClassificationError = "other"
                 #if DEBUG
-                print("[AI再分類] ⚠️マップ失敗（category='\(result.category)'）: \(article.title)")
+                print("[AI再分類] ⚠️未知のカテゴリ（category='\(result.category)'）: \(article.title)")
                 #endif
             }
             article.keywords = result.keywords
