@@ -2,7 +2,7 @@
 
 ## プロジェクト概要
 
-ニュースサイト・ソーシャルメディア・テックコミュニティからRSSでトレンドを収集し、Apple Intelligenceでオンデバイス要約・カテゴリ分類を行うマルチプラットフォームアプリ。Google News RSSをソース発見エンジンとして活用し、新しいソースを自動的に提案する。
+ニュースサイト・ソーシャルメディア・テックコミュニティからRSSでトレンドを収集し、Apple Intelligenceで要約・カテゴリ分類を行うマルチプラットフォームアプリ。Google News RSSをソース発見エンジンとして活用し、新しいソースを自動的に提案する。
 
 > **名前の由来**: Seek（探し求める）+ Thea（θέα: ギリシャ神話の視覚の女神 / ギリシャ語で「眺め・視界」）。ウェブ全体のトレンドを見通して、探し出すアプリ。
 
@@ -12,7 +12,7 @@
 |----------|------|------|
 | RSS取得・パース | FeedKit | Swift製、RSS/Atom/JSON Feed対応 |
 | コンテンツ補完 | OGP抽出 | 記事URLからog:description/og:imageを取得 |
-| AI要約・分類 | Foundation Models framework | iOS 26+、オンデバイス、無料 |
+| AI要約・分類 | Foundation Models framework | iOS 26+、無料。要約はオンデバイス。分類は iOS 27+ で Private Cloud Compute（設定でオフ可）、それ以外はオンデバイス |
 | DB＆同期 | SwiftData + CloudKit | Host in CloudKit = ON |
 | UI | SwiftUI | マルチプラットフォーム対応 |
 | CI/CD | Xcode Cloud | ビルド・TestFlight配信 |
@@ -185,7 +185,7 @@ Seekthea/
 - **Apple Intelligence**: AI非対応デバイスではAI機能を無効化してフォールバック
 - **著作権**: 記事本文は保存しない。RSSのtitle + descriptionのみ保存。「元記事を読む」で元サイトへ誘導
 - **RSS配信元への配慮**: リクエスト間隔を適切に設定（最低30分間隔）
-- **プライバシー**: データはオンデバイス＋iCloud（Apple管理）のみ。第三者サーバーへのデータ送信なし
+- **プライバシー**: データはオンデバイス＋iCloud（Apple管理）のみ。第三者サーバーへのデータ送信なし。例外として、カテゴリ分類では記事のタイトルと概要を Apple の Private Cloud Compute に送る（設定でオフ可。文言を変えるときは docs/privacy.html も更新する）
 
 ## 将来の改善案
 
