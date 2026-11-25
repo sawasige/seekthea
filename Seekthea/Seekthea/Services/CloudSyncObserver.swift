@@ -56,7 +56,7 @@ final class CloudSyncObserver {
                 isImporting = false
                 lastImportEndDate = event.endDate
                 if event.succeeded, let container = modelContainer {
-                    Task { @MainActor in
+                    Task { @MainActor [weak self] in
                         await DataDeduplicator.run(in: container.mainContext) { [weak self] msg in
                             self?.statusMessage = msg
                         }
