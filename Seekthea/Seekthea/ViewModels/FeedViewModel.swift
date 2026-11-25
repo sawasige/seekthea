@@ -41,9 +41,9 @@ class FeedViewModel {
     ) {
         let oldTask = classifyTask
         oldTask?.cancel()
-        classifyTask = Task {
+        classifyTask = Task { [weak self] in
             await oldTask?.value
-            if Task.isCancelled { return }
+            guard let self, !Task.isCancelled else { return }
             #if os(macOS)
             // App Napによるスロットリングを分類中だけ防ぐ
             let activity = ProcessInfo.processInfo.beginActivity(
