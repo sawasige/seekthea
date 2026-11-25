@@ -190,7 +190,7 @@ class AIProcessor {
 
     // MARK: - Private Cloud Compute
 
-    /// 設定「Private Cloud Compute で分類」の UserDefaults キー（未設定ならオン）
+    /// 設定「Apple のサーバーで高精度に分類」の UserDefaults キー（未設定ならオン）
     static let usePCCKey = "usePrivateCloudCompute"
 
     /// PCC で1回のリクエストにまとめる記事数。120記事の計測では、20件でも40件でも

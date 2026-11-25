@@ -55,11 +55,11 @@ struct SettingsView: View {
 
             if AIProcessor.isPCCSupported {
                 Section {
-                    Toggle("Private Cloud Compute で分類", isOn: $usePCC)
+                    Toggle("Apple のサーバーで高精度に分類", isOn: $usePCC)
                 } header: {
                     Text("AI")
                 } footer: {
-                    Text("オンにすると、記事のタイトルと概要を Apple の Private Cloud Compute に送り、端末内よりも高性能なモデルでカテゴリを分類します。通信できないときや利用できないときは、端末内のモデルで分類します。要約はつねに端末内で行います。")
+                    Text("オンにすると、記事のタイトルと概要を Apple のサーバー（Private Cloud Compute）に送り、端末内よりも高性能なモデルでカテゴリを分類します。通信できないときや利用できないときは、端末内のモデルで分類します。要約はつねに端末内で行います。")
                 }
             }
 
