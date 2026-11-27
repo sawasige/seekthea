@@ -1352,8 +1352,14 @@ private struct DetailPagingView: UIViewControllerRepresentable {
         let pvc = UIPageViewController(transitionStyle: .scroll, navigationOrientation: .horizontal)
         pvc.dataSource = context.coordinator
         pvc.delegate = context.coordinator
-        let initial = context.coordinator.viewController(for: .reader)
+        // 最初から選択中のモードを表示する。リーダー抽出に失敗して Web を見ている途中で
+        // この画面に切り替わる場合（selection が .web）に、リーダーから Web へ
+        // アニメーションで飛ばないようにする。飛ぶと、飛ぶ前のリーダーが「Web の前のページ」
+        // として残り、右スワイプで AI要約 を飛ばしてリーダーへ移動してしまう。
+        context.coordinator.currentMode = selection
+        let initial = context.coordinator.viewController(for: selection)
         pvc.setViewControllers([initial], direction: .forward, animated: false)
+        pvc.view.addGestureRecognizer(context.coordinator.previousPageSwipeGuard)
         return pvc
     }
 
@@ -1373,6 +1379,26 @@ private struct DetailPagingView: UIViewControllerRepresentable {
         let parent: DetailPagingView
         var currentMode: DetailViewMode = .reader
         private var controllers: [DetailViewMode: UIViewController] = [:]
+
+        /// 前のモードへ戻る向きの横スワイプを、記事を閉じるジェスチャーより優先させるための見張り役。
+        /// これ自体は何も処理しない。認識されると、上位のビューに付いた「閉じる」「戻る」の
+        /// ジェスチャーが成立しなくなり、スワイプがページめくりに渡る。
+        ///
+        /// 記事詳細はズーム遷移で開いており、iOS 26 以降は画面のどこを右へスワイプしても閉じられる。
+        /// UIPageViewController は隣のページをドラッグ開始時に読み込むので、ボタンでモードを
+        /// 切り替えた直後や、最初から Web を表示した直後は「前のページが無い」状態になっている。
+        /// そのとき右へスワイプすると、ページをめくる代わりに記事が閉じてしまう。
+        lazy var previousPageSwipeGuard: UIPanGestureRecognizer = {
+            let recognizer = UIPanGestureRecognizer()
+            recognizer.delegate = self
+            recognizer.cancelsTouchesInView = false
+            recognizer.delaysTouchesBegan = false
+            recognizer.delaysTouchesEnded = false
+            return recognizer
+        }()
+
+        /// 画面の端からこの幅までで始まったスワイプは、端からの「戻る」操作として残す
+        fileprivate static let edgeSwipeWidth: CGFloat = 32
 
         init(_ parent: DetailPagingView) {
             self.parent = parent
@@ -1456,6 +1482,35 @@ private struct DetailPagingView: UIViewControllerRepresentable {
         }
     }
 }
+
+extension DetailPagingView.Coordinator: UIGestureRecognizerDelegate {
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        // 先頭のリーダーには前のモードが無い。右スワイプはこれまでどおり記事を閉じる
+        guard gestureRecognizer === previousPageSwipeGuard,
+              let view = gestureRecognizer.view,
+              currentMode != .reader else { return false }
+        let isRTL = view.effectiveUserInterfaceLayoutDirection == .rightToLeft
+        let velocity = previousPageSwipeGuard.velocity(in: view)
+        // 前のモードへ戻る向きの、横方向のスワイプだけを対象にする。
+        // 下へのスワイプで閉じる操作などは、そのまま上位のジェスチャーに任せる
+        let towardPrevious = isRTL ? velocity.x < 0 : velocity.x > 0
+        guard towardPrevious, abs(velocity.x) > abs(velocity.y) else { return false }
+        // 画面の端から始まるスワイプは、どのモードでも「戻る」操作として残す
+        let startX = previousPageSwipeGuard.location(in: view).x - previousPageSwipeGuard.translation(in: view).x
+        let distanceFromEdge = isRTL ? view.bounds.width - startX : startX
+        return distanceFromEdge > Self.edgeSwipeWidth
+    }
+
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        // 自分より下の階層にあるページめくりのスクロールや WebView のジェスチャーは邪魔しない。
+        // 上位のビューに付いた「閉じる」「戻る」とは同時に成立させず、こちらを優先する
+        guard let ownView = gestureRecognizer.view, let otherView = otherGestureRecognizer.view else { return true }
+        return otherView.isDescendant(of: ownView)
+    }
+}
 #endif
 
 // MARK: - Detail Mode Button
@@ -1487,6 +1542,7 @@ private struct DetailModeButton: View {
         .buttonStyle(.glassProminent)
         #endif
         .tint(isSelected ? .accentColor : .clear)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
